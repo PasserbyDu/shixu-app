@@ -1,0 +1,220 @@
+<template>
+	<view class="capsule-root">
+		<view :style="statusBarStyle" />
+		<view class="capsule-content" :style="contentStyle">
+			<slot>
+				<view v-if="isShowIcon" class="nav-bar-left" :style="navBarLeftStyle">
+					<view class="nav-bar-left-icon" @click="skipPage">
+						<UniIcons :type="iconType" size="48rpx" :color="iconColorStyle" />
+					</view>
+				</view>
+				<view class="nav-bar-title" :style="titleBoxStyle">
+					<text class="nav-bar-title-text" :style="titleTextStyle">{{ title }}</text>
+				</view>
+			</slot>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { computed, onMounted, ref } from 'vue'
+	import { getNavBarInfo } from '@/utils/system'
+
+	const SCREEN_WIDTH_RPX = 750
+	const TITLE_RIGHT_GAP_RPX = 24
+	const LEFT_ICON_GAP_RPX = 32
+
+	const props = defineProps({
+		title: {
+			type: String,
+			default: ''
+		},
+		titleColor: {
+			type: String,
+			default: '#FFFFFF'
+		},
+		titleFontSize: {
+			type: String,
+			default: '34rpx'
+		},
+		titleFontWeight: {
+			type: String,
+			default: '500'
+		},
+		titleTextAlign: {
+			type: String,
+			default: 'center'
+		},
+		isShowIcon: {
+			type: Boolean,
+			default: true
+		},
+		contentPadding: {
+			type: String,
+			default: '0 0 0 32rpx'
+		},
+		iconColor: {
+			type: String,
+			default: ''
+		}
+	})
+
+	const initialNavBarInfo = getNavBarInfo()
+	const statusBarHeight = ref(initialNavBarInfo.statusBarHeightRpx)
+	const capsuleHeightRpx = ref(initialNavBarInfo.capsuleHeightRpx)
+	const capsuleWidthRpx = ref(initialNavBarInfo.capsuleWidthRpx)
+	const capsuleLeftDistanceRpx = ref(initialNavBarInfo.capsuleLeftDistanceRpx)
+	const historyPageNums = ref(1)
+
+	const statusBarStyle = computed(() : string => {
+		return 'height: ' + statusBarHeight.value + 'rpx;'
+	})
+
+	const contentStyle = computed(() : string => {
+		return 'height: ' + capsuleHeightRpx.value + 'rpx;width: ' + SCREEN_WIDTH_RPX + 'rpx;padding: ' + props.contentPadding + ';'
+	})
+
+	const navBarLeftStyle = computed(() : string => {
+		return 'width: ' + capsuleWidthRpx.value + 'rpx;'
+	})
+
+	const titleBoxStyle = computed(() : string => {
+		return getTitleBoxStyle()
+	})
+
+	const titleTextStyle = computed(() : string => {
+		return 'color: ' + props.titleColor + ';font-size: ' + props.titleFontSize + ';font-weight: ' + props.titleFontWeight + ';'
+	})
+
+	const titleLeftSafeWidth = computed(() : number => {
+		return props.isShowIcon ? capsuleWidthRpx.value + LEFT_ICON_GAP_RPX : 0
+	})
+
+	const titleRightSafeWidth = computed(() : number => {
+		if (capsuleLeftDistanceRpx.value <= 0) {
+			return 0
+		}
+
+		return Math.max(SCREEN_WIDTH_RPX - capsuleLeftDistanceRpx.value + TITLE_RIGHT_GAP_RPX, 0)
+	})
+
+	const titleSafeSideWidth = computed(() : number => {
+		return Math.max(titleLeftSafeWidth.value, titleRightSafeWidth.value)
+	})
+
+	const titleSafeWidth = computed(() : number => {
+		return Math.max(SCREEN_WIDTH_RPX - titleSafeSideWidth.value * 2, 0)
+	})
+
+	const iconType = computed(() : string => {
+		return historyPageNums.value > 1 ? 'back' : 'home'
+	})
+
+	const iconColorStyle = computed(() : string => {
+		return props.iconColor == '' ? props.titleColor : props.iconColor
+	})
+
+	const setNavBarInfo = () => {
+		const navBarInfo = getNavBarInfo()
+		statusBarHeight.value = navBarInfo.statusBarHeightRpx
+		capsuleHeightRpx.value = navBarInfo.capsuleHeightRpx
+		capsuleWidthRpx.value = navBarInfo.capsuleWidthRpx
+		capsuleLeftDistanceRpx.value = navBarInfo.capsuleLeftDistanceRpx
+		historyPageNums.value = getHistoryPageNums()
+	}
+
+	const getTitleBoxStyle = () : string => {
+		const safeSideWidth = titleSafeSideWidth.value
+		const safeWidth = titleSafeWidth.value
+
+		switch (props.titleTextAlign) {
+			case 'right':
+				return 'margin-left: auto;width: ' + safeWidth + 'rpx;justify-content: flex-end;'
+			case 'center':
+				return 'position: absolute;top: 0;bottom: 0;left: ' + safeSideWidth + 'rpx;right: ' + safeSideWidth + 'rpx;width: ' + safeWidth + 'rpx;justify-content: center;'
+			case 'left':
+				return 'margin-right: auto;width: ' + safeWidth + 'rpx;justify-content: flex-start;'
+			default:
+				return 'position: absolute;top: 0;bottom: 0;left: ' + safeSideWidth + 'rpx;right: ' + safeSideWidth + 'rpx;width: ' + safeWidth + 'rpx;justify-content: center;'
+		}
+	}
+
+	const getHistoryPageNums = () : number => {
+		return getCurrentPages().length
+	}
+
+	const skipPage = () => {
+		if (historyPageNums.value > 1) {
+			uni.navigateBack({
+				delta: 1
+			})
+			return
+		}
+
+		uni.switchTab({
+			url: '/pages/index/index',
+			fail: () => {
+				uni.reLaunch({
+					url: '/pages/index/index'
+				})
+			}
+		})
+	}
+
+	onMounted(() => {
+		setNavBarInfo()
+	})
+</script>
+
+<style scoped lang="scss">
+	.capsule-root {
+		position: relative;
+		width: 750rpx;
+		z-index: 1;
+	}
+
+	.capsule-content {
+		position: relative;
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		box-sizing: border-box;
+	}
+
+	.nav-bar-left {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		z-index: 2;
+	}
+
+	.nav-bar-left-icon {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		width: 48rpx;
+		height: 48rpx;
+	}
+
+	.nav-bar-title {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		z-index: 1;
+		overflow: hidden;
+	}
+
+	.nav-bar-title-text {
+		display: block;
+		width: 100%;
+		max-width: 100%;
+		min-width: 0;
+		flex-shrink: 1;
+		lines: 1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		text-align: center;
+	}
+</style>

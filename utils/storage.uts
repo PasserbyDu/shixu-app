@@ -1,0 +1,211 @@
+const DATA_NOT_FOUND_TEXT = 'data not found'
+
+/**
+ * 判断本地存储 key 是否为空。
+ */
+const isInvalidKey = (key : string) : boolean => {
+	return key.length == 0
+}
+
+/**
+ * 获取 key 为空时的统一错误文案。
+ */
+const getInvalidKeyError = () : string => {
+	return 'storage key 不能为空'
+}
+
+/**
+ * 将存储 API 返回的错误信息转换成字符串。
+ */
+const getErrorMessage = (error : any) : string => {
+	if (error == null) {
+		return ''
+	}
+	if (typeof error == 'string') {
+		return error
+	}
+	if (error.errMsg != null) {
+		return error.errMsg
+	}
+	return String(error)
+}
+
+/**
+ * 判断异步读取失败是否为 key 不存在。
+ */
+const isDataNotFoundError = (error : any) : boolean => {
+	return getErrorMessage(error).indexOf(DATA_NOT_FOUND_TEXT) > -1
+}
+
+/**
+ * 异步设置本地存储，成功时返回 true。
+ */
+export const setStorage = (key : string, data : any) : Promise<boolean> => {
+	if (isInvalidKey(key)) {
+		return Promise.reject(getInvalidKeyError())
+	}
+	return new Promise<boolean>((resolve, reject) => {
+		uni.setStorage({
+			key,
+			data,
+			success: () => {
+				resolve(true)
+			},
+			fail: (error) => {
+				reject(error)
+			}
+		})
+	})
+}
+
+/**
+ * 异步获取本地存储，key 不存在时返回 defaultValue。
+ */
+export const getStorage = (key : string, defaultValue : any = null) : Promise<any> => {
+	if (isInvalidKey(key)) {
+		return Promise.reject(getInvalidKeyError())
+	}
+	return new Promise<any>((resolve, reject) => {
+		uni.getStorage({
+			key,
+			success: (res) => {
+				resolve(res.data)
+			},
+			fail: (error) => {
+				if (isDataNotFoundError(error)) {
+					resolve(defaultValue)
+					return
+				}
+				reject(error)
+			}
+		})
+	})
+}
+
+/**
+ * 异步移除指定 key 的本地存储，成功时返回 true。
+ */
+export const removeStorage = (key : string) : Promise<boolean> => {
+	if (isInvalidKey(key)) {
+		return Promise.reject(getInvalidKeyError())
+	}
+	return new Promise<boolean>((resolve, reject) => {
+		uni.removeStorage({
+			key,
+			success: () => {
+				resolve(true)
+			},
+			fail: (error) => {
+				reject(error)
+			}
+		})
+	})
+}
+
+/**
+ * 异步清除全部本地存储，成功时返回 true。
+ */
+export const clearStorage = () : Promise<boolean> => {
+	return new Promise<boolean>((resolve, reject) => {
+		uni.clearStorage({
+			success: () => {
+				resolve(true)
+			},
+			fail: (error) => {
+				reject(error)
+			}
+		})
+	})
+}
+
+/**
+ * 异步获取当前本地存储信息。
+ */
+export const getStorageInfo = () : Promise<any> => {
+	return new Promise<any>((resolve, reject) => {
+		uni.getStorageInfo({
+			success: (res) => {
+				resolve(res)
+			},
+			fail: (error) => {
+				reject(error)
+			}
+		})
+	})
+}
+
+/**
+ * 异步判断指定 key 是否存在。
+ */
+export const hasStorage = (key : string) : Promise<boolean> => {
+	if (isInvalidKey(key)) {
+		return Promise.resolve(false)
+	}
+	return getStorageInfo().then((info : any) : boolean => {
+		return info.keys.indexOf(key) > -1
+	}).catch(() : boolean => {
+		return false
+	})
+}
+
+/**
+ * 同步设置本地存储，成功时返回 true。
+ */
+export const setStorageSync = (key : string, data : any) : boolean => {
+	if (isInvalidKey(key)) {
+		throw getInvalidKeyError()
+	}
+	uni.setStorageSync(key, data)
+	return true
+}
+
+/**
+ * 同步判断指定 key 是否存在。
+ */
+export const hasStorageSync = (key : string) : boolean => {
+	if (isInvalidKey(key)) {
+		return false
+	}
+	try {
+		const info = uni.getStorageInfoSync()
+		return info.keys.indexOf(key) > -1
+	} catch (error) {
+		return false
+	}
+}
+
+/**
+ * 同步获取本地存储，key 不存在时返回 defaultValue。
+ */
+export const getStorageSync = (key : string, defaultValue : any = null) : any => {
+	if (!hasStorageSync(key)) {
+		return defaultValue
+	}
+	return uni.getStorageSync(key)
+}
+
+/**
+ * 同步移除指定 key 的本地存储，成功时返回 true。
+ */
+export const removeStorageSync = (key : string) : boolean => {
+	if (isInvalidKey(key)) {
+		throw getInvalidKeyError()
+	}
+	uni.removeStorageSync(key)
+	return true
+}
+
+/**
+ * 同步清除全部本地存储，成功时返回 true。
+ */
+export const clearStorageSync = () : boolean => {
+	uni.clearStorageSync()
+	return true
+}
+
+/**
+ * 同步获取当前本地存储信息。
+ */
+export const getStorageInfoSync = () : any => {
+	return uni.getStorageInfoSync()
+}

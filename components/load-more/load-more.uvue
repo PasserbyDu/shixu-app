@@ -1,0 +1,55 @@
+<template>
+	<view v-if="status != 'idle'" class="load-more flex-center" @click="handleClick">
+		<text v-if="status == 'loading'" class="fs24 load-more-text">{{ loadingText }}</text>
+		<text v-else-if="status == 'noMore'" class="fs24 load-more-text">{{ noMoreText }}</text>
+		<text v-else-if="status == 'error'" class="fs24 load-more-error">{{ errorText }}</text>
+		<text v-else class="fs24 load-more-text">{{ moreText }}</text>
+	</view>
+</template>
+
+<script setup lang="uts">
+	const props = withDefaults(defineProps<{
+		// more / loading / noMore / error
+		status : string
+		loadingText ?: string
+		noMoreText ?: string
+		errorText ?: string
+		moreText ?: string
+	}>(), {
+		status: 'idle',
+		loadingText: '加载中...',
+		noMoreText: '没有更多了',
+		errorText: '加载失败，点击重试',
+		moreText: '上拉加载更多'
+	})
+
+	const emit = defineEmits<{
+		(e : 'retry') : void
+	}>()
+
+	// 仅错误状态下点击触发重试
+	const handleClick = () => {
+		if (props.status == 'error') {
+			emit('retry')
+		}
+	}
+</script>
+
+<style scoped lang="scss">
+	@import "@/uni.scss";
+
+	.load-more {
+		width: 100%;
+		height: 80rpx;
+
+		.load-more-text {
+			color: $text-color-grey;
+			line-height: 40rpx;
+		}
+
+		.load-more-error {
+			color: $primary-color;
+			line-height: 40rpx;
+		}
+	}
+</style>

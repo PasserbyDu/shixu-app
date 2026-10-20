@@ -1,0 +1,19 @@
+const DEFAULT_TOAST_ICON = 'none'
+const DEFAULT_TOAST_DURATION = 2000
+
+export const toast = (title : string, options : any = null) => {
+	if (title.length == 0) {
+		return
+	}
+	const toastOptions : any = {
+		title,
+		icon: DEFAULT_TOAST_ICON,
+		duration: DEFAULT_TOAST_DURATION
+	}
+	if (options != null) {
+		Object.keys(options).forEach((key : string) => {
+			toastOptions[key] = options[key]
+		})
+	}
+	uni.showToast(toastOptions)
+}

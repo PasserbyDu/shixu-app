@@ -1,0 +1,38 @@
+.df {
+	display: flex;
+	flex-direction: row;
+}
+
+.f-1 {
+	flex: 1;
+}
+
+.flex-center {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+}
+
+.flex-center-between {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.column-center {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+.flex-column {
+	display: flex;
+	flex-direction: column;
+}
+
+.tc {
+	text-align: center;
+}

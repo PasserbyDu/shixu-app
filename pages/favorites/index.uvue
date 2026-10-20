@@ -1,0 +1,30 @@
+<template>
+	<view class="favorites-page">
+		<empty-state description="暂无收藏">
+			<button class="browse-button mt32" @click="browseCategories">去逛逛</button>
+		</empty-state>
+	</view>
+</template>
+
+<script setup lang="uts">
+	const browseCategories = () => {
+		uni.switchTab({ url: '/pages/category/index' })
+	}
+</script>
+
+<style scoped lang="scss">
+	@import "@/uni.scss";
+
+	.favorites-page {
+		flex: 1;
+		background-color: $uni-bg-color-page;
+
+		.browse-button {
+			padding: 0 48rpx;
+			border-radius: 44rpx;
+			background-color: $primary-color;
+			color: $uni-text-color-inverse;
+			font-size: 28rpx;
+		}
+	}
+</style>

@@ -1,0 +1,39 @@
+<template>
+	<view class="mine-page">
+		<view class="profile-card">
+			<text class="fs40 fw500 text-color">{{ APP_NAME }}</text>
+			<text class="fs28 mt16 text-color-grey">{{ APP_SLOGAN }}</text>
+		</view>
+		<view class="about-card flex-center-between">
+			<text class="fs28 text-color">当前版本</text>
+			<text class="fs28 text-color-grey">{{ APP_VERSION }}</text>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { APP_NAME, APP_SLOGAN, APP_VERSION } from '@/config/app'
+</script>
+
+<style scoped lang="scss">
+	@import "@/uni.scss";
+
+	.mine-page {
+		flex: 1;
+		padding: 32rpx;
+		background-color: $uni-bg-color-page;
+	}
+
+	.profile-card {
+		padding: 48rpx 32rpx;
+		border-radius: 24rpx;
+		background-color: $uni-bg-color;
+	}
+
+	.about-card {
+		margin-top: 24rpx;
+		padding: 32rpx;
+		border-radius: 20rpx;
+		background-color: $uni-bg-color;
+	}
+</style>

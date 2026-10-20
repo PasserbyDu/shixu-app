@@ -1,0 +1,616 @@
+import { getToken, logout } from '@/utils/login'
+import { toast } from '@/utils/toast'
+import { HTTP_REQUEST_URL } from '@/config/request'
+
+const REQUEST_TIMEOUT = 15000
+
+let requestFormType = 'app'
+
+// #ifdef H5
+requestFormType = 'h5'
+// #endif
+
+// #ifdef MP
+requestFormType = 'routine'
+// #endif
+
+// #ifdef APP
+requestFormType = 'app'
+// #endif
+
+/**
+ * 判断传入地址是否为完整 HTTP / HTTPS 地址。
+ */
+const isAbsoluteUrl = (url : string) : boolean => {
+	return url.indexOf('http://') == 0 || url.indexOf('https://') == 0
+}
+
+/**
+ * 移除请求根地址末尾的斜杠，避免和接口路径拼接时出现双斜杠。
+ */
+const normalizeBaseUrl = (url : string) : string => {
+	if (url.length > 0 && url.substring(url.length - 1) == '/') {
+		return url.substring(0, url.length - 1)
+	}
+	return url
+}
+
+/**
+ * 统一接口路径格式，确保相对路径以斜杠开头。
+ */
+const normalizeRequestPath = (url : string) : string => {
+	if (url.indexOf('/') == 0) {
+		return url
+	}
+	return '/' + url
+}
+
+/**
+ * 根据请求根地址和接口路径生成最终请求地址。
+ */
+const buildRequestUrl = (url : string, requestBaseUrl : string = HTTP_REQUEST_URL) : string => {
+	if (isAbsoluteUrl(url)) {
+		return url
+	}
+	const baseUrl = normalizeBaseUrl(requestBaseUrl)
+	const requestPath = normalizeRequestPath(url)
+	if (baseUrl.length == 0) {
+		return requestPath
+	}
+	return baseUrl + requestPath
+}
+
+/**
+ * 读取布尔类型请求配置，配置不存在或类型不正确时返回默认值。
+ */
+const getBooleanOption = (options : any, key : string, defaultValue : boolean) : boolean => {
+	if (options == null || options[key] == null) {
+		return defaultValue
+	}
+	if (typeof options[key] == 'boolean') {
+		return options[key]
+	}
+	return defaultValue
+}
+
+/**
+ * 获取本次请求超时时间，未传入时使用默认超时时间。
+ */
+const getTimeoutOption = (options : any) : number => {
+	if (options == null || options.timeout == null) {
+		return REQUEST_TIMEOUT
+	}
+	if (typeof options.timeout == 'number') {
+		return options.timeout
+	}
+	return REQUEST_TIMEOUT
+}
+
+/**
+ * 读取字符串类型请求配置，配置不存在或类型不正确时返回默认值。
+ */
+const getStringOption = (options : any, key : string, defaultValue : string) : string => {
+	if (options == null || options[key] == null) {
+		return defaultValue
+	}
+	if (typeof options[key] == 'string') {
+		return options[key]
+	}
+	return defaultValue
+}
+
+/**
+ * 获取请求方法并统一转换为大写。
+ */
+const getMethodOption = (options : any) : string => {
+	if (options == null || options.method == null) {
+		return 'GET'
+	}
+	if (typeof options.method == 'string') {
+		return options.method.toUpperCase()
+	}
+	return 'GET'
+}
+
+/**
+ * 从错误对象中提取可展示的错误信息。
+ */
+const getErrorMessage = (error : any, defaultMessage : string) : string => {
+	if (error == null) {
+		return defaultMessage
+	}
+	if (typeof error == 'string') {
+		return error
+	}
+	if (error.message != null && typeof error.message == 'string') {
+		return error.message
+	}
+	if (error.msg != null && typeof error.msg == 'string') {
+		return error.msg
+	}
+	if (error.errMsg != null && typeof error.errMsg == 'string') {
+		return error.errMsg
+	}
+	return defaultMessage
+}
+
+/**
+ * 读取返回体中的 msg 提示文案，没有则用默认值。
+ */
+const getResponseMessage = (responseData : any, defaultMessage : string) : string => {
+	if (responseData != null && responseData.msg != null && typeof responseData.msg == 'string') {
+		const msg = responseData.msg as string
+		if (msg.length > 0) {
+			return msg
+		}
+	}
+	return defaultMessage
+}
+
+/**
+ * 以 toast 形式展示请求错误信息。
+ */
+let requestLoadingCount = 0
+let requestLoadingGeneration = 0
+let pendingErrorToastMessage = ''
+let pendingErrorToastTimer : ReturnType<typeof setTimeout> | undefined
+
+const clearPendingErrorToastTimer = () => {
+	if (pendingErrorToastTimer == null) return
+	clearTimeout(pendingErrorToastTimer)
+	pendingErrorToastTimer = undefined
+}
+
+const flushPendingErrorToast = () => {
+	if (pendingErrorToastMessage.length == 0) return
+	clearPendingErrorToastTimer()
+	pendingErrorToastTimer = setTimeout(() => {
+		pendingErrorToastTimer = undefined
+		if (requestLoadingCount > 0) return
+		const message = pendingErrorToastMessage
+		pendingErrorToastMessage = ''
+		toast(message)
+	}, 80)
+}
+
+const showErrorToast = (message : string) => {
+	if (message.length == 0) return
+	if (requestLoadingCount > 0) {
+		pendingErrorToastMessage = message
+		flushPendingErrorToast()
+		return
+	}
+	clearPendingErrorToastTimer()
+	pendingErrorToastMessage = ''
+	toast(message)
+}
+
+const showRequestLoading = (title : string) : number => {
+	const generation = requestLoadingGeneration
+	requestLoadingCount++
+	if (requestLoadingCount == 1) {
+		uni.showLoading({
+			title
+		})
+	}
+	return generation
+}
+
+const hideRequestLoading = (generation : number) => {
+	if (generation != requestLoadingGeneration) return
+	if (requestLoadingCount <= 0) return
+	requestLoadingCount--
+	if (requestLoadingCount > 0) return
+	uni.hideLoading()
+	flushPendingErrorToast()
+}
+
+/**
+ * 页面或 Tab 切换时立即清除全局 loading。
+ * generation 用于隔离切换前后的请求，避免旧请求结束时误关闭新页面的 loading。
+ */
+export const clearRequestLoading = () => {
+	requestLoadingGeneration++
+	requestLoadingCount = 0
+	uni.hideLoading()
+}
+
+/**
+ * 读取返回体中的错误码（errorCode），不存在时返回空字符串。
+ */
+const getErrorCode = (responseData : any) : string => {
+	if (responseData != null && responseData.errorCode != null && typeof responseData.errorCode == 'string') {
+		return responseData.errorCode as string
+	}
+	return ''
+}
+
+/**
+ * 创建业务错误对象。statusCode 为业务状态码（与 HTTP 一致），
+ * errorCode 供页面做代码分支，data 在校验错误时为 {字段:错误信息}。
+ */
+const createBusinessError = (businessStatus : number, responseData : any, message : string) : any => {
+	return {
+		statusCode: businessStatus,
+		errorCode: getErrorCode(responseData),
+		data: responseData != null ? responseData.data : null,
+		message
+	}
+}
+
+/**
+ * 创建网络异常对应的统一错误对象。
+ */
+const createNetworkError = (error : any, message : string) : any => {
+	return {
+		statusCode: 0,
+		errorCode: '',
+		data: null,
+		message,
+		error
+	}
+}
+
+/**
+ * 提取业务状态码：优先取返回体 status，没有则用 HTTP 状态码。
+ */
+const getBusinessStatus = (response : any) : number => {
+	const responseData : any = response.data
+	if (responseData != null && typeof responseData.status == 'number') {
+		return responseData.status as number
+	}
+	return response.statusCode as number
+}
+
+/**
+ * 处理 401 未登录 / Token 失效：清理登录态，提示并切换到我的页面。
+ * 通过标记避免并发请求重复跳转。
+ */
+let isHandlingAuthExpired = false
+const handleAuthExpired = () => {
+	if (isHandlingAuthExpired) return
+	isHandlingAuthExpired = true
+	// 模板没有绑定登录业务，后续接入登录页时在此统一修改跳转。
+	try {
+		logout()
+	} catch (e) { }
+	showErrorToast('登录状态已失效，请重新登录')
+	// 延迟跳转，先让 toast 展示出来，否则立即跳转会把 toast 顶掉看不到
+	setTimeout(() => {
+		uni.switchTab({
+			url: '/pages/mine/index',
+			complete: () => {
+				isHandlingAuthExpired = false
+			}
+		})
+	}, 1200)
+}
+
+
+/**
+ * 生成指定 HTTP method 的请求配置。
+ */
+const createMethodOptions = (url : string, method : string, data : any = null, options : any = null) : any => {
+	const requestOptions : any = {}
+	if (options != null) {
+		Object.keys(options).forEach((key : string) => {
+			requestOptions[key] = options[key]
+		})
+	}
+	requestOptions.url = url
+	requestOptions.method = method
+	requestOptions.data = data
+	return requestOptions
+}
+
+/**
+ * 发起统一封装请求，处理地址拼接、请求头、token、loading、错误提示和未登录清理。
+ */
+export const request = (options : any) : Promise<any> => {
+	if (options == null || options.url == null || typeof options.url != 'string' || options.url.length == 0) {
+		return Promise.reject('request url 不能为空')
+	}
+	if (!isAbsoluteUrl(options.url) && getStringOption(options, 'baseUrl', HTTP_REQUEST_URL).trim().length == 0) {
+		return Promise.reject('请先在 config/request.uts 配置接口根地址')
+	}
+	const showLoading = getBooleanOption(options, 'showLoading', false)
+	const showError = getBooleanOption(options, 'showError', true)
+	const needToken = getBooleanOption(options, 'needToken', true)
+	const fullResponse = getBooleanOption(options, 'fullResponse', false)
+	const loadingTitle = getStringOption(options, 'loadingTitle', '加载中')
+	let loadingGeneration = -1
+	const header : any = {
+		'content-type': 'application/json',
+		'Form-type': requestFormType
+	}
+	if (needToken) {
+		const token = getToken()
+		if (token.length > 0) {
+			header['Authorization'] = 'Bearer ' + token
+		}
+	}
+	if (options.header != null) {
+		Object.keys(options.header).forEach((key : string) => {
+			header[key] = options.header[key]
+		})
+	}
+	if (showLoading) {
+		loadingGeneration = showRequestLoading(loadingTitle)
+	}
+	return new Promise<any>((resolve, reject) => {
+		uni.request({
+			url: buildRequestUrl(options.url, getStringOption(options, 'baseUrl', HTTP_REQUEST_URL)),
+			method: getMethodOption(options),
+			data: options.data,
+			header,
+			timeout: getTimeoutOption(options),
+			success: (response) => {
+				const businessStatus = getBusinessStatus(response)
+				const responseData : any = response.data
+				// 200 成功，数据在 data
+				if (businessStatus == 200) {
+					if (fullResponse) {
+						resolve(response)
+						return
+					}
+					resolve(responseData)
+					return
+				}
+				// 401 未登录 / Token 失效：清登录态 + 提示 + 切换到我的页面（始终执行，与 showError 无关）
+				if (businessStatus == 401) {
+					handleAuthExpired()
+					reject(createBusinessError(businessStatus, responseData, getResponseMessage(responseData, '登录状态已失效，请重新登录')))
+					return
+				}
+				// 400 参数 / 校验 / 业务错误：提示 msg（校验错误 data 为 {字段:错误信息}）
+				if (businessStatus == 400) {
+					const message = getResponseMessage(responseData, '请求参数有误')
+					if (showError) showErrorToast(message)
+					reject(createBusinessError(businessStatus, responseData, message))
+					return
+				}
+				// 403 已登录但无权限：仅提示，不登出
+				if (businessStatus == 403) {
+					const message = getResponseMessage(responseData, '暂无权限')
+					if (showError) showErrorToast(message)
+					reject(createBusinessError(businessStatus, responseData, message))
+					return
+				}
+				// 404 接口 / 资源不存在：多为前端路径写错，交由开发排查，不提示用户
+				if (businessStatus == 404) {
+					reject(createBusinessError(businessStatus, responseData, getResponseMessage(responseData, '资源不存在')))
+					return
+				}
+				// 500 及其它未列出的状态码：交由 page-state 整页兜底，提示服务器繁忙
+				const serverMessage = '服务器繁忙，请稍后重试'
+				if (showError) showErrorToast(serverMessage)
+				reject(createBusinessError(businessStatus, responseData, serverMessage))
+			},
+			fail: (error) => {
+				const message = getErrorMessage(error, '网络请求失败')
+				const requestError = createNetworkError(error, message)
+				if (showError) {
+					showErrorToast(message)
+				}
+				reject(requestError)
+			},
+			complete: () => {
+				if (showLoading) {
+					hideRequestLoading(loadingGeneration)
+				}
+			}
+		})
+	})
+}
+
+/**
+ * 发起 GET 请求。
+ */
+export const get = (url : string, data : any = null, options : any = null) : Promise<any> => {
+	return request(createMethodOptions(url, 'GET', data, options))
+}
+
+/**
+ * 发起 POST 请求。
+ */
+export const post = (url : string, data : any = null, options : any = null) : Promise<any> => {
+	return request(createMethodOptions(url, 'POST', data, options))
+}
+
+/**
+ * 发起 PUT 请求。
+ */
+export const put = (url : string, data : any = null, options : any = null) : Promise<any> => {
+	return request(createMethodOptions(url, 'PUT', data, options))
+}
+
+/**
+ * 发起 DELETE 请求，方法名使用 del 避免和关键字 delete 冲突。
+ */
+export const del = (url : string, data : any = null, options : any = null) : Promise<any> => {
+	return request(createMethodOptions(url, 'DELETE', data, options))
+}
+
+/**
+ * 解析 uploadFile 返回的数据。小程序端 response.data 通常是 JSON 字符串，
+ * App / H5 端可能已经是对象，统一转换后交给业务状态处理。
+ */
+const parseUploadResponseData = (value : any) : any => {
+	if (value == null || typeof value != 'string') return value
+	const source = (value as string).trim()
+	if (source.length == 0) return null
+	try {
+		return JSON.parse(source)
+	} catch (_ : any) {
+		return value
+	}
+}
+
+/**
+ * 发起统一文件上传，处理地址、公共请求头、token、loading 和业务错误。
+ */
+export const upload = (url : string, filePath : string, data : any = null, options : any = null) : Promise<any> => {
+	if (url.length == 0) return Promise.reject('upload url 不能为空')
+	if (filePath.length == 0) return Promise.reject('upload filePath 不能为空')
+	if (!isAbsoluteUrl(url) && getStringOption(options, 'baseUrl', HTTP_REQUEST_URL).trim().length == 0) {
+		return Promise.reject('请先在 config/request.uts 配置接口根地址')
+	}
+	const showLoading = getBooleanOption(options, 'showLoading', false)
+	const showError = getBooleanOption(options, 'showError', true)
+	const needToken = getBooleanOption(options, 'needToken', true)
+	const fullResponse = getBooleanOption(options, 'fullResponse', false)
+	const loadingTitle = getStringOption(options, 'loadingTitle', '上传中')
+	let loadingGeneration = -1
+	const fileName = getStringOption(options, 'name', 'file')
+	const header : any = {
+		'Form-type': requestFormType
+	}
+	if (needToken) {
+		const token = getToken()
+		if (token.length > 0) header['Authorization'] = 'Bearer ' + token
+	}
+	if (options != null && options.header != null) {
+		Object.keys(options.header).forEach((key : string) => {
+			header[key] = options.header[key]
+		})
+	}
+	if (showLoading) loadingGeneration = showRequestLoading(loadingTitle)
+	return new Promise<any>((resolve, reject) => {
+		uni.uploadFile({
+			url: buildRequestUrl(url, getStringOption(options, 'baseUrl', HTTP_REQUEST_URL)),
+			filePath,
+			name: fileName,
+			formData: data,
+			header,
+			timeout: getTimeoutOption(options),
+			success: (response) => {
+				const responseData : any = parseUploadResponseData(response.data)
+				const businessStatus = responseData != null && typeof responseData.status == 'number'
+					? responseData.status as number
+					: response.statusCode as number
+				if (businessStatus == 200) {
+					if (fullResponse) {
+						resolve({
+							statusCode: response.statusCode,
+							header: response.header,
+							data: responseData
+						})
+						return
+					}
+					resolve(responseData)
+					return
+				}
+				if (businessStatus == 401) {
+					handleAuthExpired()
+					reject(createBusinessError(businessStatus, responseData, getResponseMessage(responseData, '登录状态已失效，请重新登录')))
+					return
+				}
+				if (businessStatus == 400) {
+					const message = getResponseMessage(responseData, '上传文件不符合要求')
+					if (showError) showErrorToast(message)
+					reject(createBusinessError(businessStatus, responseData, message))
+					return
+				}
+				if (businessStatus == 403) {
+					const message = getResponseMessage(responseData, '暂无上传权限')
+					if (showError) showErrorToast(message)
+					reject(createBusinessError(businessStatus, responseData, message))
+					return
+				}
+				if (businessStatus == 404) {
+					reject(createBusinessError(businessStatus, responseData, getResponseMessage(responseData, '上传接口不存在')))
+					return
+				}
+				const serverMessage = '服务器繁忙，请稍后重试'
+				if (showError) showErrorToast(serverMessage)
+				reject(createBusinessError(businessStatus, responseData, serverMessage))
+			},
+			fail: (error) => {
+				const message = getErrorMessage(error, '文件上传失败')
+				if (showError) showErrorToast(message)
+				reject(createNetworkError(error, message))
+			},
+			complete: () => {
+				if (showLoading) hideRequestLoading(loadingGeneration)
+			}
+		})
+	})
+}
+
+/**
+ * 判断错误属于哪种「整页兜底」类型，用于页面 catch 后决定是否展示兜底页。
+ * 业务状态码约定（statusCode 即业务 status，与 HTTP 一致）：
+ * - 'timeout'：请求超时
+ * - 'network'：无网络 / 网络异常（statusCode == 0）
+ * - 'server' ：服务端错误（500 及其它未单独处理的状态码）
+ * - ''       ：400 / 401 / 403 / 404 等已由请求层 toast / 登出处理的错误，不走兜底
+ */
+export const getFallbackErrorType = (error : any) : string => {
+	if (error == null) return ''
+	const statusCode = typeof error.statusCode == 'number' ? error.statusCode as number : -1
+	if (statusCode == 0) {
+		const message = getErrorMessage(error, '')
+		if (message.indexOf('timeout') > -1 || message.indexOf('超时') > -1) {
+			return 'timeout'
+		}
+		return 'network'
+	}
+	// 400 / 401 / 403 / 404 已在请求层处理，不走整页兜底
+	if (statusCode == 400 || statusCode == 401 || statusCode == 403 || statusCode == 404) {
+		return ''
+	}
+	// 200 是成功，理论不会进 catch；其余（500 等服务端错误）统一兜底
+	if (statusCode == 200) return ''
+	return 'server'
+}
+
+/**
+ * 是否为需要整页兜底的错误（超时 / 无网络 / 服务器错误）。
+ */
+export const isFallbackError = (error : any) : boolean => {
+	return getFallbackErrorType(error).length > 0
+}
+
+/**
+ * 查询当前是否处于无网络状态（networkType == 'none'）。
+ */
+export const isNetworkOffline = () : Promise<boolean> => {
+	return new Promise<boolean>((resolve) => {
+		uni.getNetworkType({
+			success: (res) => {
+				resolve(res.networkType == 'none')
+			},
+			fail: () => {
+				resolve(false)
+			}
+		})
+	})
+}
+
+/**
+ * 异步判定整页兜底错误类型：statusCode == 0 时用 uni.getNetworkType 二次确认是否真无网络，
+ * 区分「无网络」与「连接异常」，判定更准。返回值同 getFallbackErrorType。
+ * - statusCode 0 + 超时    → 'timeout'
+ * - statusCode 0 + 无网络  → 'network'
+ * - statusCode 0 + 有网络  → 'server'（连接异常，非用户网络问题）
+ * - 400/401/403/404 / 200  → ''（不兜底）
+ * - 500 及其它服务端错误    → 'server'
+ */
+export const getFallbackErrorTypeAsync = (error : any) : Promise<string> => {
+	if (error == null) return Promise.resolve('')
+	const statusCode = typeof error.statusCode == 'number' ? error.statusCode as number : -1
+	if (statusCode == 0) {
+		const message = getErrorMessage(error, '')
+		if (message.indexOf('timeout') > -1 || message.indexOf('超时') > -1) {
+			return Promise.resolve('timeout')
+		}
+		return isNetworkOffline().then((offline : boolean) : string => {
+			return offline ? 'network' : 'server'
+		})
+	}
+	if (statusCode == 400 || statusCode == 401 || statusCode == 403 || statusCode == 404) {
+		return Promise.resolve('')
+	}
+	if (statusCode == 200) return Promise.resolve('')
+	return Promise.resolve('server')
+}

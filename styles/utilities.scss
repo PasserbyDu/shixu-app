@@ -1,0 +1,45 @@
+@for $i from 0 through 100 {
+    .fs#{$i} {
+		font-size: #{$i}rpx;
+	}
+
+	.mt#{$i} {
+		margin-top: #{$i}rpx;
+	}
+
+	.mb#{$i} {
+		margin-bottom: #{$i}rpx;
+	}
+
+	.ml#{$i} {
+		margin-left: #{$i}rpx;
+	}
+
+	.mr#{$i} {
+		margin-right: #{$i}rpx;
+	}
+
+	.pt#{$i} {
+		padding-top: #{$i}rpx;
+	}
+
+	.pb#{$i} {
+		padding-bottom: #{$i}rpx;
+	}
+
+	.pl#{$i} {
+		padding-left: #{$i}rpx;
+	}
+
+	.pr#{$i} {
+		padding-right: #{$i}rpx;
+	}
+}
+
+@for $i from 400 through 600 {
+	@if $i % 100 == 0 {
+		.fw#{$i} {
+			font-weight: $i;
+		}
+	}
+}

@@ -1,0 +1,17 @@
+<template>
+	<view class="category-page">
+		<empty-state description="暂无分类" />
+	</view>
+</template>
+
+<script setup lang="uts">
+</script>
+
+<style scoped lang="scss">
+	@import "@/uni.scss";
+
+	.category-page {
+		flex: 1;
+		background-color: $uni-bg-color-page;
+	}
+</style>

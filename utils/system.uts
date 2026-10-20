@@ -1,0 +1,132 @@
+let systemWidth = 0
+
+export type NavBarInfo = {
+	statusBarHeightPx: number
+	navBarHeightPx: number
+	capsuleHeightPx: number
+	capsuleWidthPx: number
+	capsulePaddingTopPx: number
+	capsulePaddingBottomPx: number
+	capsuleLeftDistancePx: number
+	capsuleRightDistancePx: number
+	statusBarHeightRpx: number
+	navBarHeightRpx: number
+	capsuleHeightRpx: number
+	capsuleWidthRpx: number
+	capsulePaddingTopRpx: number
+	capsulePaddingBottomRpx: number
+	capsuleLeftDistanceRpx: number
+	capsuleRightDistanceRpx: number
+}
+
+export const loadSystemWidth = () : number => {
+	if (systemWidth > 0) {
+		return systemWidth
+	}
+
+	// #ifdef MP-WEIXIN
+	try {
+		const windowInfo = uni.getWindowInfo()
+		if (windowInfo.windowWidth > 0) {
+			systemWidth = windowInfo.windowWidth
+		}
+	} catch (e) {
+		systemWidth = 0
+	}
+	// #endif
+
+	// #ifndef MP-WEIXIN
+	try {
+		const systemInfo = uni.getSystemInfoSync()
+		if (systemInfo.windowWidth > 0) {
+			systemWidth = systemInfo.windowWidth
+		}
+	} catch (e) {
+		systemWidth = 0
+	}
+	// #endif
+
+	if (systemWidth <= 0) {
+		systemWidth = 375
+	}
+
+	return systemWidth
+}
+
+export const rpx2px = (rpx: number, round: boolean = false) : number => {
+	const width = loadSystemWidth()
+	const result = (rpx * width) / 750
+	return round ? Math.floor(result) : result
+}
+
+export const px2rpx = (px: number, round: boolean = true) : number => {
+	const width = loadSystemWidth()
+	const result = (px * 750) / width
+	return round ? Math.floor(result) : result
+}
+
+export const getNavBarInfo = () : NavBarInfo => {
+	const width = loadSystemWidth()
+	let statusBarHeight = 47
+
+	// #ifdef MP-WEIXIN
+	try {
+		const windowInfo = uni.getWindowInfo()
+		if (windowInfo.statusBarHeight > 0) {
+			statusBarHeight = windowInfo.statusBarHeight
+		}
+	} catch (e) {}
+	// #endif
+
+	// #ifndef MP-WEIXIN
+	try {
+		const systemInfo = uni.getSystemInfoSync()
+		if (systemInfo.statusBarHeight > 0) {
+			statusBarHeight = systemInfo.statusBarHeight
+		}
+	} catch (e) {}
+	// #endif
+
+	let capsuleTop = statusBarHeight + 4
+	let capsuleHeight = 32
+	let capsuleWidth = 87
+	let capsuleRight = width - 7
+	let capsuleLeft = capsuleRight - capsuleWidth
+	let capsuleBottom = capsuleTop + capsuleHeight
+
+	// #ifdef MP-WEIXIN
+	try {
+		const menuButtonInfo = uni.getMenuButtonBoundingClientRect()
+		capsuleTop = menuButtonInfo.top
+		capsuleBottom = menuButtonInfo.bottom
+		capsuleWidth = menuButtonInfo.width
+		capsuleHeight = menuButtonInfo.height
+		capsuleLeft = menuButtonInfo.left
+		capsuleRight = menuButtonInfo.right
+	} catch (e) {}
+	// #endif
+
+	const capsulePaddingTopPx = capsuleTop - statusBarHeight
+	const capsulePaddingBottomPx = capsuleBottom - capsuleTop - capsuleHeight + capsulePaddingTopPx
+	const navBarHeightPx = statusBarHeight + capsuleHeight + capsulePaddingTopPx * 2
+	const capsuleRightDistancePx = width - capsuleRight
+
+	return {
+		statusBarHeightPx: statusBarHeight,
+		navBarHeightPx: navBarHeightPx,
+		capsuleHeightPx: capsuleHeight,
+		capsuleWidthPx: capsuleWidth,
+		capsulePaddingTopPx: capsulePaddingTopPx,
+		capsulePaddingBottomPx: capsulePaddingBottomPx,
+		capsuleLeftDistancePx: capsuleLeft,
+		capsuleRightDistancePx: capsuleRightDistancePx,
+		statusBarHeightRpx: px2rpx(statusBarHeight),
+		navBarHeightRpx: px2rpx(navBarHeightPx),
+		capsuleHeightRpx: px2rpx(capsuleHeight + capsulePaddingTopPx + capsulePaddingBottomPx),
+		capsuleWidthRpx: px2rpx(capsuleWidth),
+		capsulePaddingTopRpx: px2rpx(capsulePaddingTopPx),
+		capsulePaddingBottomRpx: px2rpx(capsulePaddingBottomPx),
+		capsuleLeftDistanceRpx: px2rpx(capsuleLeft),
+		capsuleRightDistanceRpx: px2rpx(capsuleRightDistancePx)
+	}
+}

@@ -1,0 +1,29 @@
+import { getStorage, getStorageSync, removeStorageSync, setStorage, setStorageSync } from '@/utils/storage'
+import { STORAGE_TOKEN_KEY, STORAGE_USER_INFO_KEY } from '@/config/constants'
+
+export const setToken = (token : string) : boolean => {
+	return setStorageSync(STORAGE_TOKEN_KEY, token)
+}
+
+export const getToken = () : string => {
+	const value = getStorageSync(STORAGE_TOKEN_KEY, '')
+	return typeof value == 'string' ? value as string : ''
+}
+
+export const setUserInfo = (userInfo : any) : Promise<boolean> => {
+	return setStorage(STORAGE_USER_INFO_KEY, userInfo)
+}
+
+export const getUserInfo = () : Promise<any> => {
+	return getStorage(STORAGE_USER_INFO_KEY, null)
+}
+
+export const isLogin = () : boolean => {
+	return getToken().length > 0
+}
+
+// 鉴权失效时同步清除登录数据，保留其它本地缓存。
+export const logout = () => {
+	removeStorageSync(STORAGE_TOKEN_KEY)
+	removeStorageSync(STORAGE_USER_INFO_KEY)
+}

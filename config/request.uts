@@ -1,0 +1,8 @@
+export const REQUEST_ENV_TEST = 'test'
+export const REQUEST_ENV_PRODUCTION = 'production'
+export const REQUEST_ENV = REQUEST_ENV_TEST
+
+// 接入新项目后填写自己的接口根地址。未配置时请求工具直接拒绝相对路径请求。
+export const REQUEST_TEST_HTTP_API = ''
+export const REQUEST_PROD_HTTP_API = ''
+export const HTTP_REQUEST_URL = REQUEST_ENV == REQUEST_ENV_TEST ? REQUEST_TEST_HTTP_API : REQUEST_PROD_HTTP_API

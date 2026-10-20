@@ -1,0 +1,71 @@
+<template>
+	<scroll-view class="home-page" scroll-y="true">
+		<view class="welcome-card">
+			<text class="fs48 fw500 text-color">{{ APP_NAME }}</text>
+			<text class="fs28 text-color-grey mt16">{{ APP_SLOGAN }}</text>
+		</view>
+		<view class="entry-list">
+			<text class="fs32 fw500 text-color mb24">快捷入口</text>
+			<view v-for="item in entries" :key="item.path" class="entry-card flex-center-between" @click="openTab(item.path)">
+				<view class="df">
+					<image class="entry-icon mr24" :src="item.icon" mode="aspectFit" />
+					<text class="fs30 text-color">{{ item.title }}</text>
+				</view>
+				<UniIcons type="arrow-right" size="32rpx" color="#8A9AB5" />
+			</view>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { APP_NAME, APP_SLOGAN } from '@/config/app'
+
+	// data
+	type Entry = {
+		title : string
+		path : string
+		icon : string
+	}
+	const entries : Entry[] = [
+		{ title: '分类', path: '/pages/category/index', icon: '/static/tabbar/category-selected.png' },
+		{ title: '收藏', path: '/pages/favorites/index', icon: '/static/tabbar/favorites-selected.png' },
+		{ title: '我的', path: '/pages/mine/index', icon: '/static/tabbar/mine-selected.png' }
+	]
+
+	// methods
+	const openTab = (path : string) => {
+		uni.switchTab({ url: path })
+	}
+</script>
+
+<style scoped lang="scss">
+	@import "@/uni.scss";
+
+	.home-page {
+		flex: 1;
+		background-color: $uni-bg-color-page;
+	}
+
+	.welcome-card {
+		margin: 32rpx;
+		padding: 48rpx 32rpx;
+		border-radius: 24rpx;
+		background-color: $uni-bg-color;
+	}
+
+	.entry-list {
+		padding: 0 32rpx 32rpx;
+
+		.entry-card {
+			margin-bottom: 20rpx;
+			padding: 32rpx;
+			border-radius: 20rpx;
+			background-color: $uni-bg-color;
+
+			.entry-icon {
+				width: 44rpx;
+				height: 44rpx;
+			}
+		}
+	}
+</style>

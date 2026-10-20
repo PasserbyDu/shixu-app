@@ -1,0 +1,150 @@
+<template>
+	<view class="page-header-root">
+		<view v-if="occupySpace && fixed" class="page-header-placeholder" :style="placeholderStyle" />
+		<view :class="'page-header-content ' + headerClass" :style="contentStyle">
+			<capsule v-if="showCapsule && customCapsuleContent" :isShowIcon="false" :contentPadding="contentPadding">
+				<slot name="capsule" />
+			</capsule>
+			<capsule v-else-if="showCapsule" :title="title" :titleColor="titleColor" :titleFontSize="titleFontSize" :titleFontWeight="titleFontWeight" :titleTextAlign="titleTextAlign" :isShowIcon="isShowIcon" :contentPadding="contentPadding" :iconColor="iconColor" />
+			<slot />
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { computed } from 'vue'
+
+	const props = defineProps({
+		fixed: {
+			type: Boolean,
+			default: true
+		},
+		height: {
+			type: Number,
+			default: 0
+		},
+		width: {
+			type: Number,
+			default: 750
+		},
+		top: {
+			type: Number,
+			default: 0
+		},
+		zIndex: {
+			type: Number,
+			default: 99
+		},
+		occupySpace: {
+			type: Boolean,
+			default: true
+		},
+		headerClass: {
+			type: String,
+			default: ''
+		},
+		showCapsule: {
+			type: Boolean,
+			default: true
+		},
+		customCapsuleContent: {
+			type: Boolean,
+			default: false
+		},
+		title: {
+			type: String,
+			default: ''
+		},
+		titleColor: {
+			type: String,
+			default: '#FFFFFF'
+		},
+		titleFontSize: {
+			type: String,
+			default: '34rpx'
+		},
+		titleFontWeight: {
+			type: String,
+			default: 'bold'
+		},
+		titleTextAlign: {
+			type: String,
+			default: 'center'
+		},
+		isShowIcon: {
+			type: Boolean,
+			default: true
+		},
+		contentPadding: {
+			type: String,
+			default: '0 0 0 32rpx'
+		},
+		iconColor: {
+			type: String,
+			default: ''
+		}
+	})
+
+	const baseStyle = computed(() : string => {
+		let style = 'width: ' + props.width + 'rpx;'
+		if (props.height > 0) {
+			style += 'height: ' + props.height + 'rpx;'
+		}
+		return style
+	})
+
+	const placeholderStyle = computed(() : string => {
+		return baseStyle.value
+	})
+
+	const contentStyle = computed(() : string => {
+		let style = baseStyle.value + 'z-index: ' + props.zIndex + ';'
+		if (props.fixed) {
+			style += 'position: fixed;left: 0;top: ' + props.top + 'rpx;'
+			return style
+		}
+		if (props.occupySpace) {
+			style += 'position: relative;'
+			return style
+		}
+		style += 'position: absolute;left: 0;top: ' + props.top + 'rpx;'
+		return style
+	})
+</script>
+
+<style scoped lang="scss">
+	@import "@/uni.scss";
+
+	.page-header-root {
+		position: relative;
+		width: 750rpx;
+	}
+
+	.page-header-content {
+		width: 750rpx;
+	}
+
+	.page-header-gradient-bg {
+		background: $page-header-gradient-bg;
+	}
+
+
+	.page-header-white-bg {
+		background-color: $uni-bg-color;
+	}
+
+	.page-header-fade-gradient-bg {
+		background: linear-gradient(180deg, rgba(79, 223, 206, 0) 16.94%, #FFFFFF 100%), $page-header-gradient-bg;
+		background-size: 750rpx 372rpx;
+		background-repeat: no-repeat;
+	}
+
+	.page-header-home-sticky-gradient-bg {
+		background: linear-gradient(180deg, rgba(79, 223, 206, 0) 16.94%, #EFF6F9 100%), $page-header-gradient-bg;
+		background-size: 750rpx 790rpx;
+		background-position: left top;
+		background-repeat: no-repeat;
+	}
+
+
+</style>
