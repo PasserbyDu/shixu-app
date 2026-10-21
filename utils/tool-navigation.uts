@@ -1,0 +1,13 @@
+import { Tool, getToolPath } from '@/config/tools'
+import { toast } from '@/utils/toast'
+
+export const navigateToTool = (tool : Tool) => {
+	const path = getToolPath(tool.id)
+	if (path.length == 0) return toast(tool.title + '功能待接入')
+	uni.navigateTo({
+		url: path,
+		fail: () => {
+			toast('打开工具失败，请重试')
+		}
+	})
+}

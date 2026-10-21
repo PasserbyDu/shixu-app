@@ -1,0 +1,128 @@
+<template>
+	<scroll-view class="calculator-page" scroll-y="true">
+		<page-header :fixed="isHeaderFixed" title="日期差计算" titleColor="#1d394b" headerClass="page-header-calculator-bg" />
+		<view class="calculator-intro">
+			<text class="intro-title">日期差计算</text>
+			<text class="intro-description">把每一段时光，算得清清楚楚</text>
+		</view>
+		<view class="calculator-card">
+			<text class="card-title">选择日期</text>
+			<text class="field-label">起始日期</text>
+			<picker mode="date" :value="startDate" start="0001-01-01" end="9999-12-31" @change="changeStartDate">
+				<view class="field-box">
+					<UniIcons type="calendar" size="34rpx" color="#318fce" />
+					<text class="field-value">{{ startDate }}</text>
+					<UniIcons type="right" size="28rpx" color="#8799a7" />
+				</view>
+			</picker>
+			<view class="date-actions">
+				<view class="swap-button" @click="swapDates">
+					<UniIcons type="loop" size="30rpx" color="#318fce" />
+					<text class="ml-[10rpx] text-[22rpx] text-[#318fce]">交换日期</text>
+				</view>
+			</view>
+			<text class="field-label">结束日期</text>
+			<picker mode="date" :value="endDate" start="0001-01-01" end="9999-12-31" @change="changeEndDate">
+				<view class="field-box">
+					<UniIcons type="calendar" size="34rpx" color="#318fce" />
+					<text class="field-value">{{ endDate }}</text>
+					<UniIcons type="right" size="28rpx" color="#8799a7" />
+				</view>
+			</picker>
+		</view>
+		<view class="calculate-button" @click="calculate">
+			<text class="button-label">计算日期差</text>
+		</view>
+		<view class="calculator-result">
+			<text class="result-label">两个日期相隔</text>
+			<template v-if="resultDays != null">
+				<view class="result-main">
+					<text class="result-number">{{ resultDays }}</text>
+					<text class="result-unit">天</text>
+				</view>
+				<view class="result-divider" />
+				<view class="result-footer">
+					<text class="result-detail">{{ weekSummary }}</text>
+					<text class="result-caption">共 {{ totalHours }} 小时</text>
+				</view>
+			</template>
+			<text v-else class="result-placeholder">日期已更新，请点击计算</text>
+		</view>
+		<view class="calculator-notes">
+			<text class="notes-title">计算说明</text>
+			<text class="notes-text">按自然日计算，不包含起始当天。同一天的间隔为 0 天。</text>
+			<text class="notes-text">交换日期后，将显示相同的间隔天数。小时数按每天 24 小时折算。</text>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue'
+	import { calculateDateDays, formatCalendarDate } from '@/utils/calculators'
+	import { toast } from '@/utils/toast'
+	import { recordToolUsage } from '@/utils/tool-usage'
+
+	// data
+	const isHeaderFixed = ref(false)
+	const today = new Date()
+	const startDate = ref(formatCalendarDate(new Date(today.getFullYear(), today.getMonth(), 1)))
+	const endDate = ref(formatCalendarDate(today))
+	const resultDays = ref<number | null>(calculateDateDays(startDate.value, endDate.value))
+
+	// computed
+	const weekSummary = computed(() : string => {
+		const days = resultDays.value ?? 0
+		return Math.floor(days / 7) + ' 周 ' + (days % 7) + ' 天'
+	})
+	const totalHours = computed(() : number => (resultDays.value ?? 0) * 24)
+
+	// methods
+	const changeStartDate = (event : UniPickerChangeEvent) => {
+		startDate.value = event.detail.value as string
+		resultDays.value = null
+	}
+	const changeEndDate = (event : UniPickerChangeEvent) => {
+		endDate.value = event.detail.value as string
+		resultDays.value = null
+	}
+	const swapDates = () => {
+		const previous = startDate.value
+		startDate.value = endDate.value
+		endDate.value = previous
+	}
+	const calculate = () => {
+		uni.hideKeyboard()
+		const days = calculateDateDays(startDate.value, endDate.value)
+		if (days == null) return toast('请选择有效日期')
+		resultDays.value = days
+	}
+
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('date').catch(() => {
+			toast('保存使用记录失败')
+		})
+	})
+</script>
+
+<style scoped lang="scss">
+	@import "@/styles/calculator.scss";
+
+	.calculator-card {
+		.date-actions {
+			display: flex;
+			flex-direction: row;
+			justify-content: flex-end;
+			margin: 16rpx 0 20rpx;
+
+			.swap-button {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				padding: 12rpx 20rpx;
+				border-radius: 28rpx;
+				background-color: #edf7fe;
+			}
+		}
+	}
+</style>

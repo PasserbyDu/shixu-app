@@ -1,0 +1,13 @@
+@import "tailwindcss" source(none);
+
+@source "./App.uvue";
+@source "./pages/**/*.{uvue,uts}";
+@source "./components/**/*.{uvue,uts}";
+@source "./utils/**/*.uts";
+@source "./hooks/**/*.uts";
+@source "./stores/**/*.uts";
+
+@source not "./uni_modules/**/*";
+@source not "./unpackage/**/*";
+@source not "./dist/**/*";
+@source not "./node_modules/**/*";

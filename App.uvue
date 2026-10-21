@@ -17,5 +17,6 @@
 </script>
 
 <style lang="scss">
-	@import "@/styles/index.scss";
+	@import "./main.css";
+	@import "./styles/index.scss";
 </style>

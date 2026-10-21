@@ -1,41 +1,223 @@
 <template>
 	<scroll-view class="home-page" scroll-y="true">
-		<view class="welcome-card">
-			<text class="fs48 fw500 text-color">{{ APP_NAME }}</text>
-			<text class="fs28 text-color-grey mt16">{{ APP_SLOGAN }}</text>
-		</view>
-		<view class="entry-list">
-			<text class="fs32 fw500 text-color mb24">快捷入口</text>
-			<view v-for="item in entries" :key="item.path" class="entry-card flex-center-between" @click="openTab(item.path)">
-				<view class="df">
-					<image class="entry-icon mr24" :src="item.icon" mode="aspectFit" />
-					<text class="fs30 text-color">{{ item.title }}</text>
+		<page-header :fixed="isHeaderFixed" :showCapsule="false" :occupySpace="true">
+			<view class="home-hero" :style="heroStyle">
+				<!-- 后续将 heroImageUrl 替换为 HTTPS 山水头图地址。 -->
+				<image v-if="heroImageUrl.length > 0" class="hero-image" :src="heroImageUrl" mode="aspectFill" />
+				<view class="hero-content">
+					<text class="text-[52rpx] font-bold text-[#092b4c] leading-[64rpx]">拾序有方</text>
+					<view class="flex flex-row items-center justify-between">
+						<text class="text-[23rpx] text-[#6e8eaa] leading-[32rpx]">万 事 有 方 ， 生 活 有 序</text>
+						<view class="notification" @click="showNotifications">
+							<UniIcons type="notification" size="42rpx" color="#123352" />
+							<view class="notification-dot" />
+						</view>
+					</view>
+					<text class="mt-[30rpx] text-[40rpx] font-bold text-[#0d3052] leading-[52rpx]">今天也有好方法</text>
+					<text class="mt-[8rpx] text-[23rpx] text-[#587d9d] leading-[32rpx]">从一个顺手的工具，开始有序的生活</text>
+					<view class="search-box">
+						<UniIcons type="search" size="44rpx" color="#587d9d" />
+						<input
+							v-model="keyword"
+							class="search-input"
+							placeholder="搜索图片压缩、日期计算、JSON..."
+							placeholder-style="color: #8b9db4;"
+							confirm-type="search"
+							@confirm="confirmSearch"
+						/>
+						<view v-if="keyword.length > 0" class="flex flex-row items-center" @click="clearSearch">
+							<UniIcons type="clear" size="32rpx" color="#8b9db4" />
+						</view>
+					</view>
 				</view>
-				<UniIcons type="arrow-right" size="32rpx" color="#8A9AB5" />
 			</view>
+		</page-header>
+
+		<view class="home-panel common-panel">
+			<view class="panel-heading">
+				<text class="text-[29rpx] font-bold text-[#0c2b4c]">常用工具</text>
+				<view class="panel-action" @click="openCategories">
+					<text class="text-[23rpx] text-[#1888db]">全部工具</text>
+					<UniIcons type="right" size="24rpx" color="#1888db" />
+				</view>
+			</view>
+			<view v-if="filteredTools.length > 0" class="tool-grid">
+				<view v-for="tool in filteredTools" :key="tool.id" class="tool-card" @click="openTool(tool)">
+					<view class="tool-icon">
+						<text v-if="tool.iconText.length > 0" class="text-[50rpx] leading-[60rpx]" :style="'color: ' + tool.color + ';'">{{ tool.iconText }}</text>
+						<UniIcons v-else-if="tool.icon.length > 0" :type="tool.icon" size="58rpx" :color="tool.color" />
+					</view>
+					<text class="mt-[14rpx] text-[24rpx] font-medium text-[#123352] leading-[34rpx]">{{ tool.title }}</text>
+					<text class="mt-[10rpx] text-[20rpx] text-[#8196ad] leading-[30rpx]">{{ tool.summary }}</text>
+				</view>
+			</view>
+			<empty-state v-else image="" description="没有找到相关工具" />
+		</view>
+
+		<view class="home-panel category-panel">
+			<view class="panel-heading">
+				<text class="text-[29rpx] font-bold text-[#0c2b4c]">工具分类</text>
+				<view class="panel-action" @click="openCategories">
+					<text class="text-[23rpx] text-[#66839e]">全部分类</text>
+					<UniIcons type="right" size="24rpx" color="#66839e" />
+				</view>
+			</view>
+			<view class="category-grid">
+				<view
+					v-for="category in categories"
+					:key="category.id"
+					class="category-card"
+					:style="'background-color: ' + category.background + ';'"
+					@click="openCategories"
+				>
+					<view class="category-icon">
+						<text v-if="category.id == 'development'" class="text-[38rpx] text-[#0096f7]">{ }</text>
+						<UniIcons v-else :type="category.icon" size="42rpx" :color="category.color" />
+					</view>
+					<view class="flex flex-col flex-1 min-w-0">
+						<text class="text-[24rpx] font-medium text-[#1a3c5a] leading-[34rpx]">{{ category.title }}</text>
+						<text class="mt-[10rpx] text-[20rpx] text-[#8397a9] leading-[30rpx]">{{ category.subtitle }}</text>
+					</view>
+					<UniIcons type="right" size="16rpx" :color="category.color" />
+				</view>
+			</view>
+		</view>
+
+		<view class="home-panel recent-panel">
+			<view class="panel-heading">
+				<text class="text-[29rpx] font-bold text-[#0c2b4c]">最近使用</text>
+				<view class="panel-action" @click="clearHistory">
+					<text class="text-[23rpx] text-[#66839e]">清空记录</text>
+					<UniIcons type="right" size="24rpx" color="#66839e" />
+				</view>
+			</view>
+			<view v-if="recentTools.length > 0" class="recent-list">
+				<view v-for="tool in recentTools" :key="tool.id" class="recent-row">
+					<view class="recent-entry" @click="openTool(tool)">
+						<view class="recent-icon" :style="'background-color: ' + tool.background + ';'">
+							<text v-if="tool.iconText.length > 0" class="text-[36rpx]" :style="'color: ' + tool.color + ';'">{{ tool.iconText }}</text>
+							<UniIcons v-else-if="tool.icon.length > 0" :type="tool.icon" size="42rpx" :color="tool.color" />
+						</view>
+						<view class="recent-copy">
+							<view class="recent-title-row">
+								<text class="text-[24rpx] font-medium text-[#183756] leading-[34rpx]">{{ tool.title }}</text>
+								<text class="recent-time">{{ getRecentTime(tool.id) }}</text>
+							</view>
+							<text class="recent-description">{{ tool.description }}</text>
+						</view>
+					</view>
+					<view class="recent-more" @click="toggleRecentActions(tool.id)">
+						<UniIcons type="more-filled" size="32rpx" color="#70849b" />
+					</view>
+					<view v-if="activeRecentId == tool.id" class="recent-actions">
+						<text class="text-[24rpx] text-[#66839e]" @click="removeRecent(tool.id)">移除此记录</text>
+						<text class="text-[24rpx] text-[#66839e]" @click="closeRecentActions">取消</text>
+					</view>
+				</view>
+			</view>
+			<empty-state v-else image="" description="暂无使用记录" />
 		</view>
 	</scroll-view>
 </template>
 
 <script setup lang="uts">
-	import { APP_NAME, APP_SLOGAN } from '@/config/app'
+	import { computed, ref } from 'vue'
+	import { Tool, HOME_TOOL_IDS, getToolCategories, getToolsByIds } from '@/config/tools'
+	import {
+		ToolUsage,
+		clearToolHistory,
+		formatUsageTime,
+		getRecentToolUsages,
+		removeToolUsage
+	} from '@/utils/tool-usage'
+	import { getNavBarInfo } from '@/utils/system'
+	import { toast } from '@/utils/toast'
+	import { navigateToTool } from '@/utils/tool-navigation'
 
 	// data
-	type Entry = {
-		title : string
-		path : string
-		icon : string
-	}
-	const entries : Entry[] = [
-		{ title: '分类', path: '/pages/category/index', icon: '/static/tabbar/category-selected.png' },
-		{ title: '收藏', path: '/pages/favorites/index', icon: '/static/tabbar/favorites-selected.png' },
-		{ title: '我的', path: '/pages/mine/index', icon: '/static/tabbar/mine-selected.png' }
-	]
+	const isHeaderFixed = ref(false)
+	const heroImageUrl = ref('https://i.postimg.cc/tTMT1z8W/P01-home-hero.png')
+	const keyword = ref('')
+	const activeRecentId = ref('')
+	const navBarInfo = getNavBarInfo()
+	const tools = getToolsByIds(HOME_TOOL_IDS)
+	const categories = getToolCategories()
+	const recentUsages = ref<ToolUsage[]>([])
+	const recentTools = ref<Tool[]>([])
+
+	// computed
+	const heroStyle = computed(() : string => {
+		return 'padding-top: ' + (navBarInfo.statusBarHeightRpx + 14) + 'rpx;'
+	})
+	const filteredTools = computed(() : Tool[] => {
+		const query = keyword.value.trim().toLowerCase()
+		if (query.length == 0) return tools
+		return tools.filter((tool : Tool) : boolean => {
+			return (tool.title + tool.keywords).toLowerCase().includes(query)
+		})
+	})
 
 	// methods
-	const openTab = (path : string) => {
-		uni.switchTab({ url: path })
+	const getRecentTime = (id : string) : string => {
+		const usage = recentUsages.value.find((item : ToolUsage) : boolean => item.tool.id == id)
+		return usage == null ? '' : formatUsageTime(usage.usedAt)
 	}
+	const openCategories = () => {
+		uni.switchTab({ url: '/pages/category/index' })
+	}
+	const openTool = (tool : Tool) => {
+		navigateToTool(tool)
+	}
+	const showNotifications = () => {
+		toast('暂无新消息')
+	}
+	const confirmSearch = () => {
+		uni.hideKeyboard()
+		if (filteredTools.value.length == 0) return toast('没有找到相关工具')
+	}
+	const clearSearch = () => {
+		keyword.value = ''
+	}
+	const clearHistory = async () => {
+		if (recentTools.value.length == 0) return toast('暂无使用记录')
+		try {
+			await clearToolHistory()
+		} catch (error) {
+			toast('清理失败，请重试')
+			return
+		}
+		recentTools.value = []
+		recentUsages.value = []
+		activeRecentId.value = ''
+	}
+	const toggleRecentActions = (id : string) => {
+		activeRecentId.value = activeRecentId.value == id ? '' : id
+	}
+	const closeRecentActions = () => {
+		activeRecentId.value = ''
+	}
+	const removeRecent = async (id : string) => {
+		try {
+			await removeToolUsage(id)
+		} catch (error) {
+			toast('移除记录失败，请重试')
+			return
+		}
+		recentTools.value = recentTools.value.filter((tool : Tool) : boolean => tool.id != id)
+		recentUsages.value = recentUsages.value.filter((item : ToolUsage) : boolean => item.tool.id != id)
+		activeRecentId.value = ''
+	}
+
+	// lifecycle
+	onShow(async () => {
+		try {
+			recentUsages.value = await getRecentToolUsages()
+			recentTools.value = recentUsages.value.map((item : ToolUsage) : Tool => item.tool)
+			activeRecentId.value = ''
+		} catch (error) {
+			toast('读取使用记录失败，请重试')
+		}
+	})
 </script>
 
 <style scoped lang="scss">
@@ -43,28 +225,231 @@
 
 	.home-page {
 		flex: 1;
-		background-color: $uni-bg-color-page;
+		background-color: #f2f9fd;
 	}
 
-	.welcome-card {
-		margin: 32rpx;
-		padding: 48rpx 32rpx;
-		border-radius: 24rpx;
+	.home-hero {
+		position: relative;
+		padding-bottom: 28rpx;
+		background-color: #ebf9ff;
+
+		.hero-image {
+			position: absolute;
+			left: 0;
+			top: 0;
+			width: 750rpx;
+			height: 100%;
+		}
+
+		.hero-content {
+			position: relative;
+			padding: 0 40rpx;
+
+			.notification {
+				position: relative;
+				align-items: center;
+				justify-content: center;
+				width: 48rpx;
+				height: 32rpx;
+
+				.notification-dot {
+					position: absolute;
+					right: 0;
+					top: 0;
+					width: 11rpx;
+					height: 11rpx;
+					border-radius: 6rpx;
+					background-color: #ff5c53;
+				}
+			}
+
+			.search-box {
+				box-sizing: border-box;
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				height: 86rpx;
+				margin: 24rpx -13rpx 0;
+				padding: 0 28rpx;
+				border: 2rpx solid #c8e9fb;
+				border-radius: 46rpx;
+				background-color: $uni-bg-color;
+
+				.search-input {
+					flex: 1;
+					height: 80rpx;
+					margin-left: 16rpx;
+					font-size: 23rpx;
+					color: #183756;
+				}
+			}
+		}
+	}
+
+	.home-panel {
+		box-sizing: border-box;
+		margin: 0 24rpx 24rpx;
+		padding: 0 20rpx 24rpx;
+		border-radius: 23rpx;
 		background-color: $uni-bg-color;
+
+		.panel-heading {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			height: 88rpx;
+			padding: 0 4rpx;
+
+			.panel-action {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				padding: 8rpx 0 8rpx 16rpx;
+			}
+		}
 	}
 
-	.entry-list {
-		padding: 0 32rpx 32rpx;
+	.common-panel {
+		min-height: 258rpx;
 
-		.entry-card {
-			margin-bottom: 20rpx;
-			padding: 32rpx;
-			border-radius: 20rpx;
-			background-color: $uni-bg-color;
+		.tool-grid {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
 
-			.entry-icon {
-				width: 44rpx;
-				height: 44rpx;
+			.tool-card {
+				box-sizing: border-box;
+				align-items: center;
+				width: 159rpx;
+				min-height: 216rpx;
+				padding: 24rpx 10rpx;
+				border-radius: 17rpx;
+				background-color: #f0f8fd;
+
+				.tool-icon {
+					align-items: center;
+					justify-content: center;
+					height: 64rpx;
+				}
+			}
+		}
+	}
+
+	.category-panel {
+		padding-bottom: 8rpx;
+
+		.category-grid {
+			display: flex;
+			flex-direction: row;
+			flex-wrap: wrap;
+			justify-content: space-between;
+
+			.category-card {
+				box-sizing: border-box;
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				width: 322rpx;
+				min-height: 140rpx;
+				margin-bottom: 16rpx;
+				padding: 20rpx 16rpx;
+				border-radius: 15rpx;
+
+				.category-icon {
+					flex-shrink: 0;
+					align-items: center;
+					justify-content: center;
+					width: 48rpx;
+					margin-right: 16rpx;
+				}
+			}
+		}
+	}
+
+	.recent-panel {
+		min-height: 404rpx;
+		margin-bottom: 8rpx;
+		padding-bottom: 12rpx;
+
+		.recent-list {
+			.recent-row {
+				box-sizing: border-box;
+				display: flex;
+				flex-direction: row;
+				flex-wrap: wrap;
+				align-items: center;
+				min-height: 116rpx;
+				margin-bottom: 12rpx;
+				border: 1rpx solid #edf2f6;
+				border-radius: 19rpx;
+
+				.recent-entry {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					flex: 1;
+					min-width: 0;
+					padding: 16rpx 0 16rpx 16rpx;
+
+					.recent-icon {
+						flex-shrink: 0;
+						align-items: center;
+						justify-content: center;
+						width: 72rpx;
+						height: 72rpx;
+						border-radius: 17rpx;
+					}
+
+					.recent-copy {
+						flex: 1;
+						min-width: 0;
+						margin-left: 16rpx;
+
+						.recent-title-row {
+							display: flex;
+							flex-direction: row;
+							align-items: center;
+							justify-content: space-between;
+
+							.recent-time {
+								flex-shrink: 0;
+								margin-left: 16rpx;
+								font-size: 20rpx;
+								line-height: 28rpx;
+								color: #93a6bb;
+							}
+						}
+
+						.recent-description {
+							margin-top: 10rpx;
+							font-size: 20rpx;
+							line-height: 30rpx;
+							color: #8197b0;
+							lines: 2;
+							overflow: hidden;
+							text-overflow: ellipsis;
+						}
+					}
+
+				}
+
+				.recent-more {
+					align-items: center;
+					justify-content: center;
+					width: 56rpx;
+					height: 104rpx;
+				}
+
+				.recent-actions {
+					box-sizing: border-box;
+					display: flex;
+					flex-direction: row;
+					justify-content: space-between;
+					width: 100%;
+					padding: 18rpx 24rpx;
+					border-top: 1rpx solid #edf2f6;
+				}
 			}
 		}
 	}

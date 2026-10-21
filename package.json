@@ -1,0 +1,13 @@
+{
+  "name": "shixu-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "拾序 uni-app x 项目",
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "4.3.3",
+    "weapp-tailwindcss": "5.6.3"
+  }
+}

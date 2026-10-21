@@ -133,6 +133,10 @@
 		background-color: $uni-bg-color;
 	}
 
+	.page-header-calculator-bg {
+		background: linear-gradient(180deg, #dff2fd 0%, #eaf5fc 100%);
+	}
+
 	.page-header-fade-gradient-bg {
 		background: linear-gradient(180deg, rgba(79, 223, 206, 0) 16.94%, #FFFFFF 100%), $page-header-gradient-bg;
 		background-size: 750rpx 372rpx;

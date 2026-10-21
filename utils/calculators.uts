@@ -1,0 +1,89 @@
+export type DateParts = {
+	year : number
+	month : number
+	day : number
+}
+
+export const padNumber = (value : number) : string => {
+	return value < 10 ? '0' + value : value.toString()
+}
+
+export const formatCalendarDate = (date : Date) : string => {
+	return date.getFullYear() + '-' + padNumber(date.getMonth() + 1) + '-' + padNumber(date.getDate())
+}
+
+export const daysInMonth = (year : number, month : number) : number => {
+	if (month == 2) return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) ? 29 : 28
+	return [4, 6, 9, 11].includes(month) ? 30 : 31
+}
+
+export const parseCalendarDate = (value : string) : DateParts | null => {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+	const parts = value.split('-')
+	const year = Number(parts[0])
+	const month = Number(parts[1])
+	const day = Number(parts[2])
+	if (year < 1 || year > 9999 || month < 1 || month > 12) return null
+	if (day < 1 || day > daysInMonth(year, month)) return null
+	return { year, month, day }
+}
+
+// 按公历日期编号求差，不使用本地午夜时间戳，避免夏令时造成 23/25 小时偏差。
+export const calendarDayNumber = (date : DateParts) : number => {
+	const previousYear = date.year - 1
+	let days = previousYear * 365 + Math.floor(previousYear / 4)
+	days = days - Math.floor(previousYear / 100) + Math.floor(previousYear / 400)
+	for (let month = 1; month < date.month; month++) {
+		days += daysInMonth(date.year, month)
+	}
+	return days + date.day
+}
+
+export const calculateDateDays = (start : string, end : string) : number | null => {
+	const startDate = parseCalendarDate(start)
+	const endDate = parseCalendarDate(end)
+	if (startDate == null || endDate == null) return null
+	return Math.abs(calendarDayNumber(endDate) - calendarDayNumber(startDate))
+}
+
+// 分钟和秒允许大于 59，统一换算为秒后进位；不接受负数、小数或空输入。
+export const durationToSeconds = (hours : string, minutes : string, seconds : string) : number | null => {
+	const values = [hours.trim(), minutes.trim(), seconds.trim()]
+	if (values.some((value : string) : boolean => !/^\d{1,9}$/.test(value))) return null
+	return Number(values[0]) * 3600 + Number(values[1]) * 60 + Number(values[2])
+}
+
+export const formatDuration = (totalSeconds : number) : string => {
+	const absolute = Math.abs(totalSeconds)
+	const hours = Math.floor(absolute / 3600)
+	const minutes = Math.floor((absolute % 3600) / 60)
+	const seconds = absolute % 60
+	const sign = totalSeconds < 0 ? '−' : ''
+	return sign + padNumber(hours) + ' : ' + padNumber(minutes) + ' : ' + padNumber(seconds)
+}
+
+export const parseDecimal = (value : string) : number | null => {
+	const text = value.trim()
+	if (!/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(text)) return null
+	const number = Number(text)
+	return Number.isFinite(number) ? number : null
+}
+
+// 显示最多 8 位小数，去掉末尾的 0；极小非零数用约等号区分真正的 0。
+export const formatConversion = (value : number, grouping : boolean = false) : string => {
+	let text = value.toFixed(8)
+	if (text.toLowerCase().includes('e')) return text
+	if (text.includes('.')) text = text.replace(/0+$/, '').replace(/\.$/, '')
+	if (text == '-0') text = '0'
+	if (Number(text) == 0 && value != 0) return '≈ 0'
+	if (!grouping) return text
+	const parts = text.split('.')
+	const integer = parts[0]
+	let grouped = ''
+	for (let index = 0; index < integer.length; index++) {
+		grouped += integer.substring(index, index + 1)
+		const remaining = integer.length - index - 1
+		if (remaining > 0 && remaining % 3 == 0 && integer.substring(index, index + 1) != '-') grouped += ','
+	}
+	return grouped + (parts.length > 1 ? '.' + parts[1] : '')
+}

@@ -1,17 +1,366 @@
 <template>
 	<view class="category-page">
-		<empty-state description="暂无分类" />
+		<page-header :fixed="isHeaderFixed" :showCapsule="false" :occupySpace="true">
+			<view class="category-hero" :style="heroStyle">
+				<!-- 后续将 heroImageUrl 替换为 HTTPS 工具插画地址。 -->
+				<image v-if="heroImageUrl.length > 0" class="hero-image" :src="heroImageUrl" mode="aspectFill" />
+				<view class="hero-content">
+					<text class="text-[50rpx] font-bold text-[#092a4b] leading-[64rpx]">全部工具</text>
+					<text class="mt-[10rpx] text-[23rpx] text-[#6c87a6] leading-[32rpx]">{{ totalToolCount }} 个实用工具，满足工作与生活所需</text>
+					<view class="search-box">
+						<UniIcons type="search" size="44rpx" color="#6987a6" />
+						<input
+							v-model="keyword"
+							class="search-input"
+							placeholder="搜索工具名称、功能或关键词..."
+							placeholder-style="color: #8ba0b6;"
+							confirm-type="search"
+							@input="resetContentScroll"
+							@confirm="confirmSearch"
+						/>
+						<view v-if="keyword.length > 0" class="flex flex-row items-center" @click="clearSearch">
+							<UniIcons type="clear" size="32rpx" color="#8ba0b6" />
+						</view>
+					</view>
+				</view>
+			</view>
+		</page-header>
+
+		<scroll-view class="category-filter" scroll-x="true" :show-scrollbar="false">
+			<view class="filter-list">
+				<view
+					v-for="filter in filters"
+					:key="filter.id"
+					class="filter-item"
+					:class="{ 'is-active': selectedCategory == filter.id }"
+					@click="selectCategory(filter.id)"
+				>
+					<text class="filter-label">{{ filter.title }}</text>
+				</view>
+			</view>
+		</scroll-view>
+
+		<scroll-view class="tool-content" scroll-y="true" :scroll-top="contentScrollTop">
+			<view v-if="visibleGroups.length > 0" class="tool-groups">
+				<view v-for="group in visibleGroups" :key="group.id" class="tool-group">
+					<view class="group-heading">
+						<view class="group-icon">
+							<text v-if="group.id == 'development'" class="text-[38rpx] text-[#0096f7]">{ }</text>
+							<UniIcons v-else :type="group.icon" size="46rpx" color="#0096f7" />
+						</view>
+						<text class="ml-[15rpx] text-[29rpx] font-bold text-[#143254]">{{ group.title }}</text>
+						<view class="group-count">
+							<text class="text-[24rpx] font-bold text-[#68839c]">{{ group.count }}</text>
+						</view>
+						<view class="group-action" @click="selectCategory(group.id)">
+							<text class="text-[24rpx] text-[#1689de]">查看全部</text>
+							<UniIcons type="right" size="28rpx" color="#1689de" />
+						</view>
+					</view>
+					<view class="tool-grid">
+						<view v-for="tool in group.tools" :key="tool.id" class="tool-card" @click="openTool(tool)">
+							<view class="tool-icon" :style="'background-color: ' + tool.background + ';'">
+								<text v-if="tool.iconText.length > 0" class="text-[38rpx]" :style="'color: ' + tool.color + ';'">{{ tool.iconText }}</text>
+								<UniIcons v-else-if="tool.icon.length > 0" :type="tool.icon" size="44rpx" :color="tool.color" />
+							</view>
+							<view class="tool-copy">
+								<text class="tool-title">{{ tool.title }}</text>
+								<text class="tool-description">{{ tool.summary }}</text>
+							</view>
+							<UniIcons type="right" size="26rpx" color="#89a4bd" />
+						</view>
+					</view>
+				</view>
+			</view>
+			<view v-else class="empty-content">
+				<empty-state image="" :description="emptyDescription" />
+			</view>
+		</scroll-view>
 	</view>
 </template>
 
 <script setup lang="uts">
+	import { computed, nextTick, ref } from 'vue'
+	import {
+		Tool,
+		ToolCategory,
+		ToolGroup,
+		getAllTools,
+		getToolCategories,
+		getToolGroups
+	} from '@/config/tools'
+	import { getNavBarInfo } from '@/utils/system'
+	import { toast } from '@/utils/toast'
+	import { navigateToTool } from '@/utils/tool-navigation'
+
+	// data
+	type CategoryFilter = {
+		id : string
+		title : string
+	}
+	const isHeaderFixed = ref(false)
+	const heroImageUrl = ref('https://i.postimg.cc/k4p4VyLQ/P02-categories-hero.png')
+	const keyword = ref('')
+	const selectedCategory = ref('all')
+	const contentScrollTop = ref(0)
+	const navBarInfo = getNavBarInfo()
+	const filters : CategoryFilter[] = [{ id: 'all', title: '全部' }]
+	getToolCategories().forEach((category : ToolCategory) => {
+		filters.push({ id: category.id, title: category.shortTitle })
+	})
+	const groups = getToolGroups()
+	const totalToolCount = getAllTools().length
+
+	// computed
+	const heroStyle = computed(() : string => {
+		return 'padding-top: ' + (navBarInfo.statusBarHeightRpx + 20) + 'rpx;'
+	})
+	const visibleGroups = computed(() : ToolGroup[] => {
+		const query = keyword.value.trim().toLowerCase()
+		const result : ToolGroup[] = []
+		groups.forEach((group : ToolGroup) => {
+			if (selectedCategory.value != 'all' && selectedCategory.value != group.id) return
+			const matches = group.tools.filter((tool : Tool) : boolean => {
+				return (group.title + tool.title + tool.description + tool.keywords).toLowerCase().includes(query)
+			})
+			if (matches.length == 0) return
+			result.push({
+				id: group.id,
+				title: group.title,
+				icon: group.icon,
+				count: query.length > 0 ? matches.length : group.count,
+				tools: matches
+			})
+		})
+		return result
+	})
+	const emptyDescription = computed(() : string => {
+		return keyword.value.trim().length > 0 ? '没有找到相关工具，换个关键词试试' : '该分类工具待添加'
+	})
+
+	// methods
+	const resetContentScroll = () => {
+		// 通过两次不同的赋值，保证重复筛选也能回到分组顶部。
+		contentScrollTop.value = 1
+		nextTick(() => {
+			contentScrollTop.value = 0
+		})
+	}
+	const selectCategory = (id : string) => {
+		selectedCategory.value = id
+		resetContentScroll()
+	}
+	const clearSearch = () => {
+		keyword.value = ''
+		resetContentScroll()
+	}
+	const confirmSearch = () => {
+		uni.hideKeyboard()
+		if (visibleGroups.value.length == 0) return toast('没有找到相关工具')
+	}
+	const openTool = (tool : Tool) => {
+		navigateToTool(tool)
+	}
 </script>
 
 <style scoped lang="scss">
 	@import "@/uni.scss";
 
 	.category-page {
+		display: flex;
+		flex-direction: column;
 		flex: 1;
-		background-color: $uni-bg-color-page;
+		height: 100%;
+		background-color: #f3f9fd;
+	}
+
+	.category-hero {
+		position: relative;
+		padding-bottom: 21rpx;
+		background-color: #ebf9ff;
+
+		.hero-image {
+			position: absolute;
+			left: 0;
+			top: 0;
+			width: 750rpx;
+			height: 100%;
+		}
+
+		.hero-content {
+			position: relative;
+			padding: 0 38rpx;
+
+			.search-box {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				box-sizing: border-box;
+				height: 81rpx;
+				margin: 46rpx -7rpx 0;
+				padding: 0 24rpx;
+				border: 1rpx solid #d8edf9;
+				border-radius: 42rpx;
+				background-color: $uni-bg-color;
+
+				.search-input {
+					flex: 1;
+					min-width: 0;
+					height: 77rpx;
+					margin-left: 18rpx;
+					font-size: 23rpx;
+					color: #143254;
+				}
+			}
+		}
+	}
+
+	.category-filter {
+		flex-shrink: 0;
+		height: 88rpx;
+
+		.filter-list {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			padding: 2rpx 32rpx 26rpx;
+
+			.filter-item {
+				flex-shrink: 0;
+				align-items: center;
+				justify-content: center;
+				min-width: 94rpx;
+				height: 60rpx;
+				margin-right: 12rpx;
+				border-radius: 33rpx;
+				background-color: #eaf3fb;
+
+				.filter-label {
+					font-size: 23rpx;
+					color: #4e6d90;
+				}
+
+				&.is-active {
+					background-color: #4aa7f1;
+
+					.filter-label {
+						font-weight: 700;
+						color: $uni-bg-color;
+					}
+				}
+			}
+		}
+	}
+
+	.tool-content {
+		flex: 1;
+		height: 0;
+		min-height: 0;
+
+		.tool-groups {
+			padding: 0 21rpx 8rpx;
+
+			.tool-group {
+				margin-bottom: 24rpx;
+				padding: 0 17rpx 12rpx;
+				border-radius: 25rpx;
+				background-color: $uni-bg-color;
+
+				.group-heading {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					height: 88rpx;
+
+					.group-icon {
+						align-items: center;
+						justify-content: center;
+						width: 56rpx;
+						height: 56rpx;
+						border-radius: 19rpx;
+						background-color: #e9f6ff;
+					}
+
+					.group-count {
+						align-items: center;
+						justify-content: center;
+						width: 48rpx;
+						height: 44rpx;
+						margin-left: 23rpx;
+						border-radius: 21rpx;
+						background-color: #eff5fa;
+					}
+
+					.group-action {
+						display: flex;
+						flex-direction: row;
+						align-items: center;
+						margin-left: auto;
+						padding: 16rpx 0 16rpx 8rpx;
+					}
+				}
+
+				.tool-grid {
+					display: flex;
+					flex-direction: row;
+					flex-wrap: wrap;
+					justify-content: space-between;
+
+					.tool-card {
+						display: flex;
+						flex-direction: row;
+						align-items: center;
+						box-sizing: border-box;
+						width: 329rpx;
+						min-height: 144rpx;
+						margin-bottom: 16rpx;
+						padding: 20rpx 12rpx;
+						border-radius: 19rpx;
+						background-color: #f2f8fc;
+
+						.tool-icon {
+							flex-shrink: 0;
+							align-items: center;
+							justify-content: center;
+							width: 68rpx;
+							height: 68rpx;
+							border-radius: 19rpx;
+						}
+
+						.tool-copy {
+							flex: 1;
+							min-width: 0;
+							margin-left: 16rpx;
+
+							.tool-title {
+								font-size: 23rpx;
+								line-height: 34rpx;
+								font-weight: 700;
+								color: #112f51;
+								lines: 1;
+								overflow: hidden;
+								text-overflow: ellipsis;
+							}
+
+							.tool-description {
+								margin-top: 12rpx;
+								font-size: 20rpx;
+								line-height: 30rpx;
+								color: #8098b1;
+								lines: 2;
+								overflow: hidden;
+								text-overflow: ellipsis;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		.empty-content {
+			display: flex;
+			flex-direction: column;
+			min-height: 100%;
+		}
 	}
 </style>

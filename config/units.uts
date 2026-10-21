@@ -1,0 +1,79 @@
+export type ConversionUnit = {
+	id : string
+	label : string
+	scale : number
+	offset : number
+}
+
+export type UnitCategory = {
+	id : string
+	title : string
+	units : ConversionUnit[]
+}
+
+// 标准值 = 输入值 × scale + offset；温度以开尔文为基准，其余为线性换算。
+export const UNIT_CATEGORIES : UnitCategory[] = [
+	{
+		id: 'length', title: '长度', units: [
+			{ id: 'km', label: '千米 km', scale: 1000, offset: 0 },
+			{ id: 'm', label: '米 m', scale: 1, offset: 0 },
+			{ id: 'dm', label: '分米 dm', scale: 0.1, offset: 0 },
+			{ id: 'cm', label: '厘米 cm', scale: 0.01, offset: 0 },
+			{ id: 'mm', label: '毫米 mm', scale: 0.001, offset: 0 },
+			{ id: 'in', label: '英寸 in', scale: 0.0254, offset: 0 },
+			{ id: 'ft', label: '英尺 ft', scale: 0.3048, offset: 0 },
+			{ id: 'yd', label: '码 yd', scale: 0.9144, offset: 0 },
+			{ id: 'mi', label: '英里 mi', scale: 1609.344, offset: 0 }
+		]
+	},
+	{
+		id: 'weight', title: '重量', units: [
+			{ id: 'kg', label: '千克 kg', scale: 1, offset: 0 },
+			{ id: 'g', label: '克 g', scale: 0.001, offset: 0 },
+			{ id: 'mg', label: '毫克 mg', scale: 0.000001, offset: 0 },
+			{ id: 't', label: '吨 t', scale: 1000, offset: 0 },
+			{ id: 'jin', label: '市斤', scale: 0.5, offset: 0 },
+			{ id: 'liang', label: '市两', scale: 0.05, offset: 0 },
+			{ id: 'lb', label: '磅 lb', scale: 0.45359237, offset: 0 },
+			{ id: 'oz', label: '盎司 oz', scale: 0.028349523125, offset: 0 }
+		]
+	},
+	{
+		id: 'area', title: '面积', units: [
+			{ id: 'm2', label: '平方米 m²', scale: 1, offset: 0 },
+			{ id: 'cm2', label: '平方厘米 cm²', scale: 0.0001, offset: 0 },
+			{ id: 'km2', label: '平方千米 km²', scale: 1000000, offset: 0 },
+			{ id: 'ha', label: '公顷 ha', scale: 10000, offset: 0 },
+			{ id: 'mu', label: '市亩', scale: 2000 / 3, offset: 0 }
+		]
+	},
+	{
+		id: 'volume', title: '体积', units: [
+			{ id: 'l', label: '升 L', scale: 0.001, offset: 0 },
+			{ id: 'ml', label: '毫升 mL', scale: 0.000001, offset: 0 },
+			{ id: 'm3', label: '立方米 m³', scale: 1, offset: 0 },
+			{ id: 'cm3', label: '立方厘米 cm³', scale: 0.000001, offset: 0 },
+			{ id: 'gal', label: '美制加仑 gal', scale: 0.003785411784, offset: 0 }
+		]
+	},
+	{
+		id: 'temperature', title: '温度', units: [
+			{ id: 'c', label: '摄氏度 °C', scale: 1, offset: 273.15 },
+			{ id: 'f', label: '华氏度 °F', scale: 5 / 9, offset: 273.15 - 32 * 5 / 9 },
+			{ id: 'k', label: '开尔文 K', scale: 1, offset: 0 }
+		]
+	},
+	{
+		id: 'time', title: '时间', units: [
+			{ id: 'h', label: '小时 h', scale: 3600, offset: 0 },
+			{ id: 'min', label: '分钟 min', scale: 60, offset: 0 },
+			{ id: 's', label: '秒 s', scale: 1, offset: 0 },
+			{ id: 'd', label: '天 d', scale: 86400, offset: 0 },
+			{ id: 'week', label: '周', scale: 604800, offset: 0 }
+		]
+	}
+]
+
+export const convertUnit = (value : number, from : ConversionUnit, to : ConversionUnit) : number => {
+	return (value * from.scale + from.offset - to.offset) / to.scale
+}

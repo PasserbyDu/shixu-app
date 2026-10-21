@@ -1,0 +1,292 @@
+<template>
+	<scroll-view class="calculator-page" scroll-y="true">
+		<page-header :fixed="isHeaderFixed" title="单位换算" titleColor="#1d394b" headerClass="page-header-calculator-bg" />
+		<view class="calculator-intro">
+			<text class="intro-title">单位换算</text>
+			<text class="intro-description">常用单位，随手一换就明白</text>
+		</view>
+		<view class="calculator-card category-card">
+			<view class="unit-categories">
+				<view
+					v-for="(category, index) in categories"
+					:key="category.id"
+					class="unit-category"
+					:class="{ 'is-active': categoryIndex == index }"
+					@click="selectCategory(index)"
+				>
+					<text class="category-label">{{ category.title }}</text>
+				</view>
+			</view>
+		</view>
+		<view class="calculator-card">
+			<text class="field-label">输入数值</text>
+			<view class="field-box">
+				<input v-model="inputValue" class="conversion-input" type="text" maxlength="32" placeholder="请输入数值" />
+			</view>
+			<view class="unit-selectors">
+				<view class="unit-selector">
+					<text class="field-label">源单位</text>
+					<picker :range="unitLabels" :value="sourceIndex" @change="changeSource">
+						<view class="unit-select-box">
+							<text class="unit-select-label">{{ sourceUnit.label }}</text>
+							<UniIcons type="right" size="26rpx" color="#8799a7" />
+						</view>
+					</picker>
+				</view>
+				<view class="unit-swap" @click="swapUnits">
+					<UniIcons type="loop" size="36rpx" color="#318fce" />
+				</view>
+				<view class="unit-selector">
+					<text class="field-label">目标单位</text>
+					<picker :range="unitLabels" :value="targetIndex" @change="changeTarget">
+						<view class="unit-select-box">
+							<text class="unit-select-label">{{ targetUnit.label }}</text>
+							<UniIcons type="right" size="26rpx" color="#8799a7" />
+						</view>
+					</picker>
+				</view>
+			</view>
+			<text class="mt-[20rpx] text-[20rpx] text-[#8799a7] leading-[32rpx]">修改数值或单位后实时换算</text>
+		</view>
+		<view class="calculator-result">
+			<view class="flex flex-row items-center justify-between">
+				<text class="result-label">换算结果</text>
+				<text class="text-[20rpx] text-[#318fce]">实时换算</text>
+			</view>
+			<template v-if="convertedValue != null">
+				<scroll-view class="conversion-result-scroll" scroll-x="true" :show-scrollbar="false">
+					<text class="conversion-number">{{ resultText }}</text>
+				</scroll-view>
+				<text class="mt-[12rpx] text-[26rpx] text-[#318fce] leading-[38rpx]">{{ targetUnit.label }}</text>
+				<view class="result-divider" />
+				<text class="text-[20rpx] text-[#8799a7] leading-[32rpx]">{{ formulaText }}</text>
+				<view class="copy-result" @click="copyResult">
+					<UniIcons type="paperclip" size="28rpx" color="#318fce" />
+					<text class="ml-[10rpx] text-[22rpx] text-[#318fce]">复制结果</text>
+				</view>
+			</template>
+			<text v-else class="result-placeholder">{{ conversionError }}</text>
+		</view>
+		<view class="calculator-notes">
+			<text class="notes-title">换算提示</text>
+			<text class="notes-text">支持常用公制及部分英制单位；市斤、市两按中国大陆标准换算，美制加仑按液量单位计算。</text>
+			<text class="notes-text">温度换算自动处理偏移，不能低于绝对零度。结果最多保留 8 位小数，自动省略末尾的 0。</text>
+			<text class="notes-text">极小的非零结果显示为“≈ 0”，复制时保留原始数值。时间单位按固定时长换算，不包含月份和年份。</text>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue'
+	import { ConversionUnit, UNIT_CATEGORIES, convertUnit } from '@/config/units'
+	import { formatConversion, parseDecimal } from '@/utils/calculators'
+	import { toast } from '@/utils/toast'
+	import { recordToolUsage } from '@/utils/tool-usage'
+
+	// data
+	const isHeaderFixed = ref(false)
+	const categories = UNIT_CATEGORIES
+	const categoryIndex = ref(0)
+	const sourceIndex = ref(0)
+	const targetIndex = ref(1)
+	const inputValue = ref('1.5')
+
+	// computed
+	const units = computed(() : ConversionUnit[] => categories[categoryIndex.value].units)
+	const unitLabels = computed(() : string[] => units.value.map((unit : ConversionUnit) : string => unit.label))
+	const sourceUnit = computed(() : ConversionUnit => units.value[sourceIndex.value])
+	const targetUnit = computed(() : ConversionUnit => units.value[targetIndex.value])
+	const conversionError = computed(() : string => {
+		if (inputValue.value.trim().length == 0) return '请输入需要换算的数值'
+		const value = parseDecimal(inputValue.value)
+		if (value == null) return '请输入有效数值，可使用小数、负数或科学计数法'
+		const base = value * sourceUnit.value.scale + sourceUnit.value.offset
+		if (categories[categoryIndex.value].id == 'temperature' && base < -0.0000000001) return '温度不能低于绝对零度'
+		const converted = convertUnit(value, sourceUnit.value, targetUnit.value)
+		if (!Number.isFinite(converted)) return '数值过大，请缩小输入范围'
+		return ''
+	})
+	const convertedValue = computed(() : number | null => {
+		if (conversionError.value.length > 0) return null
+		const value = parseDecimal(inputValue.value)
+		if (value == null) return null
+		return convertUnit(value, sourceUnit.value, targetUnit.value)
+	})
+	const resultText = computed(() : string => formatConversion(convertedValue.value ?? 0, true))
+	const formulaText = computed(() : string => {
+		const from = sourceUnit.value
+		const to = targetUnit.value
+		if (from.id == to.id) return '同一单位，数值保持不变'
+		if (categories[categoryIndex.value].id == 'temperature') {
+			if (from.id == 'c' && to.id == 'f') return '°F = °C × 1.8 + 32'
+			if (from.id == 'f' && to.id == 'c') return '°C = (°F − 32) ÷ 1.8'
+			if (from.id == 'c' && to.id == 'k') return 'K = °C + 273.15'
+			if (from.id == 'k' && to.id == 'c') return '°C = K − 273.15'
+			if (from.id == 'f' && to.id == 'k') return 'K = (°F − 32) ÷ 1.8 + 273.15'
+			return '°F = (K − 273.15) × 1.8 + 32'
+		}
+		return '1 ' + from.label + ' = ' + formatConversion(convertUnit(1, from, to), true) + ' ' + to.label
+	})
+
+	// methods
+	const selectCategory = (index : number) => {
+		if (categoryIndex.value == index) return
+		categoryIndex.value = index
+		sourceIndex.value = 0
+		targetIndex.value = 1
+	}
+	const changeSource = (event : UniPickerChangeEvent) => {
+		const index = Number(event.detail.value.toString())
+		if (index < 0 || index >= units.value.length || !Number.isFinite(index)) return
+		sourceIndex.value = index
+	}
+	const changeTarget = (event : UniPickerChangeEvent) => {
+		const index = Number(event.detail.value.toString())
+		if (index < 0 || index >= units.value.length || !Number.isFinite(index)) return
+		targetIndex.value = index
+	}
+	const swapUnits = () => {
+		const previousResult = convertedValue.value
+		const previousIndex = sourceIndex.value
+		sourceIndex.value = targetIndex.value
+		targetIndex.value = previousIndex
+		if (previousResult != null) inputValue.value = previousResult.toString()
+	}
+	const copyResult = () => {
+		const value = convertedValue.value
+		if (value == null) return toast('请先输入有效数值')
+		const formatted = formatConversion(value)
+		uni.setClipboardData({
+			data: formatted == '≈ 0' ? value.toString() : formatted,
+			showToast: false,
+			success: () => {
+				toast('结果已复制')
+			},
+			fail: () => {
+				toast('复制失败，请重试')
+			}
+		})
+	}
+
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('unit').catch(() => {
+			toast('保存使用记录失败')
+		})
+	})
+</script>
+
+<style scoped lang="scss">
+	@import "@/styles/calculator.scss";
+
+	.category-card {
+		padding: 24rpx 24rpx 8rpx;
+
+		.unit-categories {
+			display: flex;
+			flex-direction: row;
+			flex-wrap: wrap;
+			justify-content: space-between;
+
+			.unit-category {
+				align-items: center;
+				justify-content: center;
+				width: 32%;
+				min-height: 72rpx;
+				margin-bottom: 16rpx;
+				border-radius: 18rpx;
+				background-color: #f5f8fb;
+
+				.category-label {
+					font-size: 24rpx;
+					line-height: 36rpx;
+					color: #8799a7;
+				}
+
+				&.is-active {
+					background-color: #318fce;
+
+					.category-label {
+						color: #ffffff;
+					}
+				}
+			}
+		}
+	}
+
+	.calculator-card {
+		.conversion-input {
+			flex: 1;
+			min-width: 0;
+			height: 72rpx;
+			font-size: 48rpx;
+			font-weight: 500;
+			color: #1d394b;
+		}
+
+		.unit-selectors {
+			display: flex;
+			flex-direction: row;
+			align-items: flex-end;
+			margin-top: 32rpx;
+
+			.unit-selector {
+				flex: 1;
+				min-width: 0;
+
+				.unit-select-box {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					min-height: 100rpx;
+					padding: 12rpx 20rpx;
+					border-radius: 20rpx;
+					background-color: #f5f8fb;
+
+					.unit-select-label {
+						flex: 1;
+						font-size: 24rpx;
+						font-weight: 500;
+						line-height: 36rpx;
+						color: #1d394b;
+					}
+				}
+			}
+
+			.unit-swap {
+				align-items: center;
+				justify-content: center;
+				width: 64rpx;
+				height: 64rpx;
+				margin: 0 12rpx 18rpx;
+				border-radius: 32rpx;
+				background-color: #edf7fe;
+			}
+		}
+	}
+
+	.calculator-result {
+		.conversion-result-scroll {
+			margin-top: 20rpx;
+
+			.conversion-number {
+				font-size: 80rpx;
+				font-weight: 700;
+				line-height: 108rpx;
+				white-space: nowrap;
+				color: #318fce;
+			}
+		}
+
+		.copy-result {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			align-self: flex-end;
+			margin-top: 20rpx;
+			padding: 14rpx 20rpx;
+			border-radius: 18rpx;
+			background-color: #ffffff;
+		}
+	}
+</style>

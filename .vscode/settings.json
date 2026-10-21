@@ -1,0 +1,7 @@
+{
+  "tailwindCSS.includeLanguages": {
+    "uvue": "html",
+    "uts": "javascript"
+  },
+  "tailwindCSS.experimental.configFile": "main.css"
+}

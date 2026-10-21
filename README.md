@@ -19,7 +19,7 @@
 
 ## 使用
 
-1. 在 HBuilderX 中导入本目录，作为 uni-app x 项目开发；本模板沿用源项目的 HBuilderX 工程结构，没有配置 npm 运行脚本。
+1. 使用 Node.js `^22.18.0 || >=24.11.0` 执行 `npm ci --include=optional` 安装样式依赖，再用 HBuilderX `>=5.11` 导入本目录。安装架构必须匹配 HBuilderX 的 Node.js，macOS 架构不一致的处理见下文。项目沿用 HBuilderX 工程结构，通过 HBuilderX 运行和发布。
 2. 在 `manifest.json` 中为新项目获取自己的 uni-app AppID；开发微信小程序时填写自己的 `mp-weixin.appid`。按实际发布平台补齐签名、包名和发布配置。
 3. 项目名称、介绍及版本发布信息在 `manifest.json` 中维护；页面展示信息统一在 `config/app.uts` 中修改，版本展示需与 manifest 保持一致。
 4. 对接后端时在 `config/request.uts` 填写测试/生产接口地址，通过 `REQUEST_ENV` 切换环境；初始地址留空，工具会拒绝未配置根地址的相对路径请求。
@@ -40,6 +40,58 @@
 
 医疗业务页面、医生/医助角色、IM/RTC 轮询、原生问诊插件、医疗图片、旧接口域名、原 AppID、构建产物及 Git 历史均未迁入。
 
+## Tailwind CSS
+
+按 [weapp-tailwindcss 最新 uni-app x 接入文档](https://tw.weapp.dev/docs/quick-start/frameworks/uni-app-x) 配置 Tailwind CSS v4，当前锁定 `tailwindcss 4.3.3`、`weapp-tailwindcss 5.6.3`，依赖版本由 `package-lock.json` 固定。
+
+- `vite.config.js`：通过 `WeappTailwindcss(uniAppX(...))` 完成样式生成和多端转换，开启 `rem2rpx: true`。
+- `main.css`：独立的纯 CSS 入口，使用 `@source` 扫描页面、组件及可能存放类名的 UTS 工具、hook、store；排除第三方组件及构建目录。
+- `App.uvue`：使用一个全局 `<style lang="scss">`，通过相对路径依次导入 `./main.css` 和 `./styles/index.scss`。Sass 会将带 `.css` 后缀的导入保留为 CSS 导入，Tailwind 指令仍放在独立的纯 CSS 文件中，原有 SCSS 正常编译。
+- `.vscode/settings.json`：为 `.uvue`、`.uts` 配置 Tailwind CSS IntelliSense 语言映射和 CSS 入口。
+
+首页快捷入口已使用 `flex flex-row` 和 `mr-[24rpx]`，保留其它原有样式。可以继续组合使用：
+
+```html
+<view class="flex flex-row items-center p-[32rpx]">
+  <text class="text-[28rpx] font-medium">内容</text>
+</view>
+```
+
+开发约束：
+
+- 原生 App 的文字样式直接设置在 `<text>` 上，避免依赖父元素继承。
+- 跨端布局不用 `gap-*`、`space-x-*`、`space-y-*`，子元素间距用 `mt-*`、`ml-*` 等显式设置。
+- 精确尺寸优先用 `p-[32rpx]`、`text-[28rpx]`。旧工具类 `mt24` 表示 24rpx，Tailwind 的 `mt-24` 使用自己的间距刻度，二者含义不同。
+- 类名使用完整字符串，例如 `active ? 'text-blue-500' : 'text-gray-500'`，不要使用 `'text-' + color + '-500'` 这类动态拼接。
+- 不需要添加 Tailwind v3 的配置文件、`weapp-tw patch` 或其它安装补丁脚本，也不要重复注册 `@tailwindcss/postcss` 或 `@tailwindcss/vite`。
+- 新增自定义页面或组件目录时，同步调整 `@source` 和插件的本地样式匹配规则；样式隔离配置以项目实际需求为准。
+
+### macOS 原生依赖的架构
+
+Tailwind 的 Oxide 扫描器及其它原生依赖按运行它们的 Node.js 架构加载。Apple Silicon 终端可能运行 arm64 Node.js，而 HBuilderX 内置 Node.js 可能仍是 x64；此时直接在终端安装会缺少 HBuilderX 所需的 x64 包。不能只根据机器芯片或 Node.js 版本判断。
+
+先查看实际用于构建的 HBuilderX Node.js 二进制架构，例如：
+
+```sh
+file /Applications/HBuilderX.app/Contents/HBuilderX/plugins/node/node
+```
+
+如果显示 `x86_64`，在项目目录安装 x64 的可选依赖：
+
+```sh
+npm ci --cpu=x64 --os=darwin --include=optional
+```
+
+如果显示 `arm64`，改用 `--cpu=arm64`。新增依赖时也应保持同样的 `--cpu`、`--os`、`--include=optional` 参数，避免 npm 根据终端架构替换原生依赖。不要关闭 optional dependencies；`@tailwindcss/oxide` 存在并不意味着它对应的原生平台包已经安装。
+
+本机本次修复对应 HBuilderX x64，已按该架构补齐依赖。若 HBuilderX 仍显示旧错误，停止当前运行任务后重新运行，让构建进程重新加载依赖。
+
+### 全局样式入口注意事项
+
+此项目曾在微信小程序构建时出现 `Invalid declaration: toast`。全局样式入口改为相对路径并合并为单个样式块后，已使用原版 `weapp-tailwindcss 5.6.3` 完成开发、发行两种模式的编译，且同时保留 Tailwind 类和旧版字号、间距、颜色等工具类。
+
+不要恢复为两个独立全局样式块：本机验证该写法即使能编译，也可能在最终 `app.wxss` 中丢失原有 SCSS 工具类。此前添加的第三方依赖兼容补丁已撤除，不需要修改 `node_modules`。
+
 ## 检查范围
 
-本次仅进行路由、资源、导入依赖、业务残留和 Git 差异静态检查，未启动、运行或编译项目。Android、iOS、鸿蒙、Web、微信小程序的运行效果需配置独立 AppID 后在对应环境验证。
+初始模板阶段仅做静态检查。此次 Tailwind 排错已获授权，通过 HBuilderX 对微信小程序实际执行开发模式编译和发行编译（未上传），并检查两种模式生成的 WXSS/WXML。开发者工具打开项目时另报“ 不存在此 AppID（code 10）”，需核对自己的微信小程序 AppID 和开发者账号权限后再验证页面。Android、iOS、鸿蒙、Web 尚未编译验证。

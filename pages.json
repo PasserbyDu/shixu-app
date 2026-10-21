@@ -2,19 +2,59 @@
 	"pages": [
 		{
 			"path": "pages/index/index",
-			"style": { "navigationBarTitleText": "首页" }
+			"style": {
+				"navigationBarTitleText": "首页",
+				"navigationStyle": "custom",
+				"backgroundColor": "#F2F9FD"
+			}
 		},
 		{
 			"path": "pages/category/index",
-			"style": { "navigationBarTitleText": "分类" }
+			"style": {
+				"navigationBarTitleText": "分类",
+				"navigationStyle": "custom",
+				"backgroundColor": "#F3F9FD"
+			}
 		},
 		{
 			"path": "pages/favorites/index",
-			"style": { "navigationBarTitleText": "收藏" }
+			"style": {
+				"navigationBarTitleText": "收藏",
+				"navigationStyle": "custom",
+				"backgroundColor": "#F3F9FD"
+			}
+		},
+		{
+			"path": "pages/tools/date-difference",
+			"style": {
+				"navigationBarTitleText": "日期差计算",
+				"navigationStyle": "custom",
+				"backgroundColor": "#F5F8FB"
+			}
+		},
+		{
+			"path": "pages/tools/time-calculator",
+			"style": {
+				"navigationBarTitleText": "时间计算",
+				"navigationStyle": "custom",
+				"backgroundColor": "#F5F8FB"
+			}
+		},
+		{
+			"path": "pages/tools/unit-converter",
+			"style": {
+				"navigationBarTitleText": "单位换算",
+				"navigationStyle": "custom",
+				"backgroundColor": "#F5F8FB"
+			}
 		},
 		{
 			"path": "pages/mine/index",
-			"style": { "navigationBarTitleText": "我的" }
+			"style": {
+				"navigationBarTitleText": "我的",
+				"navigationStyle": "custom",
+				"backgroundColor": "#F3F9FD"
+			}
 		}
 	],
 	"tabBar": {

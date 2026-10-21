@@ -1,0 +1,229 @@
+<template>
+	<scroll-view class="calculator-page" scroll-y="true">
+		<page-header :fixed="isHeaderFixed" title="时间计算" titleColor="#1d394b" headerClass="page-header-calculator-bg" />
+		<view class="calculator-intro">
+			<text class="intro-title">时间计算</text>
+			<text class="intro-description">时分秒的加减，让时间井井有条</text>
+		</view>
+		<view class="calculator-card">
+			<view class="operation-tabs">
+				<view
+					v-for="operation in operations"
+					:key="operation.id"
+					class="operation-tab"
+					:class="{ 'is-active': activeOperation == operation.id }"
+					@click="selectOperation(operation.id)"
+				>
+					<text class="operation-label">{{ operation.title }}</text>
+				</view>
+			</view>
+			<view v-for="row in timeRows" :key="row.id" class="duration-row">
+				<text class="field-label">{{ row.title }}</text>
+				<view class="duration-fields">
+					<view v-for="field in row.fields" :key="field.unit" class="duration-field">
+						<input
+							v-model="field.value"
+							class="duration-input"
+							type="number"
+							maxlength="9"
+							placeholder="0"
+							@input="invalidateResult"
+						/>
+						<text class="duration-unit">{{ field.unit }}</text>
+					</view>
+				</view>
+			</view>
+		</view>
+		<view class="calculate-button" @click="calculate">
+			<text class="button-label">计算时间</text>
+		</view>
+		<view class="calculator-result">
+			<text class="result-label">{{ activeOperation == 'add' ? '相加结果' : '相减结果' }}</text>
+			<template v-if="resultSeconds != null">
+				<scroll-view class="time-result-scroll" scroll-x="true" :show-scrollbar="false">
+					<text class="time-number">{{ formattedResult }}</text>
+				</scroll-view>
+				<view class="time-labels">
+					<text v-for="label in resultLabels" :key="label" class="text-[22rpx] text-[#8799a7]">{{ label }}</text>
+				</view>
+				<view class="result-divider" />
+				<view class="flex flex-row items-center">
+					<UniIcons type="checkmarkempty" size="28rpx" color="#318fce" />
+					<text class="ml-[12rpx] text-[22rpx] text-[#318fce] leading-[34rpx]">已自动完成秒、分钟进位</text>
+				</view>
+			</template>
+			<text v-else class="result-placeholder">输入或计算方式已更新，请点击计算</text>
+		</view>
+		<view class="calculator-notes">
+			<text class="notes-title">进位说明</text>
+			<text class="notes-text">75 秒 = 1 分 15 秒；76 分 = 1 时 16 分。</text>
+			<text class="notes-text">每项请输入非负整数，分钟和秒可超过 59。小时数不按 24 小时归零，时间相减时保留正负方向。</text>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue'
+	import { durationToSeconds, formatDuration } from '@/utils/calculators'
+	import { toast } from '@/utils/toast'
+	import { recordToolUsage } from '@/utils/tool-usage'
+
+	// data
+	type DurationField = {
+		unit : string
+		value : string
+	}
+	type DurationRow = {
+		id : string
+		title : string
+		fields : DurationField[]
+	}
+	type Operation = {
+		id : string
+		title : string
+	}
+	const isHeaderFixed = ref(false)
+	const activeOperation = ref('add')
+	const resultSeconds = ref<number | null>(null)
+	const resultLabels : string[] = ['小时', '分钟', '秒']
+	const operations : Operation[] = [
+		{ id: 'add', title: '＋ 时间相加' },
+		{ id: 'subtract', title: '－ 时间相减' }
+	]
+	const timeRows = ref<DurationRow[]>([
+		{ id: 'first', title: '第一组时间', fields: [
+			{ unit: '时', value: '12' }, { unit: '分', value: '45' }, { unit: '秒', value: '50' }
+		] },
+		{ id: 'second', title: '第二组时间', fields: [
+			{ unit: '时', value: '02' }, { unit: '分', value: '30' }, { unit: '秒', value: '25' }
+		] }
+	])
+
+	// computed
+	const formattedResult = computed(() : string => formatDuration(resultSeconds.value ?? 0))
+
+	// methods
+	const invalidateResult = () => {
+		resultSeconds.value = null
+	}
+	const selectOperation = (id : string) => {
+		if (activeOperation.value == id) return
+		activeOperation.value = id
+		invalidateResult()
+	}
+	const calculate = () => {
+		uni.hideKeyboard()
+		const first = timeRows.value[0].fields
+		const second = timeRows.value[1].fields
+		const firstSeconds = durationToSeconds(first[0].value, first[1].value, first[2].value)
+		const secondSeconds = durationToSeconds(second[0].value, second[1].value, second[2].value)
+		if (firstSeconds == null || secondSeconds == null) {
+			resultSeconds.value = null
+			toast('请完整输入不超过 9 位的非负整数')
+			return
+		}
+		resultSeconds.value = activeOperation.value == 'add' ? firstSeconds + secondSeconds : firstSeconds - secondSeconds
+	}
+
+	// lifecycle
+	onLoad(() => {
+		calculate()
+		recordToolUsage('time').catch(() => {
+			toast('保存使用记录失败')
+		})
+	})
+</script>
+
+<style scoped lang="scss">
+	@import "@/styles/calculator.scss";
+
+	.calculator-card {
+		.operation-tabs {
+			display: flex;
+			flex-direction: row;
+			padding: 6rpx;
+			border-radius: 20rpx;
+			background-color: #f5f8fb;
+
+			.operation-tab {
+				flex: 1;
+				align-items: center;
+				justify-content: center;
+				min-height: 68rpx;
+				border-radius: 16rpx;
+
+				.operation-label {
+					font-size: 24rpx;
+					line-height: 36rpx;
+					color: #8799a7;
+				}
+
+				&.is-active {
+					background-color: #318fce;
+
+					.operation-label {
+						color: #ffffff;
+					}
+				}
+			}
+		}
+
+		.duration-row {
+			margin-top: 30rpx;
+
+			.duration-fields {
+				display: flex;
+				flex-direction: row;
+				justify-content: space-between;
+
+				.duration-field {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					box-sizing: border-box;
+					width: 31%;
+					padding: 20rpx 16rpx;
+					border-radius: 20rpx;
+					background-color: #f5f8fb;
+
+					.duration-input {
+						flex: 1;
+						min-width: 0;
+						height: 64rpx;
+						font-size: 38rpx;
+						font-weight: 500;
+						color: #1d394b;
+					}
+
+					.duration-unit {
+						margin-left: 8rpx;
+						font-size: 20rpx;
+						color: #8799a7;
+					}
+				}
+			}
+		}
+	}
+
+	.calculator-result {
+		.time-result-scroll {
+			margin-top: 30rpx;
+
+			.time-number {
+				font-size: 64rpx;
+				font-weight: 700;
+				line-height: 92rpx;
+				white-space: nowrap;
+				text-align: center;
+				color: #318fce;
+			}
+		}
+
+		.time-labels {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-around;
+			margin-top: 8rpx;
+		}
+	}
+</style>

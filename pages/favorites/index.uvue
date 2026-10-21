@@ -1,15 +1,288 @@
 <template>
-	<view class="favorites-page">
-		<empty-state description="暂无收藏">
-			<button class="browse-button mt32" @click="browseCategories">去逛逛</button>
-		</empty-state>
-	</view>
+	<scroll-view class="favorites-page" scroll-y="true">
+		<page-header :fixed="isHeaderFixed" :showCapsule="false" :occupySpace="true">
+			<view class="favorites-hero" :style="heroStyle">
+				<image class="hero-image" :src="heroImageUrl" mode="aspectFill" />
+				<view class="hero-content">
+					<text class="text-[50rpx] font-bold text-[#092a4b] leading-[64rpx]">收藏</text>
+					<text class="mt-[10rpx] text-[23rpx] text-[#66819e] leading-[32rpx]">你收藏的工具和最近使用的记录</text>
+					<view class="segment-control">
+						<view
+							v-for="tab in tabs"
+							:key="tab.id"
+							class="segment-item"
+							:class="{ 'is-active': activeTab == tab.id }"
+							@click="switchSegment(tab.id)"
+						>
+							<text class="segment-label">{{ tab.title }}</text>
+						</view>
+					</view>
+				</view>
+			</view>
+		</page-header>
+
+		<view class="saved-section">
+			<view class="section-heading">
+				<text class="text-[25rpx] text-[#728aa2]">{{ listSummary }}</text>
+				<text v-if="activeTab == 'favorites'" class="action-label" @click="toggleManaging">
+					{{ isManaging ? '完成' : '管理' }}
+				</text>
+			</view>
+			<view v-if="isManaging" class="manage-actions">
+				<view class="flex flex-row items-center" @click="toggleSelectAll">
+					<UniIcons :type="allSelected ? 'checkbox-filled' : 'circle'" size="34rpx" color="#168fea" />
+					<text class="ml-[10rpx] text-[23rpx] text-[#52708f]">全选</text>
+				</view>
+				<text class="text-[23rpx] text-[#168fea]" @click="removeSelected">取消收藏（{{ selectedIds.length }}）</text>
+			</view>
+
+			<view v-if="displayTools.length > 0" class="saved-list">
+				<view v-for="tool in displayTools" :key="tool.id" class="saved-row">
+					<view v-if="isManaging" class="select-action" @click="toggleSelection(tool.id)">
+						<UniIcons
+							:type="selectedIds.includes(tool.id) ? 'checkbox-filled' : 'circle'"
+							size="36rpx"
+							color="#168fea"
+						/>
+					</view>
+					<view class="tool-entry" @click="handleToolClick(tool)">
+						<view class="tool-icon" :style="'background-color: ' + tool.background + ';'">
+							<text v-if="tool.iconText.length > 0" class="text-[42rpx]" :style="'color: ' + tool.color + ';'">
+								{{ tool.iconText }}
+							</text>
+							<UniIcons v-else-if="tool.icon.length > 0" :type="tool.icon" size="46rpx" :color="tool.color" />
+						</view>
+						<view class="tool-copy">
+							<text class="tool-title">{{ tool.title }}</text>
+							<text class="tool-description">{{ tool.description }}</text>
+						</view>
+					</view>
+					<view v-if="!isManaging" class="favorite-action" @click="toggleFavorite(tool.id)">
+						<UniIcons
+							:type="favoriteIds.includes(tool.id) ? 'star' : 'star-filled'"
+							size="44rpx"
+							:color="favoriteIds.includes(tool.id) ? '#ffad12' : '#829bb5'"
+						/>
+					</view>
+					<view v-if="!isManaging" class="more-action" @click="toggleMore(tool.id)">
+						<UniIcons type="more-filled" size="34rpx" color="#829bb5" />
+					</view>
+					<view v-if="activeMoreId == tool.id && !isManaging" class="row-actions">
+						<text class="text-[23rpx] text-[#168fea]" @click="toggleFavorite(tool.id)">
+							{{ favoriteIds.includes(tool.id) ? '取消收藏' : '添加收藏' }}
+						</text>
+						<text class="text-[23rpx] text-[#728aa2]" @click="closeMore">收起</text>
+					</view>
+				</view>
+			</view>
+			<view v-else class="empty-content">
+				<empty-state image="" :description="activeTab == 'favorites' ? '暂无收藏，添加常用工具方便下次找到' : '暂无使用记录'">
+					<view class="browse-button" @click="browseCategories">
+						<text class="text-[25rpx] text-[#168fea]">去逛逛</text>
+					</view>
+				</empty-state>
+			</view>
+		</view>
+
+		<view class="recommend-section">
+			<view class="section-heading">
+				<text class="text-[29rpx] font-bold text-[#143251]">为你推荐</text>
+				<view class="flex flex-row items-center" @click="refreshRecommendations">
+					<UniIcons type="refresh" size="32rpx" color="#849ab2" />
+					<text class="ml-[8rpx] text-[24rpx] text-[#849ab2]">换一批</text>
+				</view>
+			</view>
+			<view v-if="recommendations.length > 0" class="recommend-grid">
+				<view v-for="tool in recommendations" :key="tool.id" class="recommend-card">
+					<view class="recommend-entry" @click="openTool(tool)">
+						<view class="recommend-icon" :style="'background-color: ' + tool.background + ';'">
+							<text v-if="tool.iconText.length > 0" class="text-[42rpx]" :style="'color: ' + tool.color + ';'">
+								{{ tool.iconText }}
+							</text>
+							<UniIcons v-else-if="tool.icon.length > 0" :type="tool.icon" size="46rpx" :color="tool.color" />
+						</view>
+						<text class="mt-[16rpx] text-[23rpx] font-bold text-[#143251] leading-[34rpx]">{{ tool.title }}</text>
+						<text class="recommend-summary">{{ tool.summary }}</text>
+					</view>
+					<view class="add-button" @click="toggleFavorite(tool.id)">
+						<text class="text-[20rpx] text-[#168fe8]">＋ 添加</text>
+					</view>
+				</view>
+			</view>
+			<empty-state v-else image="" description="推荐工具已全部收藏" />
+		</view>
+	</scroll-view>
 </template>
 
 <script setup lang="uts">
+	import { computed, onMounted, ref } from 'vue'
+	import {
+		Tool,
+		DEFAULT_FAVORITE_IDS,
+		RECOMMENDED_TOOL_IDS,
+		getAllTools,
+		getToolsByIds
+	} from '@/config/tools'
+	import { FAVORITES_VIEW_KEY } from '@/config/toolbox'
+	import { getStorageSync, removeStorageSync, setStorageSync } from '@/utils/storage'
+	import { getNavBarInfo } from '@/utils/system'
+	import { toast } from '@/utils/toast'
+	import { navigateToTool } from '@/utils/tool-navigation'
+	import { ToolUsage, getRecentToolUsages } from '@/utils/tool-usage'
+
+	// data
+	type SegmentTab = {
+		id : string
+		title : string
+	}
+	const FAVORITE_IDS_KEY = 'shixu_favorite_tool_ids'
+	const isHeaderFixed = ref(false)
+	const heroImageUrl = 'https://i.postimg.cc/cHbHKcP3/P04-favorites-hero.png'
+	const navBarInfo = getNavBarInfo()
+	const activeTab = ref('favorites')
+	const isManaging = ref(false)
+	const selectedIds = ref<string[]>([])
+	const activeMoreId = ref('')
+	const recommendationOffset = ref(0)
+	const tabs : SegmentTab[] = [
+		{ id: 'favorites', title: '我收藏的工具' },
+		{ id: 'recent', title: '最近使用' }
+	]
+	// 首次展示沿用设计稿收藏，之后以本机保存的收藏为准。
+	const defaultFavoriteIds = DEFAULT_FAVORITE_IDS.slice()
+	const favoriteIds = ref<string[]>(defaultFavoriteIds.slice())
+	const recentTools = ref<Tool[]>([])
+	const allTools = getAllTools()
+	const catalog = getToolsByIds(RECOMMENDED_TOOL_IDS.concat(allTools.map((tool : Tool) : string => tool.id)))
+
+	// computed
+	const heroStyle = computed(() : string => {
+		return 'padding-top: ' + (navBarInfo.statusBarHeightRpx + 16) + 'rpx;'
+	})
+	const favoriteTools = computed(() : Tool[] => {
+		return getToolsByIds(favoriteIds.value)
+	})
+	const displayTools = computed(() : Tool[] => {
+		return activeTab.value == 'favorites' ? favoriteTools.value : recentTools.value
+	})
+	const listSummary = computed(() : string => {
+		return activeTab.value == 'favorites'
+			? '共 ' + favoriteTools.value.length + ' 个收藏'
+			: '共 ' + recentTools.value.length + ' 条记录'
+	})
+	const allSelected = computed(() : boolean => {
+		return favoriteIds.value.length > 0 && selectedIds.value.length == favoriteIds.value.length
+	})
+	const recommendations = computed(() : Tool[] => {
+		const candidates = catalog.filter((tool : Tool) : boolean => {
+			return !favoriteIds.value.includes(tool.id)
+		})
+		const result : Tool[] = []
+		if (candidates.length == 0) return result
+		const count = Math.min(3, candidates.length)
+		for (let index = 0; index < count; index++) {
+			result.push(candidates[(recommendationOffset.value + index) % candidates.length])
+		}
+		return result
+	})
+
+	// methods
+	const saveFavorites = (ids : string[]) : boolean => {
+		try {
+			// 仅同步保存少量工具 ID 字符串，不存储工具列表对象。
+			setStorageSync(FAVORITE_IDS_KEY, ids.join(','))
+			favoriteIds.value = ids
+			selectedIds.value = []
+			activeMoreId.value = ''
+			return true
+		} catch (error) {
+			toast('保存收藏失败，请重试')
+			return false
+		}
+	}
+	const switchSegment = (id : string) => {
+		activeTab.value = id
+		isManaging.value = false
+		selectedIds.value = []
+		activeMoreId.value = ''
+	}
+	const toggleManaging = () => {
+		if (favoriteIds.value.length == 0) return toast('暂无可管理的收藏')
+		isManaging.value = !isManaging.value
+		selectedIds.value = []
+		activeMoreId.value = ''
+	}
+	const toggleSelection = (id : string) => {
+		if (selectedIds.value.includes(id)) {
+			selectedIds.value = selectedIds.value.filter((item : string) : boolean => item != id)
+			return
+		}
+		selectedIds.value = selectedIds.value.concat([id])
+	}
+	const toggleSelectAll = () => {
+		selectedIds.value = allSelected.value ? [] : favoriteIds.value.slice()
+	}
+	const removeSelected = () => {
+		if (selectedIds.value.length == 0) return toast('请先选择工具')
+		const remaining = favoriteIds.value.filter((id : string) : boolean => !selectedIds.value.includes(id))
+		if (!saveFavorites(remaining)) return
+		isManaging.value = false
+		toast('已取消所选收藏')
+	}
+	const toggleFavorite = (id : string) => {
+		const existed = favoriteIds.value.includes(id)
+		const ids = existed
+			? favoriteIds.value.filter((item : string) : boolean => item != id)
+			: favoriteIds.value.concat([id])
+		if (!saveFavorites(ids)) return
+		toast(existed ? '已取消收藏' : '已添加收藏')
+	}
+	const toggleMore = (id : string) => {
+		activeMoreId.value = activeMoreId.value == id ? '' : id
+	}
+	const closeMore = () => {
+		activeMoreId.value = ''
+	}
+	const refreshRecommendations = () => {
+		recommendationOffset.value += 1
+	}
 	const browseCategories = () => {
 		uni.switchTab({ url: '/pages/category/index' })
 	}
+	const openTool = (tool : Tool) => {
+		navigateToTool(tool)
+	}
+	const handleToolClick = (tool : Tool) => {
+		if (isManaging.value) {
+			toggleSelection(tool.id)
+			return
+		}
+		openTool(tool)
+	}
+
+	// lifecycle
+	onShow(async () => {
+		try {
+			const usages = await getRecentToolUsages()
+			recentTools.value = usages.map((item : ToolUsage) : Tool => item.tool)
+			const requested : any = getStorageSync(FAVORITES_VIEW_KEY, '')
+			if (requested != 'favorites' && requested != 'recent') return
+			switchSegment(requested as string)
+			removeStorageSync(FAVORITES_VIEW_KEY)
+		} catch (error) {
+			toast('读取页面选项失败，请手动切换')
+		}
+	})
+
+	onMounted(() => {
+		try {
+			const saved : any = getStorageSync(FAVORITE_IDS_KEY, defaultFavoriteIds.join(','))
+			if (typeof saved != 'string') return
+			favoriteIds.value = getToolsByIds((saved as string).split(',')).map((tool : Tool) : string => tool.id)
+		} catch (error) {
+			toast('读取收藏失败，暂展示默认收藏')
+		}
+	})
 </script>
 
 <style scoped lang="scss">
@@ -17,14 +290,246 @@
 
 	.favorites-page {
 		flex: 1;
-		background-color: $uni-bg-color-page;
+		background-color: #f3f9fd;
+	}
 
-		.browse-button {
-			padding: 0 48rpx;
-			border-radius: 44rpx;
-			background-color: $primary-color;
-			color: $uni-text-color-inverse;
-			font-size: 28rpx;
+	.favorites-hero {
+		position: relative;
+		padding-bottom: 4rpx;
+		background-color: #ebf9ff;
+
+		.hero-image {
+			position: absolute;
+			left: 0;
+			top: 0;
+			width: 750rpx;
+			height: 100%;
+		}
+
+		.hero-content {
+			position: relative;
+			padding: 0 38rpx;
+
+			.segment-control {
+				display: flex;
+				flex-direction: row;
+				box-sizing: border-box;
+				height: 87rpx;
+				margin: 59rpx -7rpx 0;
+				padding: 6rpx;
+				border-radius: 44rpx;
+				background-color: #e9f2fc;
+
+				.segment-item {
+					flex: 1;
+					align-items: center;
+					justify-content: center;
+					border-radius: 38rpx;
+
+					.segment-label {
+						font-size: 25rpx;
+						color: #52708f;
+					}
+
+					&.is-active {
+						background-color: #4ba9f1;
+
+						.segment-label {
+							font-weight: 700;
+							color: $uni-bg-color;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	.saved-section {
+		padding: 16rpx 31rpx 0;
+
+		.section-heading {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+				height: 88rpx;
+			padding: 0 5rpx;
+
+			.action-label {
+				padding: 12rpx 0 12rpx 24rpx;
+				font-size: 23rpx;
+				color: #168fea;
+			}
+		}
+
+		.manage-actions {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			padding: 0 6rpx 20rpx;
+		}
+
+		.saved-list {
+			.saved-row {
+				display: flex;
+				flex-direction: row;
+				flex-wrap: wrap;
+				align-items: center;
+				min-height: 128rpx;
+				margin-bottom: 16rpx;
+				border-radius: 21rpx;
+				background-color: $uni-bg-color;
+
+				.select-action {
+					align-items: center;
+					justify-content: center;
+					width: 50rpx;
+					height: 104rpx;
+				}
+
+				.tool-entry {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					flex: 1;
+					min-width: 0;
+					padding: 20rpx 0 20rpx 20rpx;
+
+					.tool-icon {
+						flex-shrink: 0;
+						align-items: center;
+						justify-content: center;
+						width: 77rpx;
+						height: 77rpx;
+						border-radius: 19rpx;
+					}
+
+					.tool-copy {
+						flex: 1;
+						min-width: 0;
+						margin-left: 21rpx;
+
+						.tool-title {
+							font-size: 25rpx;
+							line-height: 36rpx;
+							font-weight: 700;
+							color: #143251;
+						}
+
+						.tool-description {
+							margin-top: 12rpx;
+							font-size: 20rpx;
+							line-height: 30rpx;
+							color: #8199b3;
+							lines: 2;
+							overflow: hidden;
+							text-overflow: ellipsis;
+						}
+					}
+				}
+
+				.favorite-action {
+					align-items: center;
+					justify-content: center;
+					width: 54rpx;
+					height: 100rpx;
+				}
+
+				.more-action {
+					align-items: center;
+					justify-content: center;
+					width: 69rpx;
+					height: 100rpx;
+				}
+
+				.row-actions {
+					display: flex;
+					flex-direction: row;
+					justify-content: space-between;
+					box-sizing: border-box;
+					width: 100%;
+					padding: 18rpx 24rpx;
+					border-top: 1rpx solid #edf2f6;
+				}
+			}
+		}
+
+		.empty-content {
+			display: flex;
+			flex-direction: column;
+			min-height: 360rpx;
+
+			.browse-button {
+				align-items: center;
+				justify-content: center;
+				margin-top: 28rpx;
+				padding: 16rpx 48rpx;
+				border-radius: 36rpx;
+				background-color: #eaf6ff;
+			}
+		}
+	}
+
+	.recommend-section {
+		padding: 0 31rpx 20rpx;
+
+		.section-heading {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			height: 86rpx;
+			padding: 0 5rpx;
+		}
+
+		.recommend-grid {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+
+			.recommend-card {
+				box-sizing: border-box;
+				align-items: center;
+				width: 219rpx;
+				min-height: 304rpx;
+				padding: 24rpx 16rpx 16rpx;
+				border-radius: 23rpx;
+				background-color: $uni-bg-color;
+
+				.recommend-entry {
+					flex: 1;
+					align-items: center;
+					width: 100%;
+
+					.recommend-icon {
+						align-items: center;
+						justify-content: center;
+						width: 77rpx;
+						height: 77rpx;
+						border-radius: 19rpx;
+					}
+
+					.recommend-summary {
+						min-height: 60rpx;
+						margin-top: 12rpx;
+						font-size: 20rpx;
+						line-height: 30rpx;
+						text-align: center;
+						color: #849ab2;
+					}
+				}
+
+				.add-button {
+					align-items: center;
+					justify-content: center;
+					width: 100%;
+					height: 44rpx;
+					margin-top: 16rpx;
+					border-radius: 17rpx;
+					background-color: #eaf6ff;
+				}
+			}
 		}
 	}
 </style>

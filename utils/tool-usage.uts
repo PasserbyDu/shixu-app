@@ -1,0 +1,64 @@
+import { Tool, getTool } from '@/config/tools'
+import { RECENT_HISTORY_CLEARED_KEY, RECENT_TOOL_USAGE_KEY } from '@/config/toolbox'
+import { getStorage, getStorageSync, removeStorageSync, setStorage, setStorageSync } from '@/utils/storage'
+
+export type ToolUsage = {
+	tool : Tool
+	usedAt : number
+}
+
+// 使用字符串保存 ID 和时间戳，避免多端存储反序列化后的对象类型差异。
+export const getRecentToolUsages = async () : Promise<ToolUsage[]> => {
+	const result : ToolUsage[] = []
+	if (getStorageSync(RECENT_HISTORY_CLEARED_KEY, '') == '1') return result
+	const saved : any = await getStorage(RECENT_TOOL_USAGE_KEY, '')
+	if (typeof saved != 'string' || (saved as string).length == 0) return result
+	const entries = (saved as string).split(',')
+	entries.forEach((entry : string) => {
+		const parts = entry.split('@')
+		if (parts.length != 2) return
+		const tool = getTool(parts[0])
+		const usedAt = Number(parts[1])
+		if (tool == null || !Number.isFinite(usedAt) || usedAt <= 0) return
+		if (result.some((item : ToolUsage) : boolean => item.tool.id == tool.id)) return
+		if (result.length >= 20) return
+		result.push({ tool, usedAt })
+	})
+	return result
+}
+
+const saveUsages = async (usages : ToolUsage[]) => {
+	const value = usages.map((item : ToolUsage) : string => item.tool.id + '@' + item.usedAt).join(',')
+	await setStorage(RECENT_TOOL_USAGE_KEY, value)
+}
+
+export const recordToolUsage = async (id : string) => {
+	const tool = getTool(id)
+	if (tool == null) return
+	const recent = await getRecentToolUsages()
+	const usages : ToolUsage[] = [{ tool, usedAt: Date.now() }]
+	recent.forEach((item : ToolUsage) => {
+		if (item.tool.id == tool.id || usages.length >= 20) return
+		usages.push(item)
+	})
+	await saveUsages(usages)
+	removeStorageSync(RECENT_HISTORY_CLEARED_KEY)
+}
+
+export const removeToolUsage = async (id : string) => {
+	const recent = await getRecentToolUsages()
+	await saveUsages(recent.filter((item : ToolUsage) : boolean => item.tool.id != id))
+}
+
+export const clearToolHistory = async () => {
+	await setStorage(RECENT_TOOL_USAGE_KEY, '')
+	setStorageSync(RECENT_HISTORY_CLEARED_KEY, '1')
+}
+
+export const formatUsageTime = (usedAt : number) : string => {
+	const minutes = Math.floor(Math.max(0, Date.now() - usedAt) / 60000)
+	if (minutes < 1) return '刚刚'
+	if (minutes < 60) return minutes + ' 分钟前'
+	if (minutes < 1440) return Math.floor(minutes / 60) + ' 小时前'
+	return Math.floor(minutes / 1440) + ' 天前'
+}

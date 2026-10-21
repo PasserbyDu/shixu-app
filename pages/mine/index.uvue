@@ -1,18 +1,206 @@
 <template>
-	<view class="mine-page">
-		<view class="profile-card">
-			<text class="fs40 fw500 text-color">{{ APP_NAME }}</text>
-			<text class="fs28 mt16 text-color-grey">{{ APP_SLOGAN }}</text>
+	<scroll-view class="mine-page" scroll-y="true">
+		<page-header :fixed="isHeaderFixed" :showCapsule="false" :occupySpace="true">
+			<view class="profile-hero" :style="heroStyle">
+				<image class="hero-image" :style="heroImageStyle" :src="heroImageUrl" mode="aspectFill" />
+				<view class="hero-content">
+					<text class="text-[48rpx] font-bold text-[#092a4b] leading-[64rpx]">我的</text>
+					<text class="mt-[12rpx] text-[24rpx] text-[#66819e] leading-[36rpx]">常用小工具，随手用起来</text>
+					<view class="toolbox-card">
+						<view class="toolbox-copy">
+							<view class="toolbox-title-row">
+								<text class="text-[32rpx] font-medium text-[#123553] leading-[44rpx]">我的工具箱</text>
+								<view class="toolbox-badge">
+									<text class="text-[20rpx] text-[#168fea]">轻量工具版</text>
+								</view>
+							</view>
+							<text class="mt-[12rpx] text-[24rpx] text-[#8299b1] leading-[36rpx]">常用工具与使用记录，一处轻松管理</text>
+						</view>
+						<view class="toolbox-icon">
+							<UniIcons type="wallet" size="48rpx" color="#369fd6" />
+						</view>
+					</view>
+				</view>
+			</view>
+		</page-header>
+
+		<view class="quick-section">
+			<view class="section-heading">
+				<text class="text-[28rpx] font-medium text-[#163554] leading-[40rpx]">快捷工具</text>
+				<text class="text-[22rpx] text-[#91a6bc] leading-[32rpx]">常用功能，点开即用</text>
+			</view>
+			<view class="quick-panel">
+				<view v-for="tool in quickTools" :key="tool.id" class="quick-card" @click="openTool(tool)">
+					<view class="quick-icon" :style="'background-color: ' + tool.background + ';'">
+						<text v-if="tool.iconText.length > 0" class="text-[40rpx]" :style="'color: ' + tool.color + ';'">{{ tool.iconText }}</text>
+						<UniIcons v-else-if="tool.icon.length > 0" :type="tool.icon" size="44rpx" :color="tool.color" />
+					</view>
+					<text class="mt-[18rpx] text-[24rpx] text-[#163856] leading-[34rpx]">{{ tool.shortTitle }}</text>
+				</view>
+			</view>
 		</view>
-		<view class="about-card flex-center-between">
-			<text class="fs28 text-color">当前版本</text>
-			<text class="fs28 text-color-grey">{{ APP_VERSION }}</text>
+
+		<view v-for="group in menuGroups" :key="group.id" class="menu-section">
+			<view class="section-heading">
+				<text class="text-[28rpx] font-medium text-[#163554] leading-[40rpx]">{{ group.title }}</text>
+			</view>
+			<view class="menu-panel">
+				<view
+					v-for="(item, index) in group.items"
+					:key="item.id"
+					class="menu-row"
+					:class="{ 'is-last': index == group.items.length - 1 }"
+					@click="handleMenu(item.id)"
+				>
+					<view class="menu-icon">
+						<text v-if="item.id == 'recent'" class="text-[44rpx] text-[#168fea]">◷</text>
+						<UniIcons v-else :type="item.icon" size="44rpx" :color="item.color" />
+					</view>
+					<view class="menu-copy">
+						<view class="flex flex-col flex-1 min-w-0">
+							<text class="text-[28rpx] font-medium text-[#163554] leading-[40rpx]">{{ item.title }}</text>
+							<text class="mt-[6rpx] text-[23rpx] text-[#8299b1] leading-[34rpx]">{{ item.description }}</text>
+						</view>
+						<UniIcons type="right" size="26rpx" color="#91a6bc" />
+					</view>
+				</view>
+			</view>
+			<view v-if="group.id == 'more' && showAbout" class="about-details">
+				<view class="flex flex-row items-center justify-between">
+					<text class="text-[27rpx] font-medium text-[#163554]">关于拾序有方</text>
+					<view @click="closeAbout">
+						<UniIcons type="closeempty" size="32rpx" color="#8299b1" />
+					</view>
+				</view>
+				<text class="mt-[18rpx] text-[23rpx] text-[#66819e]">{{ APP_NAME }} · v{{ APP_VERSION }}</text>
+				<text class="mt-[12rpx] text-[23rpx] text-[#66819e]">{{ APP_SLOGAN }}</text>
+				<text class="mt-[18rpx] text-[23rpx] text-[#66819e]">从首页或分类找到工具，在收藏页管理常用工具。</text>
+			</view>
 		</view>
-	</view>
+		<view class="h-[24rpx]" />
+	</scroll-view>
 </template>
 
 <script setup lang="uts">
+	import { computed, ref } from 'vue'
+	import { Tool, MINE_TOOL_IDS, getToolsByIds } from '@/config/tools'
 	import { APP_NAME, APP_SLOGAN, APP_VERSION } from '@/config/app'
+	import { FAVORITES_VIEW_KEY } from '@/config/toolbox'
+	import { removeStorageSync, setStorageSync } from '@/utils/storage'
+	import { getNavBarInfo } from '@/utils/system'
+	import { toast } from '@/utils/toast'
+	import { navigateToTool } from '@/utils/tool-navigation'
+	import { clearToolHistory } from '@/utils/tool-usage'
+
+	// data
+	type MenuItem = {
+		id : string
+		title : string
+		description : string
+		icon : string
+		color : string
+	}
+	type MenuGroup = {
+		id : string
+		title : string
+		items : MenuItem[]
+	}
+	const isHeaderFixed = ref(false)
+	const heroImageUrl = 'https://i.postimg.cc/63m37hFf/P05-profile-hero.png'
+	const navBarInfo = getNavBarInfo()
+	const showAbout = ref(false)
+	const quickTools = getToolsByIds(MINE_TOOL_IDS)
+	const menuGroups : MenuGroup[] = [
+		{
+			id: 'common', title: '常用功能',
+			items: [
+				{ id: 'favorites', title: '我的收藏', description: '快速找到收藏的工具', icon: 'star', color: '#e9a62b' },
+				{ id: 'recent', title: '最近使用', description: '查看最近打开的工具', icon: '', color: '#168fea' },
+				{ id: 'clear', title: '清理记录', description: '清除本机使用记录', icon: 'trash', color: '#9178d2' }
+			]
+		},
+		{
+			id: 'more', title: '更多',
+			items: [
+				{ id: 'feedback', title: '意见反馈', description: '告诉我们你的建议', icon: 'chat', color: '#25b2a3' },
+				{ id: 'share', title: '分享给朋友', description: '一起使用拾序有方', icon: 'redo', color: '#168fea' },
+				{ id: 'about', title: '关于拾序有方', description: '版本说明与使用帮助', icon: 'info', color: '#8299b1' }
+			]
+		}
+	]
+
+	// computed
+	const heroStyle = computed(() : string => {
+		return 'padding-top: ' + (navBarInfo.statusBarHeightRpx + 16) + 'rpx;'
+	})
+	const heroImageStyle = computed(() : string => {
+		return 'height: ' + (navBarInfo.statusBarHeightRpx + 271) + 'rpx;'
+	})
+
+	// methods
+	const openTool = (tool : Tool) => {
+		navigateToTool(tool)
+	}
+	const openFavorites = (view : string) => {
+		try {
+			setStorageSync(FAVORITES_VIEW_KEY, view)
+		} catch (error) {
+			toast('打开失败，请重试')
+			return
+		}
+		uni.switchTab({
+			url: '/pages/favorites/index',
+			fail: () => {
+				try {
+					removeStorageSync(FAVORITES_VIEW_KEY)
+				} catch (error) {}
+				toast('打开收藏页失败，请重试')
+			}
+		})
+	}
+	const clearRecords = async () => {
+		try {
+			await clearToolHistory()
+			toast('已清理本机使用记录')
+		} catch (error) {
+			toast('清理失败，请重试')
+		}
+	}
+	const shareApp = () => {
+		uni.setClipboardData({
+			data: '拾序有方，' + APP_SLOGAN + '。常用小工具，随手用起来。',
+			showToast: false,
+			success: () => {
+				toast('分享文案已复制，可以粘贴给朋友')
+			},
+			fail: () => {
+				toast('复制失败，请重试')
+			}
+		})
+	}
+	const closeAbout = () => {
+		showAbout.value = false
+	}
+	const handleMenu = (id : string) => {
+		switch (id) {
+			case 'favorites':
+			case 'recent':
+				openFavorites(id)
+				break
+			case 'clear':
+				clearRecords()
+				break
+			case 'feedback':
+				toast('意见反馈功能待接入')
+				break
+			case 'share':
+				shareApp()
+				break
+			case 'about':
+				showAbout.value = !showAbout.value
+				break
+		}
+	}
 </script>
 
 <style scoped lang="scss">
@@ -20,20 +208,161 @@
 
 	.mine-page {
 		flex: 1;
-		padding: 32rpx;
-		background-color: $uni-bg-color-page;
+		background-color: #f3f9fd;
 	}
 
-	.profile-card {
-		padding: 48rpx 32rpx;
-		border-radius: 24rpx;
-		background-color: $uni-bg-color;
+	.profile-hero {
+		position: relative;
+
+		.hero-image {
+			position: absolute;
+			left: 0;
+			top: 0;
+			width: 750rpx;
+		}
+
+		.hero-content {
+			position: relative;
+			padding: 0 32rpx;
+
+			.toolbox-card {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				box-sizing: border-box;
+				min-height: 176rpx;
+				margin-top: 44rpx;
+				padding: 28rpx 32rpx;
+				border: 2rpx solid #e4f0fa;
+				border-radius: 28rpx;
+				background-color: $uni-bg-color;
+
+				.toolbox-copy {
+					flex: 1;
+					min-width: 0;
+
+					.toolbox-title-row {
+						display: flex;
+						flex-direction: row;
+						align-items: center;
+
+						.toolbox-badge {
+							flex-shrink: 0;
+							align-items: center;
+							justify-content: center;
+							margin-left: 16rpx;
+							padding: 6rpx 14rpx;
+							border-radius: 12rpx;
+							background-color: #eaf6ff;
+						}
+					}
+				}
+
+				.toolbox-icon {
+					flex-shrink: 0;
+					align-items: center;
+					justify-content: center;
+					width: 88rpx;
+					height: 88rpx;
+					margin-left: 24rpx;
+					border-radius: 24rpx;
+					background-color: #e7f6fd;
+				}
+			}
+		}
 	}
 
-	.about-card {
-		margin-top: 24rpx;
-		padding: 32rpx;
-		border-radius: 20rpx;
-		background-color: $uni-bg-color;
+	.quick-section {
+		margin: 32rpx 32rpx 0;
+
+		.section-heading {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			margin-bottom: 20rpx;
+		}
+
+		.quick-panel {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+			box-sizing: border-box;
+			min-height: 184rpx;
+			padding: 24rpx 12rpx;
+			border-radius: 28rpx;
+			background-color: $uni-bg-color;
+
+			.quick-card {
+				flex: 1;
+				align-items: center;
+				justify-content: center;
+
+				.quick-icon {
+					align-items: center;
+					justify-content: center;
+					width: 68rpx;
+					height: 68rpx;
+					border-radius: 20rpx;
+				}
+			}
+		}
+	}
+
+	.menu-section {
+		margin: 32rpx 32rpx 0;
+
+		.section-heading {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			margin-bottom: 20rpx;
+		}
+
+		.menu-panel {
+			padding: 0 28rpx;
+			border-radius: 28rpx;
+			background-color: $uni-bg-color;
+
+			.menu-row {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				min-height: 124rpx;
+
+				.menu-icon {
+					flex-shrink: 0;
+					align-items: center;
+					justify-content: center;
+					width: 48rpx;
+					margin-right: 24rpx;
+				}
+
+				.menu-copy {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					flex: 1;
+					box-sizing: border-box;
+					min-width: 0;
+					min-height: 124rpx;
+					padding: 20rpx 0;
+					border-bottom: 1rpx solid #edf2f6;
+				}
+
+				&.is-last {
+					.menu-copy {
+						border-bottom-width: 0;
+					}
+				}
+			}
+		}
+
+		.about-details {
+			margin-top: 20rpx;
+			padding: 28rpx;
+			border-radius: 24rpx;
+			background-color: $uni-bg-color;
+		}
 	}
 </style>
