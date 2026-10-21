@@ -2,6 +2,7 @@
 
 @source "./App.uvue";
 @source "./pages/**/*.{uvue,uts}";
+@source "./subPackages/**/*.{uvue,uts}";
 @source "./components/**/*.{uvue,uts}";
 @source "./utils/**/*.uts";
 @source "./hooks/**/*.uts";

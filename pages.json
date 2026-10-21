@@ -25,36 +25,43 @@
 			}
 		},
 		{
-			"path": "pages/tools/date-difference",
-			"style": {
-				"navigationBarTitleText": "日期差计算",
-				"navigationStyle": "custom",
-				"backgroundColor": "#F5F8FB"
-			}
-		},
-		{
-			"path": "pages/tools/time-calculator",
-			"style": {
-				"navigationBarTitleText": "时间计算",
-				"navigationStyle": "custom",
-				"backgroundColor": "#F5F8FB"
-			}
-		},
-		{
-			"path": "pages/tools/unit-converter",
-			"style": {
-				"navigationBarTitleText": "单位换算",
-				"navigationStyle": "custom",
-				"backgroundColor": "#F5F8FB"
-			}
-		},
-		{
 			"path": "pages/mine/index",
 			"style": {
 				"navigationBarTitleText": "我的",
 				"navigationStyle": "custom",
 				"backgroundColor": "#F3F9FD"
 			}
+		}
+	],
+	"subPackages": [
+		{
+			"root": "subPackages/life",
+			"pages": [
+				{
+					"path": "date-difference",
+					"style": {
+						"navigationBarTitleText": "日期差计算",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FB"
+					}
+				},
+				{
+					"path": "time-calculator",
+					"style": {
+						"navigationBarTitleText": "时间计算",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FB"
+					}
+				},
+				{
+					"path": "unit-converter",
+					"style": {
+						"navigationBarTitleText": "单位换算",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FB"
+					}
+				}
+			]
 		}
 	],
 	"tabBar": {

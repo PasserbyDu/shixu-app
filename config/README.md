@@ -51,3 +51,9 @@ const categories = getToolCategories()
 已开发工具的页面路径由 `getToolPath(id)` 返回，尚未实现时返回空字符串。
 页面通过 `@/utils/tool-navigation` 的 `navigateToTool(tool)` 统一打开工具。
 日期差计算、时间计算、单位换算分别对应 `date`、`time`、`unit`。
+
+工具页面按分类放在 `subPackages/<分类 ID>/` 下，并在 `pages.json` 的 `subPackages` 中注册。
+当前三个生活工具页面位于 `subPackages/life/`，四个 tab 页面保留在主包 `pages/` 中。
+新增工具页面时同步维护分包注册和 `getToolPath(id)`；跳转路径为 `/<分包 root>/<页面 path>`。
+办公、图片、开发、财务、AI 分包分别使用 `office`、`image`、`development`、`finance`、`ai`，有实际页面时再注册。
+同一工具出现在多个分类时只保留一份页面和一个路由，按主要归属分类存放，各分类入口复用该路由。

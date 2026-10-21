@@ -17,6 +17,14 @@
 
 模板不预设分类数据、收藏业务或登录接口，也不会在启动时请求远程接口。
 
+### 工具页面分包
+
+四个 tab 页面放在主包 `pages/`，工具页面按分类放在 `subPackages/<分类 ID>/`，通过 `uni.navigateTo` 打开。
+目前已注册生活工具分包 `subPackages/life`，包含日期差计算、时间计算、单位换算。
+页面路径在 `pages.json` 注册，工具入口统一由 `config/tools.uts` 的 `getToolPath` 管理。
+后续新增工具沿用分类 ID 建分包；同一工具跨分类展示时复用一个页面和路由。详见 `config/README.md`。
+Tailwind 已扫描整个 `subPackages/`，新增分类目录可直接复用现有样式配置。
+
 ## 使用
 
 1. 使用 Node.js `^22.18.0 || >=24.11.0` 执行 `npm ci --include=optional` 安装样式依赖，再用 HBuilderX `>=5.11` 导入本目录。安装架构必须匹配 HBuilderX 的 Node.js，macOS 架构不一致的处理见下文。项目沿用 HBuilderX 工程结构，通过 HBuilderX 运行和发布。

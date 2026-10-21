@@ -173,11 +173,11 @@ export const getToolPath = (id : string) : string => {
 	if (tool == null) return ''
 	switch (tool.id) {
 		case 'date':
-			return '/pages/tools/date-difference'
+			return '/subPackages/life/date-difference'
 		case 'time':
-			return '/pages/tools/time-calculator'
+			return '/subPackages/life/time-calculator'
 		case 'unit':
-			return '/pages/tools/unit-converter'
+			return '/subPackages/life/unit-converter'
 	}
 	return ''
 }
