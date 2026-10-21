@@ -40,16 +40,18 @@
 		<view class="calculator-result">
 			<text class="result-label">{{ activeOperation == 'add' ? '相加结果' : '相减结果' }}</text>
 			<template v-if="resultSeconds != null">
-				<scroll-view class="time-result-scroll" scroll-x="true" :show-scrollbar="false">
-					<text class="time-number">{{ formattedResult }}</text>
-				</scroll-view>
-				<view class="time-labels">
-					<text v-for="label in resultLabels" :key="label" class="text-[22rpx] text-[#8799a7]">{{ label }}</text>
+				<view class="time-result-grid">
+					<view v-for="(part, index) in resultParts" :key="resultLabels[index]" class="time-result-column">
+						<text class="time-number" :class="{ 'is-compact': part.length > 3, 'is-long': part.length > 7 }">{{ part }}</text>
+						<text class="time-unit">{{ resultLabels[index] }}</text>
+					</view>
+					<text class="time-separator separator-first">:</text>
+					<text class="time-separator separator-second">:</text>
 				</view>
 				<view class="result-divider" />
 				<view class="flex flex-row items-center">
 					<UniIcons type="checkmarkempty" size="28rpx" color="#318fce" />
-					<text class="ml-[12rpx] text-[22rpx] text-[#318fce] leading-[34rpx]">已自动完成秒、分钟进位</text>
+					<text class="flex-1 min-w-0 ml-[12rpx] text-[22rpx] text-[#318fce] leading-[34rpx]">已自动完成秒、分钟进位</text>
 				</view>
 			</template>
 			<text v-else class="result-placeholder">输入或计算方式已更新，请点击计算</text>
@@ -100,7 +102,7 @@
 	])
 
 	// computed
-	const formattedResult = computed(() : string => formatDuration(resultSeconds.value ?? 0))
+	const resultParts = computed(() : string[] => formatDuration(resultSeconds.value ?? 0).split(' : '))
 
 	// methods
 	const invalidateResult = () => {
@@ -146,13 +148,18 @@
 			background-color: #f5f8fb;
 
 			.operation-tab {
+				display: flex;
+				flex-direction: row;
 				flex: 1;
+				min-width: 0;
 				align-items: center;
 				justify-content: center;
 				min-height: 68rpx;
 				border-radius: 16rpx;
 
 				.operation-label {
+					text-align: center;
+					white-space: nowrap;
 					font-size: 24rpx;
 					line-height: 36rpx;
 					color: #8799a7;
@@ -169,6 +176,8 @@
 		}
 
 		.duration-row {
+			display: flex;
+			flex-direction: column;
 			margin-top: 30rpx;
 
 			.duration-fields {
@@ -192,10 +201,12 @@
 						height: 64rpx;
 						font-size: 38rpx;
 						font-weight: 500;
+						text-align: center;
 						color: #1d394b;
 					}
 
 					.duration-unit {
+						flex-shrink: 0;
 						margin-left: 8rpx;
 						font-size: 20rpx;
 						color: #8799a7;
@@ -206,24 +217,67 @@
 	}
 
 	.calculator-result {
-		.time-result-scroll {
-			margin-top: 30rpx;
-
-			.time-number {
-				font-size: 64rpx;
-				font-weight: 700;
-				line-height: 92rpx;
-				white-space: nowrap;
-				text-align: center;
-				color: #318fce;
-			}
-		}
-
-		.time-labels {
+		.time-result-grid {
+			position: relative;
 			display: flex;
 			flex-direction: row;
-			justify-content: space-around;
-			margin-top: 8rpx;
+			width: 100%;
+			margin-top: 30rpx;
+
+			.time-result-column {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				flex: 1;
+				min-width: 0;
+				padding: 0 12rpx;
+				box-sizing: border-box;
+
+				.time-number {
+					width: 100%;
+					font-size: 64rpx;
+					font-weight: 700;
+					line-height: 92rpx;
+					white-space: nowrap;
+					text-align: center;
+					color: #318fce;
+
+					&.is-compact {
+						font-size: 36rpx;
+					}
+
+					&.is-long {
+						font-size: 24rpx;
+					}
+				}
+
+				.time-unit {
+					margin-top: 8rpx;
+					font-size: 22rpx;
+					line-height: 34rpx;
+					text-align: center;
+					color: #8799a7;
+				}
+			}
+
+			.time-separator {
+				position: absolute;
+				top: 0;
+				width: 24rpx;
+				margin-left: -12rpx;
+				font-size: 52rpx;
+				line-height: 92rpx;
+				text-align: center;
+				color: #318fce;
+
+				&.separator-first {
+					left: 33.333%;
+				}
+
+				&.separator-second {
+					left: 66.667%;
+				}
+			}
 		}
 	}
 </style>

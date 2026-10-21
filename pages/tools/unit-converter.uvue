@@ -26,7 +26,7 @@
 			<view class="unit-selectors">
 				<view class="unit-selector">
 					<text class="field-label">源单位</text>
-					<picker :range="unitLabels" :value="sourceIndex" @change="changeSource">
+					<picker class="calculator-picker" :range="unitLabels" :value="sourceIndex" @change="changeSource">
 						<view class="unit-select-box">
 							<text class="unit-select-label">{{ sourceUnit.label }}</text>
 							<UniIcons type="right" size="26rpx" color="#8799a7" />
@@ -38,7 +38,7 @@
 				</view>
 				<view class="unit-selector">
 					<text class="field-label">目标单位</text>
-					<picker :range="unitLabels" :value="targetIndex" @change="changeTarget">
+					<picker class="calculator-picker" :range="unitLabels" :value="targetIndex" @change="changeTarget">
 						<view class="unit-select-box">
 							<text class="unit-select-label">{{ targetUnit.label }}</text>
 							<UniIcons type="right" size="26rpx" color="#8799a7" />
@@ -54,15 +54,17 @@
 				<text class="text-[20rpx] text-[#318fce]">实时换算</text>
 			</view>
 			<template v-if="convertedValue != null">
-				<scroll-view class="conversion-result-scroll" scroll-x="true" :show-scrollbar="false">
-					<text class="conversion-number">{{ resultText }}</text>
-				</scroll-view>
-				<text class="mt-[12rpx] text-[26rpx] text-[#318fce] leading-[38rpx]">{{ targetUnit.label }}</text>
+				<view class="conversion-result-main">
+					<text class="conversion-number" :class="{ 'is-compact': resultText.length > 8, 'is-long': resultText.length > 14 }">{{ resultText }}</text>
+					<text class="conversion-unit">{{ targetUnit.label }}</text>
+				</view>
 				<view class="result-divider" />
-				<text class="text-[20rpx] text-[#8799a7] leading-[32rpx]">{{ formulaText }}</text>
-				<view class="copy-result" @click="copyResult">
-					<UniIcons type="paperclip" size="28rpx" color="#318fce" />
-					<text class="ml-[10rpx] text-[22rpx] text-[#318fce]">复制结果</text>
+				<view class="conversion-footer">
+					<text class="conversion-formula">{{ formulaText }}</text>
+					<view class="copy-result" @click="copyResult">
+						<UniIcons type="paperclip" size="28rpx" color="#318fce" />
+						<text class="ml-[10rpx] text-[22rpx] text-[#318fce] whitespace-nowrap">复制结果</text>
+					</view>
 				</view>
 			</template>
 			<text v-else class="result-placeholder">{{ conversionError }}</text>
@@ -189,6 +191,8 @@
 			justify-content: space-between;
 
 			.unit-category {
+				display: flex;
+				flex-direction: row;
 				align-items: center;
 				justify-content: center;
 				width: 32%;
@@ -198,6 +202,8 @@
 				background-color: #f5f8fb;
 
 				.category-label {
+					text-align: center;
+					white-space: nowrap;
 					font-size: 24rpx;
 					line-height: 36rpx;
 					color: #8799a7;
@@ -231,6 +237,8 @@
 			margin-top: 32rpx;
 
 			.unit-selector {
+				display: flex;
+				flex-direction: column;
 				flex: 1;
 				min-width: 0;
 
@@ -238,6 +246,8 @@
 					display: flex;
 					flex-direction: row;
 					align-items: center;
+					box-sizing: border-box;
+					width: 100%;
 					min-height: 100rpx;
 					padding: 12rpx 20rpx;
 					border-radius: 20rpx;
@@ -245,15 +255,21 @@
 
 					.unit-select-label {
 						flex: 1;
+						min-width: 0;
+						margin-right: 8rpx;
 						font-size: 24rpx;
 						font-weight: 500;
 						line-height: 36rpx;
+						white-space: nowrap;
 						color: #1d394b;
 					}
 				}
 			}
 
 			.unit-swap {
+				display: flex;
+				flex-direction: row;
+				flex-shrink: 0;
 				align-items: center;
 				justify-content: center;
 				width: 64rpx;
@@ -266,27 +282,70 @@
 	}
 
 	.calculator-result {
-		.conversion-result-scroll {
+		.conversion-result-main {
+			display: flex;
+			flex-direction: row;
+			flex-wrap: wrap;
+			align-items: baseline;
 			margin-top: 20rpx;
 
 			.conversion-number {
+				flex-shrink: 1;
+				max-width: 100%;
+				min-width: 0;
+				margin-right: 16rpx;
 				font-size: 80rpx;
 				font-weight: 700;
 				line-height: 108rpx;
+				word-break: break-all;
+				color: #318fce;
+
+				&.is-compact {
+					font-size: 56rpx;
+					line-height: 84rpx;
+				}
+
+				&.is-long {
+					font-size: 40rpx;
+					line-height: 64rpx;
+				}
+			}
+
+			.conversion-unit {
+				flex-shrink: 0;
+				font-size: 26rpx;
+				line-height: 40rpx;
 				white-space: nowrap;
 				color: #318fce;
 			}
 		}
 
-		.copy-result {
+		.conversion-footer {
 			display: flex;
 			flex-direction: row;
 			align-items: center;
-			align-self: flex-end;
-			margin-top: 20rpx;
-			padding: 14rpx 20rpx;
-			border-radius: 18rpx;
-			background-color: #ffffff;
+			justify-content: space-between;
+
+			.conversion-formula {
+				flex: 1;
+				min-width: 0;
+				margin-right: 20rpx;
+				font-size: 20rpx;
+				line-height: 32rpx;
+				word-break: break-all;
+				color: #8799a7;
+			}
+
+			.copy-result {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				flex-shrink: 0;
+				padding: 14rpx 20rpx;
+				border-radius: 18rpx;
+				background-color: #ffffff;
+			}
 		}
 	}
 </style>

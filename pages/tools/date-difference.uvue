@@ -8,7 +8,7 @@
 		<view class="calculator-card">
 			<text class="card-title">选择日期</text>
 			<text class="field-label">起始日期</text>
-			<picker mode="date" :value="startDate" start="0001-01-01" end="9999-12-31" @change="changeStartDate">
+			<picker class="calculator-picker" mode="date" :value="startDate" start="0001-01-01" end="9999-12-31" @change="changeStartDate">
 				<view class="field-box">
 					<UniIcons type="calendar" size="34rpx" color="#318fce" />
 					<text class="field-value">{{ startDate }}</text>
@@ -18,11 +18,11 @@
 			<view class="date-actions">
 				<view class="swap-button" @click="swapDates">
 					<UniIcons type="loop" size="30rpx" color="#318fce" />
-					<text class="ml-[10rpx] text-[22rpx] text-[#318fce]">交换日期</text>
+					<text class="ml-[10rpx] text-[22rpx] text-[#318fce] whitespace-nowrap leading-[34rpx]">交换日期</text>
 				</view>
 			</view>
 			<text class="field-label">结束日期</text>
-			<picker mode="date" :value="endDate" start="0001-01-01" end="9999-12-31" @change="changeEndDate">
+			<picker class="calculator-picker" mode="date" :value="endDate" start="0001-01-01" end="9999-12-31" @change="changeEndDate">
 				<view class="field-box">
 					<UniIcons type="calendar" size="34rpx" color="#318fce" />
 					<text class="field-value">{{ endDate }}</text>
@@ -119,6 +119,8 @@
 				display: flex;
 				flex-direction: row;
 				align-items: center;
+				justify-content: center;
+				flex-shrink: 0;
 				padding: 12rpx 20rpx;
 				border-radius: 28rpx;
 				background-color: #edf7fe;
