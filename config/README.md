@@ -57,3 +57,7 @@ const categories = getToolCategories()
 新增工具页面时同步维护分包注册和 `getToolPath(id)`；跳转路径为 `/<分包 root>/<页面 path>`。
 办公、图片、开发、财务、AI 分包分别使用 `office`、`image`、`development`、`finance`、`ai`，有实际页面时再注册。
 同一工具出现在多个分类时只保留一份页面和一个路由，按主要归属分类存放，各分类入口复用该路由。
+
+当前已接入的新增工具：`image-pdf`、`pdf-merge`、`pdf-split`、`text` 对应办公分包；`image` 对应图片分包的图片压缩。
+首页、分类、收藏、最近使用均复用 `navigateToTool`，无需在各页面单独维护新路由。
+各平台支持范围与待验收用例见 `subPackages/office/README.md`。

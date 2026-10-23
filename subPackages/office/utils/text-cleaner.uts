@@ -1,0 +1,32 @@
+export type CleanupOptions = {
+	emptyLines : boolean
+	spaces : boolean
+	duplicates : boolean
+	lineEndings : boolean
+}
+
+export const textLineCount = (value : string) : number => {
+	if (value.length == 0) return 0
+	return value.split(/\r\n|\r|\n/).length
+}
+
+export const cleanText = (value : string, options : CleanupOptions) : string => {
+	const lines = value.split(/\r\n|\r|\n/)
+	const separators = value.match(/\r\n|\r|\n/g) ?? []
+	const seen : string[] = []
+	let output = ''
+	let hasOutput = false
+	for (let index = 0; index < lines.length; index++) {
+		let line = lines[index]
+		if (options.spaces) line = line.replace(/[\t \u00a0\u3000]+/g, ' ').trim()
+		if (options.emptyLines && line.trim().length == 0) continue
+		if (options.duplicates && line.trim().length > 0) {
+			if (seen.includes(line)) continue
+			seen.push(line)
+		}
+		if (hasOutput) output += options.lineEndings ? '\n' : (separators[index - 1] ?? '\n')
+		output += line
+		hasOutput = true
+	}
+	return output
+}

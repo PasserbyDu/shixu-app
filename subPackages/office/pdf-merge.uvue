@@ -1,0 +1,68 @@
+<template>
+	<scroll-view class="document-page" scroll-y="true">
+		<page-header
+			:fixed="isHeaderFixed"
+			title="PDF 合并"
+			titleColor="#243746"
+			titleFontSize="30rpx"
+			titleFontWeight="400"
+			headerClass="page-header-calculator-bg"
+		/>
+		<view class="document-intro">
+			<text class="document-heading">PDF 合并</text>
+			<text class="document-description">将多份 PDF 合为一份，按排列顺序依次合并</text>
+		</view>
+		<view class="document-card">
+			<view class="card-heading">
+				<text class="card-title">待合并文件</text>
+				<text class="card-caption">{{ files.length }} 份</text>
+			</view>
+			<SortableFiles v-if="files.length > 0" :files="files" :images="false" :disabled="busy" @reorder="reorderFiles" @remove="removeFile" />
+			<view v-else class="document-empty" @click="selectFiles(false)">
+				<UniIcons type="compose" size="56rpx" color="#277ab8" />
+				<text class="empty-label">请选择至少两份 PDF 文件</text>
+			</view>
+			<text class="document-help">拖动文件调整先后，也可以点击上移或移除</text>
+			<view class="flex flex-row items-center justify-between mt-[16rpx]">
+				<view class="flex flex-row items-center py-[16rpx]" @click="selectFiles(false)">
+					<UniIcons type="plusempty" size="30rpx" color="#277ab8" />
+					<text class="ml-[8rpx] text-[26rpx] leading-[40rpx] text-[#277ab8]">继续添加 PDF</text>
+				</view>
+				<text class="text-[22rpx] leading-[34rpx] text-[#708291]">共 {{ totalPages }} 页</text>
+			</view>
+		</view>
+		<text v-if="errorText.length > 0" class="document-error">{{ errorText }}</text>
+		<view class="document-primary-button" :class="{ 'is-disabled': busy || !supported }" @click="run('merge')">
+			<text class="primary-label">{{ busy ? '正在处理，请稍候…' : '合并 PDF' }}</text>
+		</view>
+		<DocumentResult
+			v-if="output != null"
+			title="合并完成"
+			:path="output.path"
+			:name="output.name"
+			:size="output.size"
+			:pages="output.pages"
+			:disabled="busy"
+			@busy-change="setExporting"
+		/>
+		<text class="document-footnote">最多 12 份、总计 30 MB、200 页；保留各页原尺寸和方向。{{ platformNote }}</text>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { ref } from 'vue'
+	import SortableFiles from '@/subPackages/office/components/sortable-files/sortable-files.uvue'
+	import DocumentResult from '@/subPackages/office/components/document-result/document-result.uvue'
+	import { supportsLocalPdf, pdfPlatformNote } from '@/subPackages/office/utils/pdf-service'
+	import { usePdfWorkspace } from '@/subPackages/office/utils/use-pdf-workspace'
+
+	// data
+	const isHeaderFixed = ref(false)
+	const supported = supportsLocalPdf()
+	const platformNote = pdfPlatformNote()
+	const { files, output, busy, errorText, totalPages, selectFiles, reorderFiles, removeFile, run, setExporting } = usePdfWorkspace('pdf-merge')
+</script>
+
+<style scoped lang="scss">
+	@import "@/styles/document-tools.scss";
+</style>

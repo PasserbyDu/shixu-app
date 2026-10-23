@@ -1,0 +1,140 @@
+<template>
+	<scroll-view class="document-page" scroll-y="true">
+		<page-header
+			:fixed="isHeaderFixed"
+			title="图片转 PDF"
+			titleColor="#243746"
+			titleFontSize="30rpx"
+			titleFontWeight="400"
+			headerClass="page-header-calculator-bg"
+		/>
+		<view class="document-intro">
+			<text class="document-heading">图片转 PDF</text>
+			<text class="document-description">把多张图片整理成一份 PDF，顺序由你决定</text>
+		</view>
+		<view class="document-card">
+			<view class="card-heading">
+				<text class="card-title">已选图片</text>
+				<text class="card-caption">{{ files.length }} 张</text>
+			</view>
+			<SortableFiles v-if="files.length > 0" :files="files" :images="true" :disabled="busy" @reorder="reorderFiles" @remove="removeFile" />
+			<view v-else class="document-empty" @click="selectFiles(true)">
+				<UniIcons type="images" size="56rpx" color="#277ab8" />
+				<text class="empty-label">选择 JPG、PNG 图片，每张生成一页</text>
+			</view>
+			<text class="document-help">拖动缩略图调整图片顺序，点击右上角移除</text>
+			<view class="document-outline-button mt-[20rpx]" @click="selectFiles(true)">
+				<UniIcons type="plusempty" size="34rpx" color="#277ab8" />
+				<text class="outline-label">{{ busy ? '处理中…' : '继续选择图片' }}</text>
+			</view>
+		</view>
+		<view class="document-card">
+			<view class="card-heading"><text class="card-title">页面设置</text></view>
+			<view class="page-settings">
+				<picker class="setting-picker" :range="papers" :value="paperIndex" @change="changePaper">
+					<view class="setting-row">
+						<text class="setting-label">纸张尺寸</text>
+						<text class="setting-value">{{ papers[paperIndex] }}</text>
+						<UniIcons type="right" size="28rpx" color="#708291" />
+					</view>
+				</picker>
+				<picker class="setting-picker ml-[20rpx]" :range="directions" :value="directionIndex" @change="changeDirection">
+					<view class="setting-row">
+						<text class="setting-label">方向</text>
+						<text class="setting-value">{{ directions[directionIndex] }}</text>
+						<UniIcons type="right" size="28rpx" color="#708291" />
+					</view>
+				</picker>
+			</view>
+		</view>
+		<text v-if="errorText.length > 0" class="document-error">{{ errorText }}</text>
+		<view class="document-primary-button" :class="{ 'is-disabled': busy || !supported }" @click="generate">
+			<text class="primary-label">{{ busy ? '正在处理，请稍候…' : '生成 PDF' }}</text>
+		</view>
+		<DocumentResult
+			v-if="output != null"
+			title="PDF 已生成"
+			:path="output.path"
+			:name="output.name"
+			:size="output.size"
+			:pages="output.pages"
+			:disabled="busy"
+			@busy-change="setExporting"
+		/>
+		<text class="document-footnote">最多 9 张、总计 30 MB。自动方向按每张图片比例决定，等比居中且不裁切。{{ platformNote }}</text>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { ref } from 'vue'
+	import SortableFiles from '@/subPackages/office/components/sortable-files/sortable-files.uvue'
+	import DocumentResult from '@/subPackages/office/components/document-result/document-result.uvue'
+	import { supportsLocalPdf, pdfPlatformNote } from '@/subPackages/office/utils/pdf-service'
+	import { usePdfWorkspace } from '@/subPackages/office/utils/use-pdf-workspace'
+
+	// data
+	const isHeaderFixed = ref(false)
+	const paperIndex = ref(0)
+	const directionIndex = ref(0)
+	const papers : string[] = ['A4', 'A5', '原图']
+	const directions : string[] = ['自动', '纵向', '横向']
+	const supported = supportsLocalPdf()
+	const platformNote = pdfPlatformNote()
+	const { files, output, busy, errorText, clearOutput, selectFiles, reorderFiles, removeFile, run, setExporting } = usePdfWorkspace('image-pdf')
+
+	// methods
+	const changePaper = (event : UniPickerChangeEvent) => {
+		if (busy.value) return
+		paperIndex.value = Number(event.detail.value.toString())
+		clearOutput()
+	}
+	const changeDirection = (event : UniPickerChangeEvent) => {
+		if (busy.value) return
+		directionIndex.value = Number(event.detail.value.toString())
+		clearOutput()
+	}
+	const generate = () => {
+		run('images', papers[paperIndex.value], directions[directionIndex.value])
+	}
+</script>
+
+<style scoped lang="scss">
+	@import "@/styles/document-tools.scss";
+
+	.document-card {
+		.page-settings {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+
+			.setting-picker {
+				flex: 1;
+				min-width: 0;
+
+				.setting-row {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					min-height: 92rpx;
+
+					.setting-label {
+						font-size: 24rpx;
+						line-height: 38rpx;
+						white-space: nowrap;
+						color: #708291;
+					}
+
+					.setting-value {
+						flex: 1;
+						margin: 0 12rpx;
+						font-size: 26rpx;
+						line-height: 40rpx;
+						white-space: nowrap;
+						text-align: center;
+						color: #243746;
+					}
+				}
+			}
+		}
+	}
+</style>

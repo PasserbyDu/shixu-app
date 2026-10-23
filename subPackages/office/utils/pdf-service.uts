@@ -1,0 +1,66 @@
+import { LocalMediaFile } from '@/utils/local-media'
+// PDF-LIB 为纯 JavaScript 引擎，仅在微信 JavaScript 运行环境中引用。
+// #ifdef MP-WEIXIN
+import { runPdfTask, selectPdfFiles, exportPdfFile, removePdfFile } from './pdf-weixin.js'
+// #endif
+
+export type PdfOutput = {
+	path : string
+	name : string
+	size : number
+	pages : number
+}
+
+export const supportsLocalPdf = () : boolean => {
+	// #ifdef MP-WEIXIN
+	return true
+	// #endif
+	// #ifndef MP-WEIXIN
+	return false
+	// #endif
+}
+
+export const pdfPlatformNote = () : string => {
+	if (supportsLocalPdf()) return 'PDF 在本机处理，无需上传文件。支持普通未加密 PDF，不保证表单、签名保真。'
+	return '当前平台暂未接入 PDF 引擎，请使用微信小程序；原生 App 需补充 UTS PDF 插件。'
+}
+
+export const choosePdfFiles = async (count : number) : Promise<LocalMediaFile[]> => {
+	// #ifdef MP-WEIXIN
+	const json : string = await selectPdfFiles(count)
+	const files = JSON.parse<LocalMediaFile[]>(json)
+	if (files == null) throw new Error('文件读取失败，请重新选择')
+	return files
+	// #endif
+	// #ifndef MP-WEIXIN
+	throw new Error(pdfPlatformNote())
+	// #endif
+}
+
+export const generatePdf = async (kind : string, payload : string) : Promise<PdfOutput> => {
+	// #ifdef MP-WEIXIN
+	const json : string = await runPdfTask(kind, payload)
+	const output = JSON.parse<PdfOutput>(json)
+	if (output == null || output.path.length == 0) throw new Error('生成文件失败，请重试')
+	return output
+	// #endif
+	// #ifndef MP-WEIXIN
+	throw new Error(pdfPlatformNote())
+	// #endif
+}
+
+export const exportPdf = async (path : string, name : string, share : boolean) : Promise<boolean> => {
+	// #ifdef MP-WEIXIN
+	await exportPdfFile(path, name, share)
+	return true
+	// #endif
+	// #ifndef MP-WEIXIN
+	throw new Error(pdfPlatformNote())
+	// #endif
+}
+
+export const discardPdf = (path : string) => {
+	// #ifdef MP-WEIXIN
+	removePdfFile(path)
+	// #endif
+}

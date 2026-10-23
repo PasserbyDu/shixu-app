@@ -178,6 +178,16 @@ export const getToolPath = (id : string) : string => {
 			return '/subPackages/life/time-calculator'
 		case 'unit':
 			return '/subPackages/life/unit-converter'
+		case 'image-pdf':
+			return '/subPackages/office/image-pdf'
+		case 'pdf-merge':
+			return '/subPackages/office/pdf-merge'
+		case 'pdf-split':
+			return '/subPackages/office/pdf-split'
+		case 'text':
+			return '/subPackages/office/text-cleaner'
+		case 'image':
+			return '/subPackages/image/image-compress'
 	}
 	return ''
 }

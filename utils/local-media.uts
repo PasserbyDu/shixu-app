@@ -1,0 +1,93 @@
+export type LocalMediaFile = {
+	id : string
+	name : string
+	path : string
+	size : number
+	pages : number
+}
+
+export const formatFileSize = (bytes : number) : string => {
+	if (bytes < 1024) return bytes + ' B'
+	if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
+	return (bytes / 1048576).toFixed(2) + ' MB'
+}
+
+export const localFileSize = (path : string) : Promise<number> => {
+	// #ifndef WEB
+	return new Promise<number>((resolve, reject) => {
+		uni.getFileSystemManager().getFileInfo({
+			filePath: path,
+			success: (result) => resolve(result.size),
+			fail: () => reject(new Error('无法读取本地文件大小，请重新选择'))
+		})
+	})
+	// #endif
+	// #ifdef WEB
+	return Promise.reject(new Error('当前网页端暂不支持本地图片处理，请使用微信小程序或 App'))
+	// #endif
+}
+
+export const chooseLocalImages = (count : number) : Promise<LocalMediaFile[]> => {
+	return new Promise<LocalMediaFile[]>((resolve, reject) => {
+		uni.chooseImage({
+			count,
+			sizeType: ['original'],
+			sourceType: ['album'],
+			success: async (result) => {
+				try {
+					const files : LocalMediaFile[] = []
+					for (let index = 0; index < result.tempFilePaths.length; index++) {
+						const path = result.tempFilePaths[index]
+						const size = await localFileSize(path)
+						const name = path.split('/').pop() ?? '图片'
+						files.push({ id: Date.now() + '-' + index, name, path, size, pages: 0 })
+					}
+					resolve(files)
+				} catch (error) {
+					reject(error)
+				}
+			},
+			fail: (error) => reject(new Error(error.errMsg))
+		})
+	})
+}
+
+export const localOperationError = (error : any) : string => {
+	const message = error instanceof Error ? error.message : String(error)
+	if (message.toLowerCase().includes('cancel') || message.includes('取消')) return ''
+	if (message.includes('auth') || message.includes('permission') || message.includes('deny')) {
+		return '未获得文件或相册权限，请在系统设置中允许后重试'
+	}
+	return message.length > 0 ? message : '处理失败，请重新选择文件后重试'
+}
+
+export const compressLocalImage = (path : string, quality : number) : Promise<string> => {
+	// #ifndef WEB
+	return new Promise<string>((resolve, reject) => {
+		uni.compressImage({
+			src: path,
+			quality,
+			success: (result) => resolve(result.tempFilePath),
+			fail: () => reject(new Error('图片压缩失败，请选择 JPG 或 PNG 图片重试'))
+		})
+	})
+	// #endif
+	// #ifdef WEB
+	return Promise.reject(new Error('网页端暂不支持此压缩接口，请使用微信小程序或 App'))
+	// #endif
+}
+
+export const saveLocalImage = (path : string) : Promise<boolean> => {
+	// #ifndef WEB
+	return new Promise<boolean>((resolve, reject) => {
+		uni.saveImageToPhotosAlbum({
+			filePath: path,
+			success: () => resolve(true),
+			fail: (error) => reject(new Error(error.errMsg))
+		})
+	})
+	// #endif
+	// #ifdef WEB
+	return Promise.reject(new Error('网页端暂不支持保存到相册'))
+	// #endif
+}

@@ -1,0 +1,65 @@
+<template>
+	<view class="document-card">
+		<view class="card-heading">
+			<view class="flex flex-row items-center flex-1 min-w-0">
+				<UniIcons type="checkmarkempty" size="36rpx" color="#38a38c" />
+				<text class="card-title ml-[16rpx]">{{ title }}</text>
+			</view>
+		</view>
+		<text class="block text-[28rpx] leading-[42rpx] text-[#243746] break-all">{{ name }}</text>
+		<text class="block mt-[12rpx] mb-[24rpx] text-[22rpx] leading-[36rpx] text-[#708291]">{{ pages }} 页 · {{ formatFileSize(size) }}</text>
+		<view class="flex flex-row items-center">
+			<view class="document-outline-button flex-1 min-w-0" @click="exportFile(false)">
+				<UniIcons type="download" size="34rpx" color="#277ab8" />
+				<text class="outline-label">{{ exporting ? '处理中' : '保存文件' }}</text>
+			</view>
+			<view class="document-outline-button flex-1 min-w-0 ml-[24rpx]" @click="exportFile(true)">
+				<UniIcons type="upload" size="34rpx" color="#277ab8" />
+				<text class="outline-label">分享</text>
+			</view>
+		</view>
+		<text v-if="errorText.length > 0" class="document-help text-[#c05050]">{{ errorText }}</text>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref } from 'vue'
+	import { formatFileSize, localOperationError } from '@/utils/local-media'
+	import { exportPdf } from '@/subPackages/office/utils/pdf-service'
+	import { toast } from '@/utils/toast'
+
+	// data
+	const props = defineProps<{
+		title : string
+		path : string
+		name : string
+		size : number
+		pages : number
+		disabled : boolean
+	}>()
+	const emit = defineEmits(['busy-change'])
+	const exporting = ref(false)
+	const errorText = ref('')
+
+	// methods
+	const exportFile = async (share : boolean) => {
+		if (exporting.value || props.disabled) return
+		exporting.value = true
+		emit('busy-change', true)
+		errorText.value = ''
+		try {
+			await exportPdf(props.path, props.name, share)
+			if (!share) toast('已保留本地副本，可在预览菜单中保存或转发')
+		} catch (error) {
+			errorText.value = localOperationError(error)
+			if (errorText.value.length > 0) toast(errorText.value)
+		} finally {
+			exporting.value = false
+			emit('busy-change', false)
+		}
+	}
+</script>
+
+<style scoped lang="scss">
+	@import "@/styles/document-tools.scss";
+</style>

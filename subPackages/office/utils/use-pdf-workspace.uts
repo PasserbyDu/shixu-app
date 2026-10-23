@@ -1,0 +1,103 @@
+import { computed, ref } from 'vue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { LocalMediaFile, chooseLocalImages, localOperationError } from '@/utils/local-media'
+import { toast } from '@/utils/toast'
+import { recordToolUsage } from '@/utils/tool-usage'
+import { PdfOutput, choosePdfFiles, generatePdf, discardPdf, supportsLocalPdf, pdfPlatformNote } from './pdf-service'
+
+export const usePdfWorkspace = (toolId : string) => {
+	// data
+	const files = ref<LocalMediaFile[]>([])
+	const output = ref<PdfOutput | null>(null)
+	const busy = ref(false)
+	const errorText = ref('')
+	let disposed = false
+
+	// computed
+	const totalPages = computed(() : number => files.value.reduce((sum : number, file : LocalMediaFile) : number => sum + file.pages, 0))
+
+	// methods
+	const clearOutput = () => {
+		const previous = output.value
+		if (previous != null) discardPdf(previous.path)
+		output.value = null
+		errorText.value = ''
+	}
+	const reportError = (error : any) => {
+		if (disposed) return
+		errorText.value = localOperationError(error)
+		if (errorText.value.length > 0) toast(errorText.value)
+	}
+	const setExporting = (value : boolean) => {
+		if (disposed) return
+		busy.value = value
+	}
+	const selectFiles = async (images : boolean, replace : boolean = false) => {
+		if (busy.value) return
+		if (!supportsLocalPdf()) return toast(pdfPlatformNote())
+		const limit = images ? 9 : 12
+		const remaining = replace ? 1 : limit - files.value.length
+		if (remaining <= 0) return toast('最多选择 ' + limit + ' 份文件，请先移除部分文件')
+		busy.value = true
+		errorText.value = ''
+		try {
+			const selected = images ? await chooseLocalImages(remaining) : await choosePdfFiles(remaining)
+			if (disposed || selected.length == 0) return
+			const next = replace ? selected : files.value.concat(selected)
+			const totalSize = next.reduce((sum : number, file : LocalMediaFile) : number => sum + file.size, 0)
+			const pageCount = next.reduce((sum : number, file : LocalMediaFile) : number => sum + file.pages, 0)
+			if (totalSize > 30 * 1024 * 1024) throw new Error('单次处理文件总大小不能超过 30 MB')
+			if (pageCount > 200) throw new Error('单次处理不能超过 200 页')
+			clearOutput()
+			files.value = next
+		} catch (error) {
+			reportError(error)
+		} finally {
+			busy.value = false
+		}
+	}
+	const reorderFiles = (from : number, to : number) => {
+		if (busy.value || from == to || from < 0 || to < 0 || from >= files.value.length || to >= files.value.length) return
+		const next = files.value.slice()
+		const selected = next.splice(from, 1)[0]
+		next.splice(to, 0, selected)
+		files.value = next
+		clearOutput()
+	}
+	const removeFile = (index : number) => {
+		if (busy.value || index < 0 || index >= files.value.length) return
+		files.value.splice(index, 1)
+		clearOutput()
+	}
+	const run = async (kind : string, paper : string = 'A4', direction : string = '自动', indices : number[] = []) => {
+		if (busy.value) return
+		if (!supportsLocalPdf()) return toast(pdfPlatformNote())
+		if (files.value.length == 0) return toast('请先选择文件')
+		if (kind == 'merge' && files.value.length < 2) return toast('请至少选择两份 PDF')
+		busy.value = true
+		clearOutput()
+		try {
+			const payload = JSON.stringify({ files: files.value, paper, direction, indices })
+			const generated = await generatePdf(kind, payload)
+			if (disposed) {
+				discardPdf(generated.path)
+				return
+			}
+			output.value = generated
+		} catch (error) {
+			reportError(error)
+		} finally {
+			busy.value = false
+		}
+	}
+
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage(toolId).catch(() => toast('保存使用记录失败'))
+	})
+	onUnload(() => {
+		disposed = true
+		clearOutput()
+	})
+	return { files, output, busy, errorText, totalPages, clearOutput, selectFiles, reorderFiles, removeFile, run, reportError, setExporting }
+}

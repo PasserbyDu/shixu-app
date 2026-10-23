@@ -1,0 +1,196 @@
+<template>
+	<scroll-view class="document-page" scroll-y="true">
+		<page-header
+			:fixed="isHeaderFixed"
+			title="文本整理"
+			titleColor="#243746"
+			titleFontSize="30rpx"
+			titleFontWeight="400"
+			headerClass="page-header-calculator-bg"
+		/>
+		<view class="document-intro">
+			<text class="document-heading">文本整理</text>
+			<text class="document-description">清理多余空行、空格和重复内容，让文字更整齐</text>
+		</view>
+		<view class="document-card">
+			<view class="card-heading">
+				<text class="card-title">原文</text>
+				<text class="card-caption">{{ inputLines }} 行 · {{ inputText.length }} 字符</text>
+			</view>
+			<textarea
+				v-model="inputText"
+				class="original-text"
+				maxlength="50000"
+				placeholder="粘贴或输入需要整理的文字"
+				:show-confirm-bar="false"
+				@input="invalidateResult"
+			/>
+			<view class="flex flex-row items-center justify-between mt-[16rpx]">
+				<text class="flex-1 text-[22rpx] leading-[34rpx] text-[#708291]">最多支持 50,000 字符，仅在本机处理</text>
+				<view class="pl-[24rpx] py-[12rpx]" @click="clearInput"><text class="text-[24rpx] text-[#277ab8]">清空</text></view>
+			</view>
+		</view>
+		<view class="document-card">
+			<view class="card-heading"><text class="card-title">清理选项</text></view>
+			<view class="cleanup-options">
+				<view v-for="option in options" :key="option.id" class="cleanup-option" @click="toggleOption(option.id)">
+					<UniIcons :type="option.enabled ? 'checkbox-filled' : 'circle'" size="38rpx" :color="option.enabled ? '#277ab8' : '#708291'" />
+					<text class="option-title">{{ option.title }}</text>
+				</view>
+			</view>
+		</view>
+		<view class="document-primary-button" @click="organize"><text class="primary-label">开始整理</text></view>
+		<view class="document-card">
+			<view class="card-heading">
+				<text class="card-title">整理结果</text>
+				<text v-if="hasResult" class="card-caption">{{ sourceLines }} 行 → {{ outputLines }} 行</text>
+			</view>
+			<text v-if="!hasResult" class="block text-[24rpx] leading-[40rpx] text-[#708291]">{{ stale ? '原文或选项已修改，请重新整理' : '整理后的文字将在这里显示' }}</text>
+			<scroll-view v-else class="cleaned-result" scroll-y="true">
+				<text class="result-text" :selectable="true">{{ outputText.length > 0 ? outputText : '整理后没有剩余内容' }}</text>
+			</scroll-view>
+			<view class="flex flex-row items-center mt-[24rpx]">
+				<view class="document-outline-button flex-1" @click="copyOutput">
+					<UniIcons type="paperclip" size="32rpx" color="#277ab8" />
+					<text class="outline-label">复制结果</text>
+				</view>
+				<view class="document-outline-button ml-[24rpx] px-[32rpx]" @click="clearResult"><text class="outline-label ml-0">清空</text></view>
+			</view>
+		</view>
+		<text class="document-footnote">去除空行会删除全部空白行；清理空格会去除行首尾空白并合并连续空格。去重保留首次出现的整行及原顺序，统一换行使用 LF。原文不会被覆盖。</text>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue'
+	import { cleanText, textLineCount } from '@/subPackages/office/utils/text-cleaner'
+	import { recordToolUsage } from '@/utils/tool-usage'
+	import { toast } from '@/utils/toast'
+
+	// data
+	type CleanupOption = { id : string, title : string, enabled : boolean }
+	const isHeaderFixed = ref(false)
+	const inputText = ref('')
+	const outputText = ref('')
+	const sourceLines = ref(0)
+	const hasResult = ref(false)
+	const stale = ref(false)
+	const options = ref<CleanupOption[]>([
+		{ id: 'empty', title: '去除空行', enabled: true },
+		{ id: 'spaces', title: '清理空格', enabled: true },
+		{ id: 'duplicates', title: '删除重复行', enabled: true },
+		{ id: 'lineEndings', title: '统一换行', enabled: true }
+	])
+
+	// computed
+	const inputLines = computed(() : number => textLineCount(inputText.value))
+	const outputLines = computed(() : number => textLineCount(outputText.value))
+
+	// methods
+	const invalidateResult = () => {
+		stale.value = hasResult.value || stale.value
+		hasResult.value = false
+		outputText.value = ''
+	}
+	const toggleOption = (id : string) => {
+		const option = options.value.find((item : CleanupOption) : boolean => item.id == id)
+		if (option == null) return
+		option.enabled = !option.enabled
+		invalidateResult()
+	}
+	const clearResult = () => {
+		hasResult.value = false
+		stale.value = false
+		outputText.value = ''
+		sourceLines.value = 0
+	}
+	const clearInput = () => {
+		inputText.value = ''
+		clearResult()
+	}
+	const organize = () => {
+		uni.hideKeyboard()
+		if (inputText.value.length == 0) return toast('请先输入需要整理的文字')
+		if (inputText.value.length > 50000) return toast('文本不能超过 50,000 字符')
+		outputText.value = cleanText(inputText.value, {
+			emptyLines: options.value[0].enabled,
+			spaces: options.value[1].enabled,
+			duplicates: options.value[2].enabled,
+			lineEndings: options.value[3].enabled
+		})
+		sourceLines.value = inputLines.value
+		hasResult.value = true
+		stale.value = false
+	}
+	const copyOutput = () => {
+		if (!hasResult.value) return toast('请先整理文字')
+		if (outputText.value.length == 0) return toast('整理结果为空，没有可复制的内容')
+		uni.setClipboardData({
+			data: outputText.value,
+			showToast: false,
+			success: () => toast('结果已复制'),
+			fail: () => toast('复制失败，请重试')
+		})
+	}
+
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('text').catch(() => toast('保存使用记录失败'))
+	})
+</script>
+
+<style scoped lang="scss">
+	@import "@/styles/document-tools.scss";
+
+	.document-card {
+		.original-text {
+			box-sizing: border-box;
+			width: 100%;
+			height: 236rpx;
+			padding: 20rpx 24rpx;
+			border: 2rpx solid #e7eef5;
+			border-radius: 24rpx;
+			font-size: 26rpx;
+			line-height: 42rpx;
+			color: #243746;
+			background-color: #f6f8fa;
+		}
+
+		.cleanup-options {
+			display: flex;
+			flex-direction: row;
+			flex-wrap: wrap;
+
+			.cleanup-option {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				width: 50%;
+				min-height: 76rpx;
+
+				.option-title {
+					margin-left: 14rpx;
+					font-size: 26rpx;
+					line-height: 40rpx;
+					white-space: nowrap;
+					color: #243746;
+				}
+			}
+		}
+
+		.cleaned-result {
+			width: 100%;
+			max-height: 420rpx;
+			height: 236rpx;
+
+			.result-text {
+				display: block;
+				font-size: 26rpx;
+				line-height: 42rpx;
+				white-space: pre-wrap;
+				word-break: break-all;
+				color: #243746;
+			}
+		}
+	}
+</style>

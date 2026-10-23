@@ -62,6 +62,56 @@
 					}
 				}
 			]
+		},
+		{
+			"root": "subPackages/office",
+			"pages": [
+				{
+					"path": "image-pdf",
+					"style": {
+						"navigationBarTitleText": "图片转 PDF",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F6F8FA"
+					}
+				},
+				{
+					"path": "pdf-merge",
+					"style": {
+						"navigationBarTitleText": "PDF 合并",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F6F8FA"
+					}
+				},
+				{
+					"path": "pdf-split",
+					"style": {
+						"navigationBarTitleText": "PDF 拆分",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F6F8FA"
+					}
+				},
+				{
+					"path": "text-cleaner",
+					"style": {
+						"navigationBarTitleText": "文本整理",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F6F8FA"
+					}
+				}
+			]
+		},
+		{
+			"root": "subPackages/image",
+			"pages": [
+				{
+					"path": "image-compress",
+					"style": {
+						"navigationBarTitleText": "图片压缩",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F6F8FA"
+					}
+				}
+			]
 		}
 	],
 	"tabBar": {

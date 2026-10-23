@@ -1,0 +1,205 @@
+<template>
+	<view class="sortable-files">
+		<!-- #ifdef MP-WEIXIN -->
+		<movable-area class="sort-area" :style="'height: ' + areaHeight + 'px;'">
+			<movable-view
+				v-for="(file, index) in files"
+				:key="file.id + '-' + layoutVersion"
+				class="sort-item"
+				:class="{ 'is-image': images }"
+				:style="'width: ' + itemWidth + 'px;height: ' + itemHeight + 'px;z-index: ' + (dragFrom == index ? 3 : 1) + ';'"
+				:x="positionX(index)"
+				:y="positionY(index)"
+				:direction="images ? 'all' : 'vertical'"
+				:disabled="disabled"
+				:animation="false"
+				:inertia="false"
+				@touchstart="startDrag(index)"
+				@change="dragFile($event, index)"
+				@touchend="finishDrag"
+				@touchcancel="cancelDrag"
+			>
+				<template v-if="images">
+					<image class="image-preview" :src="file.path" mode="aspectFill" />
+					<text class="image-index">{{ index + 1 }}</text>
+					<view class="image-remove" @click="removeFile(index)"><UniIcons type="closeempty" size="30rpx" color="#243746" /></view>
+				</template>
+				<template v-else>
+					<view class="file-icon"><UniIcons type="compose" size="42rpx" color="#277ab8" /></view>
+					<view class="file-info">
+						<text class="file-name">{{ file.name }}</text>
+						<text class="file-details">{{ file.pages }} 页 · {{ formatFileSize(file.size) }}</text>
+					</view>
+					<view class="file-action" @click="moveUp(index)"><UniIcons type="arrow-up" size="30rpx" color="#708291" /></view>
+					<view class="file-action" @click="removeFile(index)"><UniIcons type="trash" size="30rpx" color="#708291" /></view>
+				</template>
+			</movable-view>
+		</movable-area>
+		<!-- #endif -->
+		<!-- #ifndef MP-WEIXIN -->
+		<text class="text-[24rpx] leading-[38rpx] text-[#708291]">请在微信小程序中选择和排序文件</text>
+		<!-- #endif -->
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue'
+	import { LocalMediaFile, formatFileSize } from '@/utils/local-media'
+
+	// data
+	const props = defineProps<{ files : LocalMediaFile[], images : boolean, disabled : boolean }>()
+	const emit = defineEmits(['reorder', 'remove'])
+	const ratio = uni.getWindowInfo().windowWidth / 750
+	const layoutVersion = ref(0)
+	const dragFrom = ref(-1)
+	const dragTo = ref(-1)
+
+	// computed
+	const columns = computed(() : number => props.images ? 3 : 1)
+	const itemWidth = computed(() : number => (props.images ? 184 : 614) * ratio)
+	const itemHeight = computed(() : number => (props.images ? 184 : 128) * ratio)
+	const pitchY = computed(() : number => (props.images ? 208 : 148) * ratio)
+	const areaHeight = computed(() : number => Math.ceil(props.files.length / columns.value) * pitchY.value)
+
+	// methods
+	const positionX = (index : number) : number => props.images ? (index % 3) * 215 * ratio : 0
+	const positionY = (index : number) : number => Math.floor(index / columns.value) * pitchY.value
+	const startDrag = (index : number) => {
+		if (props.disabled) return
+		dragFrom.value = index
+		dragTo.value = index
+	}
+	// movable-view 的自定义事件仅由微信端模板调用。
+	const dragFile = (event : any, index : number) => {
+		if (props.disabled || dragFrom.value != index || event.detail.source != 'touch') return
+		const row = Math.max(0, Math.round(event.detail.y / pitchY.value))
+		const column = props.images ? Math.min(2, Math.max(0, Math.round(event.detail.x / (215 * ratio)))) : 0
+		dragTo.value = Math.min(props.files.length - 1, row * columns.value + column)
+	}
+	const cancelDrag = () => {
+		dragFrom.value = -1
+		dragTo.value = -1
+		layoutVersion.value++
+	}
+	const finishDrag = () => {
+		if (!props.disabled && dragFrom.value >= 0 && dragTo.value >= 0 && dragFrom.value != dragTo.value) {
+			emit('reorder', dragFrom.value, dragTo.value)
+		}
+		cancelDrag()
+	}
+	const moveUp = (index : number) => {
+		if (props.disabled || index == 0) return
+		cancelDrag()
+		emit('reorder', index, index - 1)
+	}
+	const removeFile = (index : number) => {
+		if (props.disabled) return
+		cancelDrag()
+		emit('remove', index)
+	}
+</script>
+
+<style scoped lang="scss">
+	.sortable-files {
+		display: flex;
+		flex-direction: column;
+
+		.sort-area {
+			width: 100%;
+
+			.sort-item {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				box-sizing: border-box;
+				padding: 20rpx;
+				border: 2rpx solid #e7eef5;
+				border-radius: 24rpx;
+				background-color: #ffffff;
+
+				&.is-image {
+					padding: 0;
+					overflow: hidden;
+				}
+
+				.image-preview {
+					width: 100%;
+					height: 100%;
+				}
+
+				.image-index {
+					position: absolute;
+					left: 8rpx;
+					top: 8rpx;
+					padding: 4rpx 12rpx;
+					border-radius: 10rpx;
+					font-size: 22rpx;
+					line-height: 30rpx;
+					color: #277ab8;
+					background-color: #ffffff;
+				}
+
+				.image-remove {
+					position: absolute;
+					top: 4rpx;
+					right: 4rpx;
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					justify-content: center;
+					width: 52rpx;
+					height: 52rpx;
+					border-radius: 16rpx;
+					background-color: #ffffff;
+				}
+
+				.file-action {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					justify-content: center;
+					flex-shrink: 0;
+					width: 52rpx;
+					height: 72rpx;
+				}
+
+				.file-icon {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					justify-content: center;
+					flex-shrink: 0;
+					width: 80rpx;
+					height: 80rpx;
+					border-radius: 20rpx;
+					background-color: #e8f4fd;
+				}
+
+				.file-info {
+					display: flex;
+					flex-direction: column;
+					flex: 1;
+					min-width: 0;
+					margin: 0 20rpx;
+
+					.file-name {
+						font-size: 26rpx;
+						line-height: 38rpx;
+						lines: 1;
+						white-space: nowrap;
+						overflow: hidden;
+						text-overflow: ellipsis;
+						color: #243746;
+					}
+
+					.file-details {
+						margin-top: 8rpx;
+						font-size: 22rpx;
+						line-height: 32rpx;
+						color: #708291;
+					}
+				}
+			}
+		}
+	}
+</style>
