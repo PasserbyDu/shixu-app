@@ -60,6 +60,38 @@
 						"navigationStyle": "custom",
 						"backgroundColor": "#F5F8FB"
 					}
+				},
+				{
+					"path": "retirement",
+					"style": {
+						"navigationBarTitleText": "退休年龄计算",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
+					"path": "age",
+					"style": {
+						"navigationBarTitleText": "年龄·属相·星座",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
+					"path": "lunar-date",
+					"style": {
+						"navigationBarTitleText": "农历日期选择",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
+					"path": "kinship",
+					"style": {
+						"navigationBarTitleText": "亲戚称呼计算",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
 				}
 			]
 		},
@@ -109,6 +141,27 @@
 						"navigationBarTitleText": "图片压缩",
 						"navigationStyle": "custom",
 						"backgroundColor": "#F6F8FA"
+					}
+				}
+			]
+		},
+		{
+			"root": "subPackages/finance",
+			"pages": [
+				{
+					"path": "mortgage",
+					"style": {
+						"navigationBarTitleText": "房贷计算",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
+					"path": "car-loan",
+					"style": {
+						"navigationBarTitleText": "车贷计算",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
 					}
 				}
 			]

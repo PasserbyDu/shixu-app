@@ -1,0 +1,58 @@
+<template>
+	<scroll-view class="practical-page" scroll-y="true">
+		<page-header
+			:fixed="isHeaderFixed"
+			:title="title"
+			titleColor="#233d50"
+			titleFontSize="30rpx"
+			titleFontWeight="500"
+			headerClass="page-header-calculator-bg"
+		/>
+		<view class="practical-intro">
+			<text class="intro-heading">{{ title }}</text>
+			<text class="intro-description">{{ subtitle }}</text>
+		</view>
+		<slot />
+		<view class="page-bottom-space" />
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { ref } from 'vue';
+	defineProps<{
+		title: string;
+		subtitle: string;
+	}>();
+	const isHeaderFixed = ref(false);
+</script>
+
+<style scoped lang="scss">
+	.practical-page {
+		flex: 1;
+		width: 100%;
+		background-color: #f5f8fc;
+	}
+
+	.practical-intro {
+		display: flex;
+		flex-direction: column;
+		padding: 26rpx 38rpx 38rpx;
+		background: linear-gradient(180deg, #eaf5fc 0%, #f5f8fc 100%);
+		.intro-heading {
+			font-size: 46rpx;
+			font-weight: 700;
+			line-height: 66rpx;
+			color: #233d50;
+		}
+		.intro-description {
+			margin-top: 10rpx;
+			font-size: 22rpx;
+			line-height: 36rpx;
+			color: #8795a1;
+		}
+	}
+
+	.page-bottom-space {
+		height: 40rpx;
+	}
+</style>

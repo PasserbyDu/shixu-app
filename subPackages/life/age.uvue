@@ -1,0 +1,218 @@
+<template>
+	<tool-page title="年龄 · 属相 · 星座" subtitle="记住出生的那一天，了解自己的时间印记">
+		<view class="tool-card">
+			<view class="tool-tabs">
+				<view
+					v-for="item in modes"
+					:key="item.id"
+					:class="['tab-button', mode == item.id ? 'is-active' : '']"
+					@click="selectMode(item.id)"
+				>
+					<text class="tab-label">{{ item.label }}</text>
+				</view>
+			</view>
+			<view class="tool-row birth-row">
+				<text class="row-label">出生日期</text>
+				<picker
+					v-if="mode == 'solar'"
+					class="row-control"
+					mode="date"
+					:value="birth"
+					:start="MIN_CALENDAR_DATE"
+					:end="MAX_CALENDAR_DATE"
+					@change="changeBirth"
+				>
+					<view class="tool-field">
+						<text class="field-value">{{ birth }}</text>
+						<UniIcons type="bottom" size="24rpx" color="#233d50" />
+					</view>
+				</picker>
+				<view v-else class="tool-field row-control" @click="selectLunarBirth">
+					<text class="field-value">{{ birthLabel }}</text>
+					<UniIcons type="bottom" size="24rpx" color="#233d50" />
+				</view>
+			</view>
+			<view class="tool-row">
+				<text class="row-label">计算至</text>
+				<picker
+					class="row-control"
+					mode="date"
+					:value="cutoff"
+					:start="MIN_CALENDAR_DATE"
+					:end="MAX_CALENDAR_DATE"
+					@change="changeCutoff"
+				>
+					<view class="tool-field">
+						<text class="field-value">{{ cutoff }}</text>
+						<UniIcons type="bottom" size="24rpx" color="#233d50" />
+					</view>
+				</picker>
+			</view>
+			<text class="tool-note">农历模式支持闰月，自动换算为公历</text>
+		</view>
+		<text v-if="error.length > 0" class="tool-error">{{ error }}</text>
+		<view class="tool-primary" @click="calculate">
+			<text class="primary-text">计算年龄</text>
+		</view>
+		<view class="tool-result">
+			<text class="result-label">周岁年龄</text>
+			<text v-if="result != null" class="result-value age-value">{{ result!.years }}岁{{ result!.months }}个月{{ result!.days }}天</text>
+			<text v-else class="result-copy">选择出生日期与截止日期后进行计算</text>
+			<text class="tool-note">以所选截止日期计算，未到周年不加岁</text>
+		</view>
+		<view v-if="result != null" class="tool-card identity-card">
+			<view class="identity-column">
+				<text class="identity-label">生肖属相</text>
+				<text class="identity-value">{{ result!.zodiac }} · {{ result!.cyclicalYear }}</text>
+			</view>
+			<view class="identity-column">
+				<text class="identity-label">星座</text>
+				<text class="identity-value">{{ result!.star }}</text>
+			</view>
+		</view>
+		<text class="tool-footnote">生肖按农历春节划分；星座按常见公历日期分界计算。月末生日按目标月末进位，闰日生日在非闰年按2月末计算周年。出生日期仅用于本次计算，不会保存。</text>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue';
+	import { onLoad, onShow, onUnload } from '@dcloudio/uni-app';
+	import { formatCalendarDate } from '@/utils/calculators.uts';
+	import { recordToolUsage } from '@/utils/tool-usage.uts';
+	import {
+		AgeResult,
+		MIN_CALENDAR_DATE,
+		MAX_CALENDAR_DATE,
+		calculateAge,
+		lunarText,
+		solarToLunar
+	} from '@/subPackages/life/utils/calendar.uts';
+	import {
+		beginBirthSelection,
+		clearBirthSelection,
+		readBirthSelection
+	} from '@/subPackages/life/utils/birth-selection.uts';
+	// data
+	type CalendarMode = {
+		id: string;
+		label: string;
+	};
+	const modes: CalendarMode[] = [{
+		id: 'solar',
+		label: '公历'
+	}, {
+		id: 'lunar',
+		label: '农历'
+	}];
+	const mode = ref('solar');
+	const birth = ref('2000-06-15');
+	const cutoff = ref(formatCalendarDate(new Date()));
+	const result = ref<AgeResult | null>(null);
+	const error = ref('');
+	let selectionToken = '';
+	let isSelectingDate = false;
+	// computed
+	const birthLabel = computed((): string => lunarText(solarToLunar(birth.value)));
+	// methods
+	const invalidate = () => {
+		result.value = null;
+		error.value = '';
+	};
+	const selectMode = (value: string) => {
+		mode.value = value;
+		invalidate();
+	};
+	const changeBirth = (event: UniPickerChangeEvent) => {
+		birth.value = (event.detail.value as string).replace(/\//g, '-');
+		invalidate();
+	};
+	const changeCutoff = (event: UniPickerChangeEvent) => {
+		cutoff.value = (event.detail.value as string).replace(/\//g, '-');
+		invalidate();
+	};
+	const selectLunarBirth = () => {
+		if (isSelectingDate) return;
+		isSelectingDate = true;
+		selectionToken = beginBirthSelection(birth.value, mode.value);
+		uni.navigateTo({
+			url: '/subPackages/life/lunar-date?token=' + selectionToken,
+			fail: () => {
+				isSelectingDate = false;
+				clearBirthSelection(selectionToken);
+				selectionToken = '';
+				error.value = '日期选择页打开失败，请重试';
+			}
+		});
+	};
+	const calculate = () => {
+		invalidate();
+		try {
+			result.value = calculateAge(birth.value, cutoff.value);
+		} catch (exception) {
+			error.value = (exception as Error).message;
+		}
+	};
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('age');
+		calculate();
+	});
+	onShow(() => {
+		isSelectingDate = false;
+		if (selectionToken.length == 0) return;
+		const selection = readBirthSelection(selectionToken);
+		if (selection != null && selection.confirmed) {
+			birth.value = selection.date;
+			mode.value = selection.mode;
+			invalidate();
+		}
+		clearBirthSelection(selectionToken);
+		selectionToken = '';
+	});
+	onUnload(() => {
+		clearBirthSelection(selectionToken);
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/practical-tools.scss';
+	.tool-card {
+		.birth-row {
+			.row-control {
+				.field-value {
+					font-size: 26rpx;
+					line-height: 42rpx;
+				}
+			}
+		}
+		&.identity-card {
+			flex-direction: row;
+			.identity-column {
+				display: flex;
+				flex-direction: column;
+				flex: 1;
+				min-width: 0;
+				.identity-label {
+					font-size: 24rpx;
+					line-height: 38rpx;
+					color: #8795a1;
+				}
+				.identity-value {
+					margin-top: 16rpx;
+					font-size: 30rpx;
+					line-height: 46rpx;
+					color: #233d50;
+				}
+			}
+		}
+	}
+
+	.tool-result {
+		.result-value {
+			&.age-value {
+				font-size: 52rpx;
+				line-height: 80rpx;
+			}
+		}
+	}
+</style>

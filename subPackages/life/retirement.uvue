@@ -1,0 +1,126 @@
+<template>
+	<tool-page title="退休年龄计算" subtitle="按渐进式延迟法定退休年龄规则测算">
+		<view class="tool-card">
+			<text class="card-title">选择人员类型</text>
+			<view
+				v-for="(label, index) in categories"
+				:key="label"
+				:class="['person-option', category == index ? 'is-selected' : '']"
+				@click="selectCategory(index)"
+			>
+				<UniIcons
+					:type="category == index ? 'checkbox-filled' : 'circle'"
+					size="30rpx"
+					:color="category == index ? '#278dca' : '#bdc9d1'"
+				/>
+				<text class="person-label">{{ label }}</text>
+			</view>
+			<view class="tool-row">
+				<text class="row-label">出生年月</text>
+				<picker
+					class="row-control"
+					mode="date"
+					fields="month"
+					:value="birth"
+					start="1900-01"
+					:end="latestMonth"
+					@change="changeBirth"
+				>
+					<view class="tool-field">
+						<text class="field-value">{{ birth.replace('-', '年') }}月</text>
+						<UniIcons type="bottom" size="24rpx" color="#233d50" />
+					</view>
+				</picker>
+			</view>
+			<text class="tool-note">按公历出生年月计算</text>
+		</view>
+		<text v-if="error.length > 0" class="tool-error">{{ error }}</text>
+		<view class="tool-primary" @click="calculate">
+			<text class="primary-text">计算退休时间</text>
+		</view>
+		<view class="tool-result">
+			<text class="result-label">预计法定退休年龄</text>
+			<template v-if="result != null">
+				<text class="result-value">{{ result!.ageYears }}周岁{{ result!.ageMonths > 0 ? result!.ageMonths + '个月' : '' }}</text>
+				<text class="result-copy">预计退休年月　{{ result!.year }}年{{ padNumber(result!.month) }}月</text>
+				<text v-if="result!.delay > 0" class="tool-note">较原法定年龄延迟 {{ result!.delay }} 个月</text>
+			</template>
+			<text v-else class="result-copy">选择人员类型和出生年月后进行测算</text>
+		</view>
+		<view class="tool-card">
+			<text class="card-title">政策说明</text>
+			<text class="text-[24rpx] leading-[40rpx] text-[#8795a1]">2025年1月起实施渐进式延迟退休。男职工及原55周岁女职工每4个月延迟1个月，原50周岁女职工每2个月延迟1个月，分别逐步延至63、58、55周岁。</text>
+			<text class="tool-note">此处为普通职工法定年龄测算；弹性退休、特殊工种及待遇领取条件需另行确认。</text>
+			<text class="tool-note">依据：全国人大常委会决定 · 2024-09-13</text>
+		</view>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { ref } from 'vue';
+	import { onLoad } from '@dcloudio/uni-app';
+	import { padNumber } from '@/utils/calculators.uts';
+	import { recordToolUsage } from '@/utils/tool-usage.uts';
+	import { RetirementResult, calculateRetirement } from '@/subPackages/life/utils/retirement.uts';
+	// data
+	const categories = ['男职工 · 原法定60周岁', '女职工 · 原法定55周岁', '女职工 · 原法定50周岁'];
+	const category = ref(0);
+	const birth = ref('1990-06');
+	const now = new Date();
+	const latestMonth = now.getFullYear() + '-' + padNumber(now.getMonth() + 1);
+	const result = ref<RetirementResult | null>(null);
+	const error = ref('');
+	// methods
+	const invalidate = () => {
+		result.value = null;
+		error.value = '';
+	};
+	const selectCategory = (index: number) => {
+		category.value = index;
+		invalidate();
+	};
+	const changeBirth = (event: UniPickerChangeEvent) => {
+		birth.value = (event.detail.value as string).replace(/\//g, '-').slice(0, 7);
+		invalidate();
+	};
+	const calculate = () => {
+		invalidate();
+		try {
+			result.value = calculateRetirement(birth.value, category.value);
+		} catch (exception) {
+			error.value = (exception as Error).message;
+		}
+	};
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('retirement');
+		calculate();
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/practical-tools.scss';
+	.tool-card {
+		.person-option {
+			display: flex;
+			box-sizing: border-box;
+			flex-direction: row;
+			align-items: center;
+			min-height: 88rpx;
+			margin-bottom: 20rpx;
+			padding: 14rpx 24rpx;
+			border-radius: 22rpx;
+			background-color: #f5f8fc;
+			&.is-selected {
+				background-color: #e8f6ff;
+			}
+			.person-label {
+				flex: 1;
+				margin-left: 18rpx;
+				font-size: 26rpx;
+				line-height: 42rpx;
+				color: #233d50;
+			}
+		}
+	}
+</style>

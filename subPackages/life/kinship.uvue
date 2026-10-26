@@ -1,0 +1,207 @@
+<template>
+	<tool-page title="亲戚称呼计算" subtitle="把关系一步步连起来，见面称呼不犯难">
+		<view class="tool-card gender-card">
+			<text class="gender-title">我的性别</text>
+			<view v-for="item in genders" :key="item.value" class="gender-option" @click="selectSex(item.value)">
+				<UniIcons
+					:type="sex == item.value ? 'checkbox-filled' : 'circle'"
+					size="30rpx"
+					:color="sex == item.value ? '#278dca' : '#bdc9d1'"
+				/>
+				<text class="gender-label">{{ item.label }}</text>
+			</view>
+		</view>
+		<view class="tool-result kinship-result">
+			<text class="result-label">关系链</text>
+			<text class="relationship-chain">{{ relationshipChain }}</text>
+			<text class="result-label">应该称呼：</text>
+			<text :class="['result-value', names.length > 1 ? 'multiple-names' : '']">{{ names.length > 0 ? names.join(' / ') : '暂未收录此关系' }}</text>
+			<text v-if="names.length > 1" class="tool-note">关系或长幼不唯一，以上为可能称呼。</text>
+			<text v-if="names.length == 0" class="tool-note">可以退一步，拆成较近的亲属关系分别查询。</text>
+		</view>
+		<text v-if="error.length > 0 || calculation.message.length > 0" class="tool-error">{{ error.length > 0 ? error : calculation.message }}</text>
+		<view class="relationship-section">
+			<text class="section-title">选择下一层关系</text>
+			<view class="relationship-grid">
+				<view
+					v-for="item in RELATIVES"
+					:key="item.code"
+					:class="['relative-button', isUnavailable(item.code) ? 'is-disabled' : '']"
+					@click="addRelative(item.code)"
+				>
+					<text class="relative-label">{{ item.title }}</text>
+				</view>
+				<view class="relative-button action-button" @click="undo">
+					<text class="relative-label">退一步</text>
+				</view>
+				<view class="relative-button action-button" @click="clear">
+					<text class="relative-label">清空</text>
+				</view>
+			</view>
+		</view>
+		<text class="tool-footnote">同辈长幼不明确时，会列出可能称呼。按常见普通话及传统亲属关系计算，部分地区称谓有所不同。</text>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue';
+	import { onLoad } from '@dcloudio/uni-app';
+	import { recordToolUsage } from '@/utils/tool-usage.uts';
+	import {
+		RELATIVES,
+		RelativeOption,
+		kinshipNames,
+		relativeSex
+	} from '@/subPackages/life/utils/kinship.uts';
+	// data
+	type GenderOption = {
+		value: number;
+		label: string;
+	};
+	type KinshipCalculation = {
+		names: string[];
+		message: string;
+	};
+	const genders: GenderOption[] = [{
+		value: 1,
+		label: '男'
+	}, {
+		value: 0,
+		label: '女'
+	}];
+	const sex = ref(1);
+	const chain = ref<string[]>(['f', 'os']);
+	const error = ref('');
+	// computed
+	const relationshipChain = computed((): string => '我' + chain.value.map((code: string): string => ' → ' + RELATIVES.find((item: RelativeOption): boolean => item.code == code)!.title).join(''));
+	const calculation = computed((): KinshipCalculation => {
+		try {
+			return {
+				names: kinshipNames(chain.value, sex.value),
+				message: ''
+			};
+		} catch (exception) {
+			return {
+				names: [],
+				message: (exception as Error).message
+			};
+		}
+	});
+	const names = computed((): string[] => calculation.value.names);
+	// methods
+	const isUnavailable = (code: string): boolean => code == 'h' && relativeSex(chain.value, sex.value) == 1 || code == 'w' && relativeSex(chain.value, sex.value) == 0;
+	const addRelative = (code: string) => {
+		if (isUnavailable(code)) return;
+		if (chain.value.length >= 8) {
+			error.value = '最多连接 8 层亲属关系，可退一步后分段查询';
+			return;
+		}
+		chain.value = chain.value.concat([code]);
+		error.value = '';
+	};
+	const selectSex = (value: number) => {
+		if (sex.value == value) return;
+		sex.value = value;
+		chain.value = [];
+		error.value = '';
+	};
+	const undo = () => {
+		chain.value = chain.value.slice(0, -1);
+		error.value = '';
+	};
+	const clear = () => {
+		chain.value = [];
+		error.value = '';
+	};
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('kinship');
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/practical-tools.scss';
+	.gender-card {
+		flex-direction: row;
+		align-items: center;
+		.gender-title {
+			flex: 1;
+			font-size: 26rpx;
+			line-height: 42rpx;
+			color: #233d50;
+		}
+		.gender-option {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: center;
+			min-width: 116rpx;
+			min-height: 66rpx;
+			margin-left: 22rpx;
+			.gender-label {
+				margin-left: 12rpx;
+				font-size: 26rpx;
+				line-height: 42rpx;
+				color: #233d50;
+			}
+		}
+	}
+
+	.kinship-result {
+		.relationship-chain {
+			margin: 16rpx 0 30rpx;
+			font-size: 26rpx;
+			line-height: 44rpx;
+			color: #233d50;
+		}
+		.result-value {
+			&.multiple-names {
+				font-size: 40rpx;
+				line-height: 64rpx;
+			}
+		}
+	}
+
+	.relationship-section {
+		margin: 4rpx 32rpx 30rpx;
+		.section-title {
+			margin: 0 8rpx 24rpx;
+			font-size: 30rpx;
+			font-weight: 500;
+			line-height: 46rpx;
+			color: #233d50;
+		}
+		.relationship-grid {
+			display: flex;
+			flex-direction: row;
+			flex-wrap: wrap;
+			justify-content: space-between;
+			.relative-button {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				width: 31.5%;
+				min-height: 88rpx;
+				margin-bottom: 20rpx;
+				border-radius: 22rpx;
+				background-color: #ffffff;
+				.relative-label {
+					font-size: 28rpx;
+					line-height: 44rpx;
+					text-align: center;
+					color: #233d50;
+				}
+				&.action-button {
+					background-color: #e8f6ff;
+					.relative-label {
+						color: #278dca;
+					}
+				}
+				&.is-disabled {
+					opacity: 0.35;
+				}
+			}
+		}
+	}
+</style>

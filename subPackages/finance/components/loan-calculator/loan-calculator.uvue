@@ -1,0 +1,337 @@
+<template>
+	<tool-page :title="isCar ? '车贷计算' : '房贷计算'" :subtitle="isCar ? '提前了解首付、月供与购车资金安排' : '把每月还款与总利息，算得明明白白'">
+		<view class="tool-card">
+			<view v-if="!isCar" class="tool-tabs">
+				<view
+					v-for="(label, index) in loanTypes"
+					:key="label"
+					:class="['tab-button', loanType == index ? 'is-active' : '']"
+					@click="selectType(index)"
+				>
+					<text class="tab-label">{{ label }}</text>
+				</view>
+			</view>
+			<view :class="['tool-row', isCar ? 'first-row' : '']">
+				<text class="row-label">{{ isCar ? '车辆价格' : loanType == 2 ? '商贷金额' : '贷款金额' }}</text>
+				<view class="tool-field row-control">
+					<input v-model="amount" class="field-input" type="digit" maxlength="13" @input="invalidate" />
+					<text class="field-unit">万元</text>
+				</view>
+			</view>
+			<view v-if="isCar" class="tool-row">
+				<text class="row-label">首付比例</text>
+				<view class="tool-field row-control">
+					<input v-model="downPercent" class="field-input" type="digit" maxlength="10" @input="invalidate" />
+					<text class="field-unit">%</text>
+				</view>
+			</view>
+			<view v-if="!isCar && loanType == 2" class="tool-row">
+				<text class="row-label">公积金金额</text>
+				<view class="tool-field row-control">
+					<input v-model="fundAmount" class="field-input" type="digit" maxlength="13" @input="invalidate" />
+					<text class="field-unit">万元</text>
+				</view>
+			</view>
+			<view class="tool-row">
+				<text class="row-label">贷款期限</text>
+				<picker class="row-control" :range="termLabels" :value="termIndex" @change="changeTerm">
+					<view class="tool-field">
+						<text class="field-value">{{ termLabels[termIndex] }}</text>
+						<UniIcons type="bottom" size="24rpx" color="#233d50" />
+					</view>
+				</picker>
+			</view>
+			<view class="tool-row">
+				<text class="row-label">{{ !isCar && loanType == 2 ? '商贷年利率' : '年利率' }}</text>
+				<view class="tool-field row-control">
+					<input
+						v-if="!isCar && loanType == 1"
+						v-model="fundRate"
+						class="field-input"
+						type="digit"
+						maxlength="10"
+						@input="invalidate"
+					/>
+					<input v-else v-model="rate" class="field-input" type="digit" maxlength="10" @input="invalidate" />
+					<text class="field-unit">%</text>
+				</view>
+			</view>
+			<view v-if="!isCar && loanType == 2" class="tool-row">
+				<text class="row-label">公积金年利率</text>
+				<view class="tool-field row-control">
+					<input v-model="fundRate" class="field-input" type="digit" maxlength="10" @input="invalidate" />
+					<text class="field-unit">%</text>
+				</view>
+			</view>
+			<view class="tool-row method-row">
+				<text class="row-label">还款方式</text>
+				<view class="method-options">
+					<view class="method-option" @click="selectMethod('annuity')">
+						<UniIcons
+							:type="method == 'annuity' ? 'checkbox-filled' : 'circle'"
+							size="28rpx"
+							:color="method == 'annuity' ? '#278dca' : '#bdc9d1'"
+						/>
+						<text :class="['method-label', method == 'annuity' ? 'selected-label' : '']">等额本息</text>
+					</view>
+					<view class="method-option" @click="selectMethod('principal')">
+						<UniIcons
+							:type="method == 'principal' ? 'checkbox-filled' : 'circle'"
+							size="28rpx"
+							:color="method == 'principal' ? '#278dca' : '#bdc9d1'"
+						/>
+						<text :class="['method-label', method == 'principal' ? 'selected-label' : '']">等额本金</text>
+					</view>
+				</view>
+			</view>
+			<text class="tool-note">{{ isCar ? '示例利率可修改；不含保险、税费及服务费' : '利率为演示值，可按实际合同修改' }}</text>
+		</view>
+		<text v-if="error.length > 0" class="tool-error">{{ error }}</text>
+		<view class="tool-primary" @click="calculate">
+			<text class="primary-text">{{ isCar ? '计算车贷' : '计算房贷' }}</text>
+		</view>
+		<view class="tool-result">
+			<text class="result-label">{{ method == 'principal' ? '首月还款（元）' : '每月还款（元）' }}</text>
+			<template v-if="result != null">
+				<text class="result-value">{{ moneyText(result!.firstPayment) }}</text>
+				<view class="result-columns">
+					<view class="result-column">
+						<text class="summary-label">{{ isCar ? '首付金额（万元）' : '贷款总额（万元）' }}</text>
+						<text class="summary-value">{{ isCar ? (downPayment / 10000).toFixed(2) : (result!.principal / 10000).toFixed(2) }}</text>
+					</view>
+					<view class="result-column">
+						<text class="summary-label">{{ isCar ? '贷款金额（万元）' : '累计利息（万元）' }}</text>
+						<text class="summary-value">{{ isCar ? (result!.principal / 10000).toFixed(2) : (result!.interest / 10000).toFixed(2) }}</text>
+					</view>
+				</view>
+				<text v-if="isCar" class="result-copy">累计利息：{{ moneyText(result!.interest) }} 元</text>
+				<text v-if="method == 'principal'" class="tool-note">月供逐月递减，末月 {{ moneyText(result!.lastPayment) }} 元</text>
+				<text v-if="isCar && result!.principal == 0" class="tool-note">当前为全款购车，无贷款本金及利息。</text>
+			</template>
+			<text v-else class="result-copy">输入参数后，点击上方按钮查看结果</text>
+		</view>
+		<view v-if="result != null && result!.rows.length > 0" class="tool-card repayment-card">
+			<view class="details-heading" @click="detailsOpen = !detailsOpen">
+				<text class="details-title">还款明细</text>
+				<text class="details-count">共 {{ result!.rows.length }} 期</text>
+				<UniIcons :type="detailsOpen ? 'top' : 'right'" size="26rpx" color="#8795a1" />
+			</view>
+			<template v-if="detailsOpen">
+				<text class="tool-note">还款总额 {{ moneyText(result!.total) }} 元；金额按分取整，末期结清尾差。</text>
+				<view class="table-row table-header">
+					<text class="period-cell">期次</text>
+					<text class="number-cell">本金</text>
+					<text class="number-cell">利息</text>
+					<text class="number-cell">月供</text>
+					<text class="number-cell">余款</text>
+				</view>
+				<scroll-view class="repayment-scroll" scroll-y="true">
+					<view v-for="row in result!.rows" :key="row.period" class="table-row">
+						<text class="period-cell">{{ row.period }}</text>
+						<text class="number-cell">{{ row.principal.toFixed(2) }}</text>
+						<text class="number-cell">{{ row.interest.toFixed(2) }}</text>
+						<text class="number-cell">{{ row.payment.toFixed(2) }}</text>
+						<text class="number-cell">{{ row.balance.toFixed(2) }}</text>
+					</view>
+				</scroll-view>
+			</template>
+		</view>
+		<text class="tool-footnote">{{ isCar ? '按实际贷款合同及计息方式核算。' : '组合贷分别计息后汇总，按月还款，不含税费及提前还款。' }}{{ method == 'annuity' ? '等额本息末期可能因分位取整略有差异。' : '' }}</text>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { computed, onMounted, ref } from 'vue';
+	import {
+		LoanPart,
+		LoanResult,
+		calculateLoan,
+		moneyText,
+		numericInput
+	} from '@/subPackages/finance/utils/loans.uts';
+	const props = defineProps<{
+		kind: string;
+	}>();
+	// data
+	const loanTypes = ['商业贷款', '公积金', '组合贷'];
+	const loanType = ref(0);
+	const amount = ref(props.kind == 'car' ? '15' : '100');
+	const fundAmount = ref('30');
+	const downPercent = ref('30');
+	const rate = ref(props.kind == 'car' ? '4.00' : '3.50');
+	const fundRate = ref('2.60');
+	const termIndex = ref(props.kind == 'car' ? 2 : 29);
+	const method = ref('annuity');
+	const result = ref<LoanResult | null>(null);
+	const downPayment = ref(0);
+	const error = ref('');
+	const detailsOpen = ref(false);
+	// computed
+	const isCar = computed((): boolean => props.kind == 'car');
+	const termLabels = computed((): string[] => {
+		const labels: string[] = [];
+		for (let year = 1; year <= (isCar.value ? 7 : 30); year++) labels.push(year + ' 年（' + year * 12 + ' 期）');
+		return labels;
+	});
+
+	// methods
+	const invalidate = () => {
+		result.value = null;
+		error.value = '';
+		detailsOpen.value = false;
+	};
+	const selectType = (index: number) => {
+		if (loanType.value == index) return;
+		loanType.value = index;
+		invalidate();
+	};
+	const selectMethod = (value: string) => {
+		method.value = value;
+		invalidate();
+	};
+	const changeTerm = (event: UniPickerChangeEvent) => {
+		termIndex.value = Number(event.detail.value);
+		invalidate();
+	};
+	const calculate = () => {
+		invalidate();
+		try {
+			const price = numericInput(amount.value, isCar.value ? '车辆价格（万元）' : '贷款金额（万元）', 0, 100000);
+			const annualRate = numericInput(!isCar.value && loanType.value == 1 ? fundRate.value : rate.value, '年利率（%）', 0, 100);
+			let principal = Math.round(price * 1000000) / 100;
+			if (isCar.value) {
+				if (principal <= 0) throw new Error('车辆价格需大于 0 元');
+				const percent = numericInput(downPercent.value, '首付比例（%）', 0, 100);
+				downPayment.value = Math.round(principal * percent) / 100;
+				principal = Math.round((principal - downPayment.value) * 100) / 100;
+			}
+			const parts: LoanPart[] = [{
+				principal,
+				annualRate
+			}];
+			if (!isCar.value && loanType.value == 2) parts.push({
+				principal: Math.round(numericInput(fundAmount.value, '公积金金额（万元）', 0, 100000) * 1000000) / 100,
+				annualRate: numericInput(fundRate.value, '公积金年利率（%）', 0, 100)
+			});
+			if (!isCar.value && parts.every((part: LoanPart): boolean => part.principal == 0)) throw new Error('贷款总额需大于 0 元');
+			result.value = calculateLoan(parts, (termIndex.value + 1) * 12, method.value);
+		} catch (exception) {
+			error.value = (exception as Error).message;
+		}
+	};
+
+	// lifecycle
+	onMounted(() => {
+		calculate();
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/practical-tools.scss';
+	.method-row {
+		align-items: flex-start;
+		.row-label {
+			padding-top: 10rpx;
+		}
+		.method-options {
+			display: flex;
+			flex-direction: row;
+			flex-wrap: wrap;
+			flex: 1;
+			min-width: 0;
+			.method-option {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				min-height: 58rpx;
+				margin-right: 18rpx;
+				.method-label {
+					margin-left: 8rpx;
+					font-size: 22rpx;
+					line-height: 36rpx;
+					color: #8795a1;
+					&.selected-label {
+						color: #278dca;
+					}
+				}
+			}
+		}
+	}
+
+	.tool-result {
+		.result-columns {
+			display: flex;
+			flex-direction: row;
+			.result-column {
+				display: flex;
+				flex-direction: column;
+				flex: 1;
+				min-width: 0;
+				.summary-label {
+					font-size: 22rpx;
+					line-height: 36rpx;
+					color: #8795a1;
+				}
+				.summary-value {
+					margin-top: 8rpx;
+					font-size: 32rpx;
+					line-height: 48rpx;
+					color: #233d50;
+				}
+			}
+		}
+	}
+
+	.repayment-card {
+		.details-heading {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			min-height: 56rpx;
+			.details-title {
+				flex: 1;
+				font-size: 28rpx;
+				line-height: 42rpx;
+				color: #233d50;
+			}
+			.details-count {
+				margin-right: 16rpx;
+				font-size: 22rpx;
+				line-height: 36rpx;
+				color: #8795a1;
+			}
+		}
+		.table-row {
+			display: flex;
+			box-sizing: border-box;
+			flex-direction: row;
+			align-items: center;
+			min-height: 72rpx;
+			padding: 12rpx 0;
+			border-bottom: 1rpx solid #edf2f6;
+			.period-cell {
+				width: 54rpx;
+				flex-shrink: 0;
+				font-size: 20rpx;
+				line-height: 30rpx;
+				color: #8795a1;
+			}
+			.number-cell {
+				flex: 1;
+				min-width: 0;
+				padding-left: 8rpx;
+				font-size: 20rpx;
+				line-height: 30rpx;
+				text-align: right;
+				word-break: break-all;
+				color: #233d50;
+			}
+		}
+		.table-header {
+			margin-top: 20rpx;
+		}
+		.repayment-scroll {
+			height: 540rpx;
+		}
+	}
+</style>

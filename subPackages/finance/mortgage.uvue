@@ -1,0 +1,11 @@
+<template>
+	<loan-calculator kind="mortgage" />
+</template>
+<script setup lang="uts">
+	import LoanCalculator from '@/subPackages/finance/components/loan-calculator/loan-calculator.uvue';
+	import { onLoad } from '@dcloudio/uni-app';
+	import { recordToolUsage } from '@/utils/tool-usage.uts';
+	onLoad(() => {
+		recordToolUsage('mortgage');
+	});
+</script>

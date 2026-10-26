@@ -1,0 +1,19 @@
+export type RetirementResult = { ageYears : number, ageMonths : number, year : number, month : number, delay : number }
+
+// 全国人大常委会 2024-09-13 决定，2025-01-01 起施行；仅计算三类普通职工法定退休年月。
+export const calculateRetirement = (birth : string, category : number) : RetirementResult => {
+	if (!/^\d{4}-\d{2}$/.test(birth) || ![0, 1, 2].includes(category)) throw new Error('请选择人员类型及有效出生年月')
+	const values = birth.split('-')
+	const year = Number(values[0])
+	const month = Number(values[1])
+	const now = new Date()
+	if (month < 1 || month > 12 || year < 1900) throw new Error('请选择 1900 年起的有效出生年月')
+	if (year * 12 + month > now.getFullYear() * 12 + now.getMonth() + 1) throw new Error('出生年月不能晚于当前月份')
+	const originalAge = [60, 55, 50][category]
+	const startYear = [1965, 1970, 1975][category]
+	const elapsed = (year - startYear) * 12 + month
+	const delay = Math.min(category == 2 ? 60 : 36, Math.max(0, Math.ceil(elapsed / (category == 2 ? 2 : 4))))
+	const age = originalAge * 12 + delay
+	const retirement = year * 12 + month - 1 + age
+	return { ageYears: Math.floor(age / 12), ageMonths: age % 12, year: Math.floor(retirement / 12), month: retirement % 12 + 1, delay }
+}

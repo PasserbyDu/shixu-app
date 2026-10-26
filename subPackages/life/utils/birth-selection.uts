@@ -1,0 +1,17 @@
+// 页面之间只传递本次编辑状态；不持久化生日，也不广播全局事件。
+export type BirthSelection = { token : string, date : string, mode : string, confirmed : boolean }
+let pending : BirthSelection | null = null
+
+export const beginBirthSelection = (date : string, mode : string) : string => {
+	const token = Date.now().toString() + '-' + Math.floor(Math.random() * 1000000)
+	pending = { token, date, mode, confirmed: false }
+	return token
+}
+export const readBirthSelection = (token : string) : BirthSelection | null => pending != null && pending!.token == token ? pending : null
+export const confirmBirthSelection = (token : string, date : string, mode : string) => {
+	if (pending == null || pending!.token != token) return
+	pending = { token, date, mode, confirmed: true }
+}
+export const clearBirthSelection = (token : string) => {
+	if (pending != null && pending!.token == token) pending = null
+}

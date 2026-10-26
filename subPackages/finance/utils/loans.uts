@@ -1,0 +1,79 @@
+export type LoanPart = { principal : number, annualRate : number }
+export type RepaymentRow = {
+	period : number
+	principal : number
+	interest : number
+	payment : number
+	balance : number
+}
+export type LoanResult = {
+	principal : number
+	interest : number
+	total : number
+	firstPayment : number
+	lastPayment : number
+	rows : RepaymentRow[]
+}
+
+// methods
+export const numericInput = (value : string, title : string, minimum : number, maximum : number) : number => {
+	const text = value.trim()
+	if (!/^(\d+(\.\d{0,6})?|\.\d{1,6})$/.test(text)) throw new Error('请正确输入' + title + '，最多 6 位小数')
+	const result = Number(text)
+	if (!Number.isFinite(result) || result < minimum || result > maximum) throw new Error(title + '需在 ' + minimum + ' 至 ' + maximum + ' 之间')
+	return result
+}
+
+// 所有表内金额以整数分累计，末期一次结清剩余本金。
+export const calculateLoan = (parts : LoanPart[], months : number, method : string) : LoanResult => {
+	if (!Number.isInteger(months) || months < 1 || months > 360) throw new Error('贷款期数需在 1 至 360 期之间')
+	if (!['annuity', 'principal'].includes(method)) throw new Error('请选择有效还款方式')
+	if (parts.length < 1 || parts.length > 2) throw new Error('贷款分项无效')
+	const rows : RepaymentRow[] = []
+	for (let index = 0; index < months; index++) rows.push({ period: index + 1, principal: 0, interest: 0, payment: 0, balance: 0 })
+	let totalPrincipalCents = 0
+	let totalInterestCents = 0
+	for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+		const part = parts[partIndex]
+		if (!Number.isFinite(part.principal) || part.principal < 0 || part.principal > 1000000000) throw new Error('贷款金额超出有效范围')
+		if (!Number.isFinite(part.annualRate) || part.annualRate < 0 || part.annualRate > 100) throw new Error('年利率需在 0% 至 100% 之间')
+		const original = Math.round(part.principal * 100)
+		if (original == 0) continue
+		totalPrincipalCents += original
+		let remaining = original
+		const rate = part.annualRate / 1200
+		// 折现因子逐项求和，零利率及极小正利率均不发生减法精度损失。
+		let factor = 1
+		let presentValue = 0
+		for (let period = 0; period < months; period++) {
+			factor /= 1 + rate
+			presentValue += factor
+		}
+		const fixedPayment = Math.round(original / presentValue)
+		const fixedPrincipal = Math.round(original / months)
+		for (let period = 0; period < months; period++) {
+			const interest = Math.round(remaining * rate)
+			const principal = period == months - 1 ? remaining : Math.min(remaining, Math.max(0, method == 'annuity' ? fixedPayment - interest : fixedPrincipal))
+			remaining -= principal
+			const row = rows[period]
+			row.principal = Math.round(row.principal * 100 + principal) / 100
+			row.interest = Math.round(row.interest * 100 + interest) / 100
+			row.payment = Math.round(row.payment * 100 + principal + interest) / 100
+			row.balance = Math.round(row.balance * 100 + remaining) / 100
+			totalInterestCents += interest
+		}
+	}
+	return {
+		principal: totalPrincipalCents / 100,
+		interest: totalInterestCents / 100,
+		total: (totalPrincipalCents + totalInterestCents) / 100,
+		firstPayment: rows[0].payment,
+		lastPayment: rows[months - 1].payment,
+		rows: totalPrincipalCents > 0 ? rows : []
+	}
+}
+
+export const moneyText = (value : number) : string => {
+	const parts = value.toFixed(2).split('.')
+	return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + parts[1]
+}

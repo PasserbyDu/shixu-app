@@ -50,6 +50,26 @@ const tools : Tool[] = [
 		icon: 'loop', iconText: '', color: '#ed6179', background: '#fff0f3'
 	},
 	{
+		id: 'retirement', title: '退休年龄计算', shortTitle: '退休年龄', summary: '法定退休年月测算',
+		description: '按渐进式延迟退休规则测算法定退休年月', keywords: '退休 年龄 延迟退休 职工 政策',
+		icon: 'calendar', iconText: '', color: '#278dca', background: '#e8f6ff'
+	},
+	{
+		id: 'age', title: '年龄·属相·星座', shortTitle: '年龄属相', summary: '周岁与生日印记',
+		description: '计算周岁年龄，查看生肖属相与星座', keywords: '年龄 周岁 生日 生肖 属相 星座 公历 农历',
+		icon: 'person', iconText: '', color: '#278dca', background: '#e8f6ff'
+	},
+	{
+		id: 'lunar-date', title: '农历日期选择', shortTitle: '农历日期', summary: '公农历与闰月转换',
+		description: '公历农历相互转换，支持农历闰月选择', keywords: '农历 阴历 阳历 公历 闰月 日期 生日 日历',
+		icon: 'calendar', iconText: '', color: '#278dca', background: '#e8f6ff'
+	},
+	{
+		id: 'kinship', title: '亲戚称呼计算', shortTitle: '亲戚称呼', summary: '关系链称谓查询',
+		description: '一步步选择亲属关系，计算常见普通话称呼', keywords: '亲戚 亲属 称呼 辈分 关系 计算',
+		icon: 'staff', iconText: '', color: '#278dca', background: '#e8f6ff'
+	},
+	{
 		id: 'account', title: '生活记账', shortTitle: '生活记账', summary: '日常收支记录',
 		description: '记录日常收入与支出', keywords: '生活 记账 收入 支出',
 		icon: 'compose', iconText: '', color: '#8c6cff', background: '#f3edff'
@@ -120,6 +140,16 @@ const tools : Tool[] = [
 		icon: 'wallet', iconText: '', color: '#f19b25', background: '#fff5e8'
 	},
 	{
+		id: 'mortgage', title: '房贷计算', shortTitle: '房贷计算', summary: '月供与还款明细',
+		description: '商业贷、公积金与组合贷月供和利息计算', keywords: '房贷 商业贷款 公积金 组合贷 等额本息 等额本金 月供 利息',
+		icon: 'home', iconText: '', color: '#278dca', background: '#e8f6ff'
+	},
+	{
+		id: 'car-loan', title: '车贷计算', shortTitle: '车贷计算', summary: '首付与月供测算',
+		description: '计算购车首付、贷款金额、月供与累计利息', keywords: '车贷 车辆 首付 贷款 月供 利息 汽车',
+		icon: 'wallet', iconText: '', color: '#278dca', background: '#e8f6ff'
+	},
+	{
 		id: '2048', title: '数字 2048', shortTitle: '数字 2048', summary: '滑动合并，挑战高分',
 		description: '合并相同数字，挑战 2048 和自己的最高分', keywords: '2048 数字 合并 休闲 游戏 益智',
 		icon: '', iconText: '数', color: '#318fc2', background: '#e8f6ff'
@@ -135,7 +165,7 @@ const categories : ToolCategory[] = [
 	{
 		id: 'life', title: '生活工具', shortTitle: '生活', subtitle: '日常实用工具',
 		icon: 'home', color: '#0096f7', background: '#edf8ff',
-		toolIds: ['date', 'time', 'unit', 'account', 'fitness', 'pet']
+		toolIds: ['date', 'time', 'unit', 'retirement', 'age', 'lunar-date', 'kinship', 'account', 'fitness', 'pet']
 	},
 	{
 		id: 'office', title: '办公工具', shortTitle: '办公', subtitle: '提升工作效率',
@@ -153,7 +183,7 @@ const categories : ToolCategory[] = [
 	},
 	{
 		id: 'finance', title: '财务计算', shortTitle: '财务', subtitle: '理财与数值计算',
-		icon: 'wallet', color: '#ff8800', background: '#fff6ec', toolIds: ['deposit']
+		icon: 'wallet', color: '#ff8800', background: '#fff6ec', toolIds: ['mortgage', 'car-loan', 'deposit']
 	},
 	{
 		id: 'ai', title: 'AI 工具', shortTitle: 'AI', subtitle: '智能创作助手',
@@ -192,6 +222,18 @@ export const getToolPath = (id : string) : string => {
 			return '/subPackages/life/time-calculator'
 		case 'unit':
 			return '/subPackages/life/unit-converter'
+		case 'retirement':
+			return '/subPackages/life/retirement'
+		case 'age':
+			return '/subPackages/life/age'
+		case 'lunar-date':
+			return '/subPackages/life/lunar-date'
+		case 'kinship':
+			return '/subPackages/life/kinship'
+		case 'mortgage':
+			return '/subPackages/finance/mortgage'
+		case 'car-loan':
+			return '/subPackages/finance/car-loan'
 		case 'image-pdf':
 			return '/subPackages/office/image-pdf'
 		case 'pdf-merge':

@@ -1,0 +1,126 @@
+import {
+	DateParts,
+	calendarDayNumber,
+	daysInMonth,
+	padNumber,
+	parseCalendarDate
+} from '@/utils/calculators.uts'
+import { LUNAR_INFO } from '@/subPackages/life/utils/lunar-data.uts'
+
+export type LunarDate = { year : number, month : number, day : number, leap : boolean }
+export type AgeResult = { years : number, months : number, days : number, zodiac : string, cyclicalYear : string, star : string }
+
+// data
+export const MIN_CALENDAR_DATE = '1900-01-31'
+export const MAX_CALENDAR_DATE = '2100-12-31'
+export const LUNAR_MONTH_NAMES = ['正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '冬月', '腊月']
+const BASE_DAY = calendarDayNumber({ year: 1900, month: 1, day: 31 })
+const LAST_DAY = calendarDayNumber({ year: 2100, month: 12, day: 31 })
+
+// methods
+export const dateText = (date : DateParts) : string => date.year + '-' + padNumber(date.month) + '-' + padNumber(date.day)
+
+export const leapMonth = (year : number) : number => year >= 1900 && year <= 2100 ? LUNAR_INFO[year - 1900] % 16 : 0
+
+export const lunarMonthDays = (year : number, month : number, leap : boolean = false) : number => {
+	if (!Number.isInteger(year) || year < 1900 || year > 2100 || !Number.isInteger(month) || month < 1 || month > 12) throw new Error('农历年份支持 1900 至 2100 年')
+	const info = LUNAR_INFO[year - 1900]
+	if (leap) {
+		if (leapMonth(year) != month) throw new Error('所选年份不存在这个闰月')
+		return Math.floor(info / 65536) % 2 == 1 ? 30 : 29
+	}
+	return Math.floor(info / Math.pow(2, 16 - month)) % 2 == 1 ? 30 : 29
+}
+
+const lunarYearDays = (year : number) : number => {
+	let days = 0
+	for (let month = 1; month <= 12; month++) days += lunarMonthDays(year, month)
+	const leap = leapMonth(year)
+	return days + (leap > 0 ? lunarMonthDays(year, leap, true) : 0)
+}
+
+const dayToDate = (ordinal : number) : DateParts => {
+	let remaining = ordinal - calendarDayNumber({ year: 1900, month: 1, day: 1 })
+	let year = 1900
+	while (remaining >= (daysInMonth(year, 2) == 29 ? 366 : 365)) {
+		remaining -= daysInMonth(year, 2) == 29 ? 366 : 365
+		year++
+	}
+	let month = 1
+	while (remaining >= daysInMonth(year, month)) { remaining -= daysInMonth(year, month); month++ }
+	return { year, month, day: remaining + 1 }
+}
+
+export const solarToLunar = (value : string) : LunarDate => {
+	const solar = parseCalendarDate(value)
+	if (solar == null) throw new Error('请选择有效公历日期')
+	const ordinal = calendarDayNumber(solar)
+	if (ordinal < BASE_DAY || ordinal > LAST_DAY) throw new Error('日期支持 1900-01-31 至 2100-12-31')
+	let offset = ordinal - BASE_DAY
+	let year = 1900
+	while (offset >= lunarYearDays(year)) { offset -= lunarYearDays(year); year++ }
+	for (let month = 1; month <= 12; month++) {
+		const count = lunarMonthDays(year, month)
+		if (offset < count) return { year, month, day: offset + 1, leap: false }
+		offset -= count
+		if (leapMonth(year) == month) {
+			const leapCount = lunarMonthDays(year, month, true)
+			if (offset < leapCount) return { year, month, day: offset + 1, leap: true }
+			offset -= leapCount
+		}
+	}
+	throw new Error('日期转换失败，请重新选择')
+}
+
+export const lunarToSolar = (date : LunarDate) : string => {
+	const count = lunarMonthDays(date.year, date.month, date.leap)
+	if (!Number.isInteger(date.day) || date.day < 1 || date.day > count) throw new Error('所选农历月份没有这一天')
+	let offset = date.day - 1
+	for (let year = 1900; year < date.year; year++) offset += lunarYearDays(year)
+	for (let month = 1; month < date.month; month++) {
+		offset += lunarMonthDays(date.year, month)
+		if (leapMonth(date.year) == month) offset += lunarMonthDays(date.year, month, true)
+	}
+	if (date.leap) offset += lunarMonthDays(date.year, date.month)
+	if (BASE_DAY + offset > LAST_DAY) throw new Error('所选农历日期对应的公历超出 2100-12-31')
+	return dateText(dayToDate(BASE_DAY + offset))
+}
+
+export const lunarDayName = (day : number) : string => {
+	if (day == 10) return '初十'
+	if (day == 20) return '二十'
+	if (day == 30) return '三十'
+	return ['初', '十', '廿'][Math.floor(day / 10)] + ['一', '二', '三', '四', '五', '六', '七', '八', '九'][(day - 1) % 10]
+}
+
+export const lunarText = (date : LunarDate) : string => {
+	const year = date.year.toString().split('').map((digit : string) : string => ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'][Number(digit)]).join('')
+	return '农历 ' + year + '年 ' + (date.leap ? '闰' : '') + LUNAR_MONTH_NAMES[date.month - 1] + ' ' + lunarDayName(date.day)
+}
+
+const addMonths = (date : DateParts, count : number) : DateParts => {
+	const index = date.year * 12 + date.month - 1 + count
+	const year = Math.floor(index / 12)
+	const month = index % 12 + 1
+	return { year, month, day: Math.min(date.day, daysInMonth(year, month)) }
+}
+
+export const calculateAge = (birthValue : string, cutoffValue : string) : AgeResult => {
+	const birth = parseCalendarDate(birthValue)
+	const cutoff = parseCalendarDate(cutoffValue)
+	if (birth == null || cutoff == null) throw new Error('请选择有效的出生日期和截止日期')
+	if (calendarDayNumber(birth) > calendarDayNumber(cutoff)) throw new Error('出生日期不能晚于计算截止日期')
+	const lunar = solarToLunar(birthValue)
+	let months = (cutoff.year - birth.year) * 12 + cutoff.month - birth.month
+	if (calendarDayNumber(addMonths(birth, months)) > calendarDayNumber(cutoff)) months--
+	const anchor = addMonths(birth, months)
+	const boundary = [20, 19, 21, 20, 21, 22, 23, 23, 23, 24, 23, 22]
+	const stars = ['摩羯座', '水瓶座', '双鱼座', '白羊座', '金牛座', '双子座', '巨蟹座', '狮子座', '处女座', '天秤座', '天蝎座', '射手座', '摩羯座']
+	return {
+		years: Math.floor(months / 12), months: months % 12,
+		days: calendarDayNumber(cutoff) - calendarDayNumber(anchor),
+		zodiac: ['鼠', '牛', '虎', '兔', '龙', '蛇', '马', '羊', '猴', '鸡', '狗', '猪'][(lunar.year - 4) % 12],
+		cyclicalYear: ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'][(lunar.year - 4) % 10] + ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'][(lunar.year - 4) % 12] + '年',
+		star: stars[birth.month - 1 + (birth.day >= boundary[birth.month - 1] ? 1 : 0)]
+	}
+}

@@ -1,0 +1,314 @@
+<template>
+	<tool-page title="年龄 · 农历选择" subtitle="支持公农历切换，也照顾每一个特别的生日">
+		<view class="tool-card date-preview">
+			<text class="card-title">出生日期</text>
+			<view class="preview-field" @click="openEditor">
+				<text class="preview-label">{{ displayDate }}</text>
+				<UniIcons type="bottom" size="26rpx" color="#278dca" />
+			</view>
+			<text class="corresponding-date">对应公历　{{ committed.replace('-', '年').replace('-', '月') }}日</text>
+			<text class="tool-note">点击日期可重新选择</text>
+		</view>
+		<view v-if="editing" class="tool-card date-editor">
+			<view class="editor-heading">
+				<view class="editor-action" @click="cancel">
+					<text class="text-[26rpx] leading-[42rpx] text-[#8795a1]">取消</text>
+				</view>
+				<text class="editor-title">选择出生日期</text>
+				<view class="editor-action" @click="confirm">
+					<text class="text-[26rpx] leading-[42rpx] text-[#278dca]">完成</text>
+				</view>
+			</view>
+			<view class="tool-tabs">
+				<view
+					v-for="item in modes"
+					:key="item.id"
+					:class="['tab-button', mode == item.id ? 'is-active' : '']"
+					@click="changeMode(item.id)"
+				>
+					<text class="tab-label">{{ item.label }}</text>
+				</view>
+			</view>
+			<picker-view
+				class="date-wheels"
+				:value="wheelValue"
+				:immediate-change="true"
+				indicator-style="height: 88rpx;"
+				@change="changeDate"
+			>
+				<picker-view-column>
+					<view v-for="value in years" :key="value" class="wheel-item">
+						<text :class="['wheel-label', year == value ? 'is-current' : '']">{{ value }}年</text>
+					</view>
+				</picker-view-column>
+				<picker-view-column>
+					<view v-for="value in months" :key="value" class="wheel-item">
+						<text :class="['wheel-label', month == value ? 'is-current' : '']">{{ mode == 'lunar' ? LUNAR_MONTH_NAMES[value - 1] : value + '月' }}</text>
+					</view>
+				</picker-view-column>
+				<picker-view-column>
+					<view v-for="value in days" :key="value" class="wheel-item">
+						<text :class="['wheel-label', day == value ? 'is-current' : '']">{{ mode == 'lunar' ? lunarDayName(value) : value + '日' }}</text>
+					</view>
+				</picker-view-column>
+			</picker-view>
+			<view v-if="mode == 'lunar'" class="leap-row">
+				<text class="text-[26rpx] leading-[42rpx] text-[#233d50]">闰月</text>
+				<switch :checked="leap" :disabled="!canLeap" color="#278dca" @change="changeLeap" />
+				<text class="leap-description">{{ canLeap ? '本年有闰' + LUNAR_MONTH_NAMES[month - 1] : '本年无闰' + LUNAR_MONTH_NAMES[month - 1] }}</text>
+			</view>
+			<text class="tool-note">{{ mode == 'lunar' ? '仅在所选年份存在对应闰月时可选；无效日自动调整为当月最后一天。' : '切换公农历会保留同一天，完成后应用所选日期。' }}</text>
+			<text class="tool-note">支持公历1900-01-31至2100-12-31</text>
+		</view>
+		<text v-if="error.length > 0" class="tool-error">{{ error }}</text>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue';
+	import { onLoad, onUnload } from '@dcloudio/uni-app';
+	import { daysInMonth, parseCalendarDate } from '@/utils/calculators.uts';
+	import { recordToolUsage } from '@/utils/tool-usage.uts';
+	import {
+		LUNAR_MONTH_NAMES,
+		dateText,
+		leapMonth,
+		lunarDayName,
+		lunarMonthDays,
+		lunarText,
+		lunarToSolar,
+		solarToLunar
+	} from '@/subPackages/life/utils/calendar.uts';
+	import {
+		clearBirthSelection,
+		confirmBirthSelection,
+		readBirthSelection
+	} from '@/subPackages/life/utils/birth-selection.uts';
+	// data
+	type CalendarMode = {
+		id: string;
+		label: string;
+	};
+	const modes: CalendarMode[] = [{
+		id: 'solar',
+		label: '公历'
+	}, {
+		id: 'lunar',
+		label: '农历'
+	}];
+	const years: number[] = [];
+	for (let value = 1900; value <= 2100; value++) years.push(value);
+	const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+	const committed = ref('2000-06-15');
+	const committedMode = ref('lunar');
+	const mode = ref('lunar');
+	const year = ref(2000);
+	const month = ref(5);
+	const day = ref(14);
+	const leap = ref(false);
+	const editing = ref(true);
+	const error = ref('');
+	let token = '';
+	let didConfirm = false;
+	// computed
+	const displayDate = computed((): string => committedMode.value == 'lunar' ? lunarText(solarToLunar(committed.value)) : '公历 ' + committed.value);
+	const canLeap = computed((): boolean => mode.value == 'lunar' && leapMonth(year.value) == month.value);
+	const days = computed((): number[] => {
+		const values: number[] = [];
+		const count = mode.value == 'lunar' ? lunarMonthDays(year.value, month.value, leap.value && canLeap.value) : daysInMonth(year.value, month.value);
+		for (let value = 1; value <= count; value++) values.push(value);
+		return values;
+	});
+	const wheelValue = computed((): number[] => [year.value - 1900, month.value - 1, day.value - 1]);
+	// methods
+	const setDraft = (solar: string) => {
+		if (mode.value == 'lunar') {
+			const lunar = solarToLunar(solar);
+			year.value = lunar.year;
+			month.value = lunar.month;
+			day.value = lunar.day;
+			leap.value = lunar.leap;
+		} else {
+			const date = parseCalendarDate(solar)!;
+			year.value = date.year;
+			month.value = date.month;
+			day.value = date.day;
+			leap.value = false;
+		}
+	};
+	const draftSolar = (): string => {
+		const value = mode.value == 'lunar' ? lunarToSolar({
+			year: year.value,
+			month: month.value,
+			day: day.value,
+			leap: leap.value
+		}) : dateText({
+			year: year.value,
+			month: month.value,
+			day: day.value
+		});
+		solarToLunar(value);
+		return value;
+	};
+	const openEditor = () => {
+		mode.value = committedMode.value;
+		setDraft(committed.value);
+		error.value = '';
+		editing.value = true;
+	};
+	const changeMode = (value: string) => {
+		if (mode.value == value) return;
+		try {
+			const solar = draftSolar();
+			mode.value = value;
+			setDraft(solar);
+			error.value = '';
+		} catch (exception) {
+			error.value = (exception as Error).message;
+		}
+	};
+	const changeDate = (event: UniPickerViewChangeEvent) => {
+		const values = event.detail.value;
+		year.value = 1900 + values[0];
+		month.value = values[1] + 1;
+		if (!canLeap.value) leap.value = false;
+		day.value = Math.min(values[2] + 1, days.value.length);
+		error.value = '';
+	};
+	const changeLeap = (event: UniSwitchChangeEvent) => {
+		leap.value = canLeap.value && event.detail.value;
+		day.value = Math.min(day.value, days.value.length);
+		error.value = '';
+	};
+	const cancel = () => {
+		if (!editing.value) return;
+		error.value = '';
+		editing.value = false;
+		setDraft(committed.value);
+		if (token.length > 0) uni.navigateBack();
+	};
+	const confirm = () => {
+		if (!editing.value) return;
+		try {
+			committed.value = draftSolar();
+			committedMode.value = mode.value;
+			error.value = '';
+			editing.value = false;
+			if (token.length > 0) {
+				confirmBirthSelection(token, committed.value, mode.value);
+				didConfirm = true;
+				uni.navigateBack();
+			}
+		} catch (exception) {
+			error.value = (exception as Error).message;
+		}
+	};
+	// lifecycle
+	onLoad(options => {
+		const optionToken = options?.['token'];
+		token = typeof optionToken == 'string' ? optionToken as string : '';
+		const selection = readBirthSelection(token);
+		if (selection != null) {
+			committed.value = selection.date;
+			committedMode.value = selection.mode;
+			mode.value = selection.mode;
+		}
+		if (token.length > 0 && selection == null) {
+			token = '';
+			error.value = '编辑会话已失效，请返回年龄页重新选择';
+		}
+		setDraft(committed.value);
+		if (token.length == 0) recordToolUsage('lunar-date');
+	});
+	onUnload(() => {
+		if (!didConfirm) clearBirthSelection(token);
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/practical-tools.scss';
+	.date-preview {
+		margin-bottom: 66rpx;
+		.preview-field {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			padding: 22rpx;
+			border-radius: 22rpx;
+			background-color: #e8f6ff;
+			.preview-label {
+				flex: 1;
+				margin-right: 16rpx;
+				font-size: 28rpx;
+				line-height: 44rpx;
+				color: #278dca;
+			}
+		}
+		.corresponding-date {
+			margin-top: 26rpx;
+			font-size: 26rpx;
+			line-height: 42rpx;
+			color: #233d50;
+		}
+	}
+
+	.date-editor {
+		margin: 0;
+		padding: 26rpx 32rpx 50rpx;
+		border-radius: 34rpx 34rpx 0 0;
+		.editor-heading {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			margin-bottom: 28rpx;
+			.editor-action {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				min-width: 80rpx;
+				min-height: 70rpx;
+			}
+			.editor-title {
+				flex: 1;
+				font-size: 30rpx;
+				line-height: 46rpx;
+				text-align: center;
+				color: #233d50;
+			}
+		}
+		.date-wheels {
+			height: 320rpx;
+			margin: 24rpx 0;
+			.wheel-item {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				height: 88rpx;
+				.wheel-label {
+					font-size: 30rpx;
+					line-height: 46rpx;
+					text-align: center;
+					color: #8795a1;
+					&.is-current {
+						color: #278dca;
+						font-weight: 500;
+					}
+				}
+			}
+		}
+		.leap-row {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			.leap-description {
+				max-width: 280rpx;
+				font-size: 22rpx;
+				line-height: 36rpx;
+				color: #8795a1;
+			}
+		}
+	}
+</style>

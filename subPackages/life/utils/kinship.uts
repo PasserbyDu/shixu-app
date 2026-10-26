@@ -1,0 +1,80 @@
+import { KINSHIP_NAMES, KinshipName } from '@/subPackages/life/utils/kinship-data.uts'
+import { KINSHIP_RULES } from '@/subPackages/life/utils/kinship-rules.uts'
+
+export type RelativeOption = { code : string, title : string, sex : number }
+export const RELATIVES : RelativeOption[] = [
+	{ code: 'f', title: '爸爸', sex: 1 }, { code: 'm', title: '妈妈', sex: 0 },
+	{ code: 'ob', title: '哥哥', sex: 1 }, { code: 'lb', title: '弟弟', sex: 1 },
+	{ code: 'os', title: '姐姐', sex: 0 }, { code: 'ls', title: '妹妹', sex: 0 },
+	{ code: 'h', title: '丈夫', sex: 1 }, { code: 'w', title: '妻子', sex: 0 },
+	{ code: 's', title: '儿子', sex: 1 }, { code: 'd', title: '女儿', sex: 0 }
+]
+
+// methods
+const generalPath = (value : string) : string => value.replace(/[ol]b/g, 'xb').replace(/[ol]s/g, 'xs')
+
+const namesForPath = (path : string, sex : number) : string[] => {
+	const generic = generalPath(path)
+	const exact = KINSHIP_NAMES.find((entry : KinshipName) : boolean => entry.path == path)
+	if (exact != null) return [exact.name]
+	const general = KINSHIP_NAMES.find((entry : KinshipName) : boolean => entry.path == generic)
+	if (general != null) return [general.name]
+	const specific = KINSHIP_NAMES.find((entry : KinshipName) : boolean => entry.path == sex + ',' + generic)
+	if (specific != null) return [specific.name]
+	const names : string[] = []
+	KINSHIP_NAMES.forEach((entry : KinshipName) => {
+		if (generalPath(entry.path.replace(/&[ol]/g, '')) != generic) return
+		if (!names.includes(entry.name)) names.push(entry.name)
+	})
+	return names
+}
+
+export const relativeSex = (path : string[], ownSex : number) : number => {
+	if (path.length == 0) return ownSex
+	const relative = RELATIVES.find((entry : RelativeOption) : boolean => entry.code == path[path.length - 1])
+	return relative == null ? ownSex : relative.sex
+}
+
+export const kinshipNames = (path : string[], sex : number) : string[] => {
+	if (path.length > 8 || ![0, 1].includes(sex)) throw new Error('请在 8 层亲属关系内查询')
+	let currentSex = sex
+	for (let index = 0; index < path.length; index++) {
+		const relative = RELATIVES.find((entry : RelativeOption) : boolean => entry.code == path[index])
+		if (relative == null) throw new Error('请选择有效亲属关系')
+		if ((relative.code == 'h' && currentSex == 1) || (relative.code == 'w' && currentSex == 0)) throw new Error('当前关系无法按传统称谓继续计算，请退一步重新选择')
+		currentSex = relative.sex
+	}
+	const queue : string[] = [',' + sex + (path.length > 0 ? ',' + path.join(',') : '')]
+	const visited : string[] = []
+	const normalized : string[] = []
+	while (queue.length > 0) {
+		let selector = queue.shift()!
+		if (visited.includes(selector)) continue
+		visited.push(selector)
+		if (visited.length > 512) throw new Error('关系分支较多，请退一步后分段查询')
+		let branched = false
+		for (let pass = 0; pass < 32; pass++) {
+			const previous = selector
+			for (let index = 0; index < KINSHIP_RULES.length; index++) {
+				const rule = KINSHIP_RULES[index]
+				selector = selector.replace(rule.pattern, rule.replacement)
+				if (selector.includes('#')) {
+					selector.split('#').forEach((item : string) => { queue.push(item) })
+					branched = true
+					break
+				}
+			}
+			if (branched || previous == selector) break
+			if (pass == 31) throw new Error('关系较复杂，请退一步后分段查询')
+		}
+		if (branched) continue
+		if (/,[mwd0](&[ol\d]+)?,w|,[hfs1](&[ol\d]+)?,h/.test(selector)) continue
+		const key = selector.replace(/,[01]/, '').slice(1)
+		if (!normalized.includes(key)) normalized.push(key)
+	}
+	const result : string[] = []
+	normalized.forEach((key : string) => {
+		namesForPath(key, sex).forEach((name : string) => { if (!result.includes(name)) result.push(name) })
+	})
+	return result
+}
