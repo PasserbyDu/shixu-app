@@ -1,0 +1,126 @@
+<template>
+	<tool-page title="JSON 格式化" subtitle="格式化并校验 JSON，让数据结构清晰易读">
+		<view class="local-notice">
+			<UniIcons type="checkmarkempty" size="30rpx" color="#277ab8" />
+			<text class="notice-label">本地处理，输入内容不会上传</text>
+		</view>
+		<source-editor
+			:value="source"
+			title="输入 JSON"
+			hint=""
+			placeholder="粘贴或输入标准 JSON"
+			@change="setSource"
+			@paste="paste"
+			@example="loadExample"
+			@clear="clear"
+		>
+			<view class="indent-setting">
+				<text class="indent-label">缩进</text>
+				<view class="indent-options">
+					<view
+						v-for="size in indentOptions"
+						:key="size"
+						:class="['indent-option', indentation == size ? 'is-selected' : '']"
+						@click="changeIndent(size)"
+					>
+						<text class="indent-value">{{ size }} 个空格</text>
+					</view>
+				</view>
+			</view>
+		</source-editor>
+		<text v-if="error.length > 0" class="dev-error">{{ error }}</text>
+		<view class="dev-primary" @click="format">
+			<text class="dev-primary-label">格式化并校验</text>
+		</view>
+		<format-result
+			:result="result"
+			:hasResult="hasResult"
+			:stale="stale"
+			:status="status"
+			copyLabel="复制结果"
+			@copy="copy"
+		>
+			<template #actions>
+				<view class="dev-outline ml-[24rpx] px-[34rpx]" @click="compress">
+					<text class="dev-outline-label">压缩</text>
+				</view>
+			</template>
+		</format-result>
+		<text class="dev-footnote">支持标准 JSON；请勿包含注释或末尾多余逗号。校验失败时显示具体行列，便于定位修改。数字原文和键顺序会保留。</text>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { ref } from 'vue';
+	import SourceEditor from '@/subPackages/development/components/source-editor/source-editor.uvue';
+	import FormatResult from '@/subPackages/development/components/format-result/format-result.uvue';
+	import { formatJson } from '@/subPackages/development/utils/json-format.uts';
+	import { useTextWorkspace } from '@/subPackages/development/utils/use-text-workspace.uts';
+	import { recordToolUsage } from '@/utils/tool-usage';
+	import { toast } from '@/utils/toast';
+	// data
+	const example = '{"name":"拾序有方",\n"version":1}';
+	const {
+		source,
+		result,
+		hasResult,
+		stale,
+		error,
+		setSource,
+		clear,
+		invalidate,
+		paste,
+		process,
+		copy,
+		dispose
+	} = useTextWorkspace(example);
+	const indentation = ref(2);
+	const indentOptions = [2, 4];
+	const status = ref('校验通过');
+	// methods
+	const changeIndent = (value: number) => {
+		if (indentation.value == value) return;
+		indentation.value = value;
+		invalidate();
+	};
+	const loadExample = () => {
+		setSource(example);
+	};
+	const format = () => {
+		status.value = '校验通过';
+		process((value: string): string => formatJson(value, indentation.value));
+	};
+	const compress = () => {
+		if (!hasResult.value) return toast('请先格式化并校验 JSON');
+		status.value = '已压缩';
+		process((value: string): string => formatJson(value, indentation.value, true));
+	};
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('json').catch(() => toast('保存使用记录失败'));
+		format();
+	});
+	onUnload(() => {
+		dispose();
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/developer-tools.scss';
+	.local-notice {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		margin: 0 32rpx 28rpx;
+		padding: 16rpx 24rpx;
+		border-radius: 20rpx;
+		background-color: #eaf5fc;
+		.notice-label {
+			flex: 1;
+			margin-left: 16rpx;
+			font-size: 24rpx;
+			line-height: 40rpx;
+			color: #277ab8;
+		}
+	}
+</style>

@@ -131,8 +131,13 @@ const tools : Tool[] = [
 	},
 	{
 		id: 'code', title: '代码格式化', shortTitle: '代码格式化', summary: '多语言代码格式化',
-		description: '格式化多种语言的代码', keywords: '开发 代码 格式化 code',
+		description: '整理 JavaScript、HTML、CSS 代码缩进与排版', keywords: '开发 代码 格式化 code JavaScript JS HTML CSS',
 		icon: '', iconText: '{ }', color: '#00b99f', background: '#e6faf5'
+	},
+	{
+		id: 'radix', title: '进制换算', shortTitle: '进制换算', summary: '二/八/十/十六进制',
+		description: '二、八、十、十六进制整数互转，支持大整数', keywords: '进制 换算 转换 二进制 八进制 十进制 十六进制 BIN OCT DEC HEX',
+		icon: 'loop', iconText: '', color: '#278dca', background: '#e8f6ff'
 	},
 	{
 		id: 'deposit', title: '存款利息', shortTitle: '利息计算', summary: '计算收益金额',
@@ -179,7 +184,7 @@ const categories : ToolCategory[] = [
 	},
 	{
 		id: 'development', title: '开发工具', shortTitle: '开发', subtitle: '程序开发辅助',
-		icon: '', color: '#0096f7', background: '#edf8ff', toolIds: ['json', 'code']
+		icon: '', color: '#0096f7', background: '#edf8ff', toolIds: ['json', 'code', 'radix']
 	},
 	{
 		id: 'finance', title: '财务计算', shortTitle: '财务', subtitle: '理财与数值计算',
@@ -222,6 +227,12 @@ export const getToolPath = (id : string) : string => {
 			return '/subPackages/life/time-calculator'
 		case 'unit':
 			return '/subPackages/life/unit-converter'
+		case 'json':
+			return '/subPackages/development/json-format'
+		case 'code':
+			return '/subPackages/development/code-format'
+		case 'radix':
+			return '/subPackages/development/radix-converter'
 		case 'retirement':
 			return '/subPackages/life/retirement'
 		case 'age':

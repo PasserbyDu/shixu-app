@@ -1,0 +1,114 @@
+<template>
+	<view class="dev-card format-result">
+		<view class="dev-heading">
+			<text class="dev-card-title">格式化结果</text>
+			<view v-if="hasResult" class="result-status">
+				<UniIcons type="checkmarkempty" size="30rpx" color="#399d8e" />
+				<text class="status-label">{{ status }}</text>
+			</view>
+		</view>
+		<scroll-view v-if="hasResult" class="result-window" scroll-y="true">
+			<view v-for="(line, index) in visibleLines" :key="index" class="code-row">
+				<text class="line-number">{{ index + 1 }}</text>
+				<text class="code-content" :selectable="true">{{ line.length > 0 ? line : ' ' }}</text>
+			</view>
+			<view v-if="visibleCount < lines.length" class="py-[20rpx]" @click="showMore">
+				<text class="text-[22rpx] leading-[36rpx] text-[#277ab8]">再显示 200 行（已显示 {{ visibleCount }} / {{ lines.length }} 行，复制包含全部内容）</text>
+			</view>
+		</scroll-view>
+		<text v-else class="text-[24rpx] leading-[40rpx] text-[#7a8995]">{{ stale ? '内容或设置已修改，请重新处理' : '处理后的内容将在这里显示' }}</text>
+		<view class="result-actions">
+			<view class="dev-outline flex-1" @click="emit('copy')">
+				<UniIcons type="paperclip" size="32rpx" color="#277ab8" />
+				<text class="dev-outline-label ml-[14rpx]">{{ copyLabel }}</text>
+			</view>
+			<slot name="actions" />
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref, watch } from 'vue';
+	const props = defineProps<{
+		result: string;
+		hasResult: boolean;
+		status: string;
+		stale: boolean;
+		copyLabel: string;
+	}>();
+	const emit = defineEmits<{
+		(e: 'copy'): void;
+	}>();
+	// data
+	const visibleCount = ref(200);
+	// computed
+	const lines = computed((): string[] => props.result.replace(/\r\n|\r|\u2028|\u2029/g, '\n').split('\n'));
+	const visibleLines = computed((): string[] => lines.value.slice(0, visibleCount.value));
+	// watch
+	watch(() => props.result, () => {
+		visibleCount.value = 200;
+	});
+	// methods
+	const showMore = () => {
+		visibleCount.value = Math.min(lines.value.length, visibleCount.value + 200);
+	};
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/developer-tools.scss';
+	.format-result {
+		.dev-heading {
+			.result-status {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				margin-left: 12rpx;
+				.status-label {
+					margin-left: 10rpx;
+					font-size: 22rpx;
+					line-height: 36rpx;
+					color: #399d8e;
+				}
+			}
+		}
+		.result-window {
+			box-sizing: border-box;
+			height: 270rpx;
+			padding: 20rpx;
+			border: 2rpx solid #e7ecf1;
+			border-radius: 22rpx;
+			background-color: #f7f9fc;
+			.code-row {
+				display: flex;
+				flex-direction: row;
+				align-items: flex-start;
+				min-height: 40rpx;
+				.line-number {
+					flex-shrink: 0;
+					width: 64rpx;
+					margin-right: 18rpx;
+					font-family: monospace;
+					font-size: 22rpx;
+					line-height: 40rpx;
+					text-align: right;
+					color: #7a8995;
+				}
+				.code-content {
+					flex: 1;
+					min-width: 0;
+					font-family: monospace;
+					font-size: 26rpx;
+					line-height: 40rpx;
+					word-break: break-all;
+					white-space: pre-wrap;
+					color: #277ab8;
+				}
+			}
+		}
+		.result-actions {
+			display: flex;
+			flex-direction: row;
+			margin-top: 24rpx;
+		}
+	}
+</style>

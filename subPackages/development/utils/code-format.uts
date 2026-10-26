@@ -1,0 +1,321 @@
+import { sourceError } from '@/subPackages/development/utils/json-format.uts'
+
+type CodeToken = { text : string, kind : string, position : number, newline : boolean }
+type Writer = { lines : string[], line : string, depth : number, indentation : number }
+
+// data
+const OPERATORS = ['>>>=', '===', '!==', '**=', '>>>', '<<=', '>>=', '&&=', '||=', '??=', '=>', '==', '!=', '<=', '>=', '++', '--', '&&', '||', '??', '?.', '+=', '-=', '*=', '/=', '%=', '**', '<<', '>>', '&=', '|=', '^=', '...']
+const BLOCK_TAGS = ['html', 'head', 'body', 'div', 'section', 'article', 'main', 'header', 'footer', 'nav', 'aside', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'form', 'fieldset', 'figure', 'figcaption', 'blockquote', 'details', 'summary', 'svg']
+const VOID_TAGS = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']
+
+// methods
+const character = (source : string, index : number) : string => index >= 0 && index < source.length ? source[index] : ''
+
+const flush = (writer : Writer) => {
+	if (writer.line.trim().length == 0) { writer.line = ''; return }
+	writer.lines.push(' '.repeat(writer.depth * writer.indentation) + writer.line.trim())
+	writer.line = ''
+}
+const finish = (writer : Writer) : string => { flush(writer); return writer.lines.join('\n') }
+const space = (writer : Writer) => { if (writer.line.length > 0 && !/\s$/.test(writer.line)) writer.line += ' ' }
+
+const commentEnd = (source : string, start : number) : number => {
+	if (character(source, start + 1) == '/') {
+		let end = start + 2
+		while (end < source.length && !/[\r\n\u2028\u2029]/.test(source[end])) end++
+		return end
+	}
+	const end = source.indexOf('*/', start + 2)
+	if (end < 0) throw sourceError(source, start, '注释缺少 */')
+	return end + 2
+}
+
+// 将正则（或有歧义的两个除号之间的原文）作为不透明片段保留，不改写内部字符。
+const regexEnd = (source : string, start : number) : number => {
+	let inClass = false
+	for (let index = start + 1; index < source.length; index++) {
+		const char = source[index]
+		if (/[\r\n\u2028\u2029]/.test(char)) return -1
+		if (char == '\\') { index++; continue }
+		if (char == '[') inClass = true
+		if (char == ']') inClass = false
+		if (char == '/' && !inClass) {
+			index++
+			while (index < source.length && /[A-Za-z]/.test(source[index])) index++
+			return index
+		}
+	}
+	return -1
+}
+
+const regexMayStart = (tokens : CodeToken[]) : boolean => {
+	let last = tokens.length - 1
+	while (last >= 0 && tokens[last].kind == 'comment') last--
+	if (last < 0) return true
+	const previous = tokens[last]
+	if (previous.kind == 'literal') return false
+	if (previous.kind == 'word') {
+		if (last > 0 && ['.', '?.'].includes(tokens[last - 1].text)) return false
+		return ['return', 'throw', 'case', 'delete', 'void', 'typeof', 'in', 'of', 'instanceof', 'yield', 'await', 'else', 'do'].includes(previous.text)
+	}
+	if (previous.text == ')') {
+		let depth = 1
+		for (let index = last - 1; index >= 0; index--) {
+			if (tokens[index].kind != 'punctuation') continue
+			if (tokens[index].text == ')') depth++
+			if (tokens[index].text == '(') depth--
+			if (depth == 0) return index > 0 && ['if', 'while', 'for', 'with'].includes(tokens[index - 1].text)
+		}
+		return false
+	}
+	if (previous.text == '}') {
+		let depth = 1
+		for (let index = last - 1; index >= 0; index--) {
+			if (tokens[index].kind != 'punctuation') continue
+			if (tokens[index].text == '}') depth++
+			if (tokens[index].text == '{') depth--
+			if (depth == 0) return index == 0 || !['=', '(', '[', ',', ':', 'return', 'yield', '?', '=>'].includes(tokens[index - 1].text)
+		}
+	}
+	return ![']', '.', '?.', '++', '--'].includes(previous.text)
+}
+
+const literalEnd = (source : string, start : number, nesting : number = 0) : number => {
+	if (nesting > 50) throw sourceError(source, start, '模板字符串嵌套过深')
+	const quote = source[start]
+	let interpolation = 0
+	let index = start + 1
+	while (index < source.length) {
+		const char = source[index]
+		if (char == '\\') { index += 2; continue }
+		if (char == quote && (quote != '`' || interpolation == 0)) return index + 1
+		if (quote != '`' && /[\r\n\u2028\u2029]/.test(char)) throw sourceError(source, start, '字符串未结束，换行需转义')
+		if (quote == '`') {
+			if (char == '$' && character(source, index + 1) == '{' && interpolation == 0) { interpolation = 1; index += 2; continue }
+			if (interpolation > 0) {
+				if ('\'"`'.includes(char)) { index = literalEnd(source, index, nesting + 1); continue }
+				if (char == '/' && ['/', '*'].includes(character(source, index + 1))) { index = commentEnd(source, index); continue }
+				if (char == '/') {
+					const end = regexEnd(source, index)
+					if (end > 0) { index = end; continue }
+				}
+				if (char == '{') interpolation++
+				if (char == '}') interpolation--
+			}
+		}
+		index++
+	}
+	throw sourceError(source, start, '字符串或模板表达式未结束')
+}
+
+const scriptTokens = (source : string) : CodeToken[] => {
+	const tokens : CodeToken[] = []
+	let index = 0
+	let newline = false
+	while (index < source.length) {
+		if (/\s/.test(source[index])) { if (/[\r\n\u2028\u2029]/.test(source[index])) newline = true; index++; continue }
+		const start = index
+		const char = source[index]
+		let kind = 'punctuation'
+		if ('\'"`'.includes(char)) { index = literalEnd(source, index); kind = 'literal' }
+		else if (char == '/' && ['/', '*'].includes(character(source, index + 1))) { index = commentEnd(source, index); kind = 'comment' }
+		else if (index == 0 && source.startsWith('#!')) {
+			while (index < source.length && !/[\r\n]/.test(source[index])) index++
+			kind = 'comment'
+		} else if (char == '/' && regexMayStart(tokens)) {
+			const end = regexEnd(source, index)
+			if (end < 0) throw sourceError(source, index, '无法安全识别正则或除法表达式，请保留原文检查此处')
+			index = end; kind = 'literal'
+		}
+		else if (/[0-9]/.test(char) || (char == '.' && /[0-9]/.test(character(source, index + 1)))) {
+			const number = source.slice(index).match(/^(0[xX][\da-fA-F_]+n?|0[bB][01_]+n?|0[oO][0-7_]+n?|(?:\d[\d_]*(?:\.[\d_]*)?|\.[\d_]+)(?:[eE][+-]?[\d_]+)?n?)/)
+			if (number == null) throw sourceError(source, index, '无法识别数字字面量')
+			index += number[0].length
+			kind = 'literal'
+		} else if (/[A-Za-z_$\u0080-\uffff]/.test(char) || char == '\\' || char == '#') {
+			if (char == '#') index++
+			while (index < source.length) {
+				if (/[A-Za-z0-9_$\u0080-\uffff]/.test(source[index])) { index++; continue }
+				if (source[index] == '\\') {
+					const escaped = source.slice(index).match(/^\\u(\{[0-9a-fA-F]+\}|[0-9a-fA-F]{4})/)
+					if (escaped == null) throw sourceError(source, index, '无法安全识别标识符转义')
+					index += escaped[0].length
+					continue
+				}
+				break
+			}
+			if (index == start || (char == '#' && index == start + 1)) throw sourceError(source, start, '无法识别标识符')
+			kind = 'word'
+		} else {
+			const operator = OPERATORS.find((value : string) : boolean => source.slice(index, index + value.length) == value)
+			index += operator == null ? 1 : operator.length
+		}
+		tokens.push({ text: source.slice(start, index), kind, position: start, newline })
+		newline = false
+	}
+	return tokens
+}
+
+const formatScript = (source : string, indentation : number) : string => {
+	const tokens = scriptTokens(source)
+	const writer : Writer = { lines: [], line: '', depth: 0, indentation }
+	const brackets : string[] = []
+	let parentheses = 0
+	for (let index = 0; index < tokens.length; index++) {
+		const token = tokens[index]
+		const text = token.text
+		const previous = index > 0 ? tokens[index - 1] : null
+		const before = previous == null ? '' : previous.text
+		if (token.newline) flush(writer)
+		if (token.kind == 'comment') {
+			space(writer); writer.line += text
+			if (text.startsWith('//') || text.startsWith('#!')) flush(writer)
+			continue
+		}
+		if (token.kind != 'punctuation') {
+			if (before == '}') {
+				if (['else', 'catch', 'finally', 'while', 'from'].includes(text)) space(writer)
+				else flush(writer)
+			}
+			if (previous != null && (previous.kind != 'punctuation' || before == ')' || before == ']')) space(writer)
+			writer.line += text
+			continue
+		}
+		if (text == '<' && ['=', '=>', 'return', '('].includes(before) && index + 1 < tokens.length && tokens[index + 1].kind == 'word') throw sourceError(source, token.position, 'JS 模式不支持 JSX/TypeScript，请使用普通 JavaScript')
+		if ('([{'.includes(text) && text.length == 1) {
+			if (brackets.length >= 200) throw sourceError(source, token.position, '括号嵌套不能超过 200 层')
+			brackets.push(text)
+			if (text == '{') { space(writer); writer.line += '{'; flush(writer); writer.depth++ }
+			else { if (text == '(' && ['if', 'for', 'while', 'switch', 'catch', 'with'].includes(before)) space(writer); writer.line += text; if (text == '(') parentheses++ }
+		} else if (')]}'.includes(text) && text.length == 1) {
+			const open = brackets.pop()
+			if (open == null || open != (text == ')' ? '(' : text == ']' ? '[' : '{')) throw sourceError(source, token.position, '括号不匹配')
+			if (text == '}') { flush(writer); writer.depth--; writer.line += '}' }
+			else { writer.line = writer.line.replace(/\s+$/, '') + text; if (text == ')') parentheses-- }
+		} else if (text == ';') { writer.line = writer.line.replace(/\s+$/, '') + ';'; if (parentheses == 0) flush(writer); else space(writer) }
+		else if (text == ',') { writer.line = writer.line.replace(/\s+$/, '') + ','; if (brackets.length > 0 && brackets[brackets.length - 1] == '{') flush(writer); else space(writer) }
+		else if (text == ':') { writer.line = writer.line.replace(/\s+$/, '') + ':'; space(writer) }
+		else if (text == '.' || text == '?.') {
+			writer.line = writer.line.replace(/\s+$/, '')
+			if (text == '.' && previous != null && previous.kind == 'literal' && /^\d[\d_]*$/.test(before)) space(writer)
+			writer.line += text
+		} else if (text == '++' || text == '--') {
+			if (['+', '-', '++', '--', 'return', 'throw', 'yield', 'await'].includes(before)) space(writer)
+			else if (previous != null && (previous.kind != 'punctuation' || [')', ']'].includes(before))) writer.line = writer.line.replace(/\s+$/, '')
+			writer.line += text
+		}
+		else if (text == '!' || text == '~' || text == '...') { if (previous != null && previous.kind == 'word') space(writer); writer.line += text }
+		else { space(writer); writer.line += text; space(writer) }
+	}
+	if (brackets.length > 0) throw sourceError(source, source.length, '存在未结束的括号')
+	const formatted = finish(writer)
+	if (formatted.length > 400000) throw new Error('结果过大，请分段处理')
+	// 只允许空白排版变化；保护数字、字面量、相邻运算符及原有换行边界。
+	const verified = scriptTokens(formatted)
+	if (verified.length != tokens.length) throw new Error('无法安全保持词法结构，原文未改动，请分段处理')
+	for (let index = 0; index < tokens.length; index++) {
+		if (verified[index].text != tokens[index].text || (index > 0 && tokens[index].newline && !verified[index].newline)) throw sourceError(source, tokens[index].position, '无法安全保留此处的字面量或换行，原文未改动')
+	}
+	return formatted
+}
+
+const formatCss = (source : string, indentation : number) : string => {
+	const writer : Writer = { lines: [], line: '', depth: 0, indentation }
+	const brackets : string[] = []
+	let index = 0
+	while (index < source.length) {
+		const char = source[index]
+		if (char == '\\') { writer.line += source.slice(index, index + 2); index += 2; continue }
+		if ('\'"'.includes(char)) { const end = literalEnd(source, index); writer.line += source.slice(index, end); index = end; continue }
+		if (char == '/' && character(source, index + 1) == '*') { const end = commentEnd(source, index); writer.line += source.slice(index, end); index = end; continue }
+		if (char == '(' || char == '[') { brackets.push(char); writer.line += char }
+		else if (char == ')' || char == ']') {
+			if (brackets.pop() != (char == ')' ? '(' : '[')) throw sourceError(source, index, 'CSS 括号不匹配')
+			writer.line += char
+		} else if (brackets.length > 0) writer.line += char
+		else if (char == '{') {
+			if (writer.depth >= 200) throw sourceError(source, index, 'CSS 嵌套不能超过 200 层')
+			space(writer); writer.line += '{'; flush(writer); writer.depth++
+		} else if (char == '}') {
+			if (writer.depth == 0) throw sourceError(source, index, 'CSS 多余的结束括号')
+			flush(writer); writer.depth--; writer.line = '}'; flush(writer)
+		} else if (char == ';') { writer.line += ';'; flush(writer) }
+		else if (char == '\r' || char == '\n') flush(writer)
+		else writer.line += char
+		index++
+	}
+	if (brackets.length > 0 || writer.depth != 0) throw sourceError(source, source.length, 'CSS 括号未结束')
+	return finish(writer)
+}
+
+const markupTagEnd = (source : string, start : number) : number => {
+	let quote = ''
+	for (let index = start + 1; index < source.length; index++) {
+		const char = source[index]
+		if (quote.length > 0) { if (char == quote) quote = ''; continue }
+		if (char == '"' || char == "'") quote = char
+		else if (char == '>') return index + 1
+	}
+	throw sourceError(source, start, '标签或属性引号未结束')
+}
+
+const formatHtml = (source : string, indentation : number) : string => {
+	const writer : Writer = { lines: [], line: '', depth: 0, indentation }
+	const stack : string[] = []
+	const lower = source.toLowerCase()
+	let index = 0
+	while (index < source.length) {
+		if (source.startsWith('<!--', index)) {
+			const end = source.indexOf('-->', index + 4)
+			if (end < 0) throw sourceError(source, index, 'HTML 注释未结束')
+			writer.line += source.slice(index, end + 3); index = end + 3; continue
+		}
+		if (source[index] != '<') { writer.line += source[index]; index++; continue }
+		const end = markupTagEnd(source, index)
+		const tag = source.slice(index, end)
+		const match = tag.match(/^<\/?([A-Za-z][A-Za-z0-9:_-]*)/)
+		if (match == null) { writer.line += tag; index = end; continue }
+		const name = match[1].toLowerCase()
+		const closing = tag.startsWith('</')
+		const block = BLOCK_TAGS.includes(name)
+		if (!closing && ['pre', 'textarea', 'script', 'style', 'title'].includes(name)) {
+			let close = lower.indexOf('</' + name, end)
+			while (close >= 0 && !/[\s>]/.test(character(source, close + name.length + 2))) close = lower.indexOf('</' + name, close + 2)
+			if (close < 0) throw sourceError(source, index, name + ' 缺少结束标签')
+			const rawEnd = markupTagEnd(source, close)
+			flush(writer); writer.depth = stack.length; writer.line = source.slice(index, rawEnd); flush(writer); index = rawEnd; continue
+		}
+		if (closing) {
+			let found = -1
+			for (let place = stack.length - 1; place >= 0; place--) { if (stack[place] == name) { found = place; break } }
+			if (block && !writer.line.replace(/^\s+/, '').startsWith('<' + name + '>') && !writer.line.replace(/^\s+/, '').startsWith('<' + name + ' ')) flush(writer)
+			if (found >= 0) stack.splice(found, stack.length - found)
+			if (writer.line.length == 0) writer.depth = stack.length
+			writer.line += tag
+		} else {
+			if (block) { flush(writer); writer.depth = stack.length }
+			writer.line += tag
+			if (!VOID_TAGS.includes(name) && !/\/\s*>$/.test(tag)) {
+				if (stack.length >= 200) throw sourceError(source, index, 'HTML 嵌套不能超过 200 层')
+				stack.push(name)
+			}
+			// 当前行归属开标签之前的缩进；后续块再按栈深换行。
+		}
+		index = end
+		if (block) {
+			const next = source.slice(index).match(/^\s*<\/?([A-Za-z][A-Za-z0-9:_-]*)/)
+			if (next != null && BLOCK_TAGS.includes(next[1].toLowerCase())) { flush(writer); writer.depth = stack.length }
+		}
+	}
+	return finish(writer)
+}
+
+// 排版器不执行代码，也不将排版成功当作 JS/CSS/HTML 完整语法验证。
+export const formatCode = (source : string, language : string, indentation : number) : string => {
+	if (source.length > 20000) throw new Error('最多支持 20,000 字符')
+	if (![2, 4].includes(indentation)) throw new Error('请选择 2 或 4 个空格缩进')
+	const result = language == 'javascript' ? formatScript(source, indentation) : language == 'html' ? formatHtml(source, indentation) : language == 'css' ? formatCss(source, indentation) : ''
+	if (!['javascript', 'html', 'css'].includes(language)) throw new Error('请选择支持的语言')
+	if (result.length > 400000) throw new Error('结果过大，请分段处理')
+	return result
+}

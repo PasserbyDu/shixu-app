@@ -186,6 +186,35 @@
 					}
 				}
 			]
+		},
+		{
+			"root": "subPackages/development",
+			"pages": [
+				{
+					"path": "json-format",
+					"style": {
+						"navigationBarTitleText": "JSON 格式化",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
+					"path": "code-format",
+					"style": {
+						"navigationBarTitleText": "代码格式化",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
+					"path": "radix-converter",
+					"style": {
+						"navigationBarTitleText": "进制换算",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				}
+			]
 		}
 	],
 	"tabBar": {

@@ -1,0 +1,215 @@
+<template>
+	<tool-page title="进制换算" subtitle="二、八、十、十六进制互转，结果一目了然">
+		<view class="dev-card radix-input-card">
+			<view class="dev-heading">
+				<text class="dev-card-title">输入进制</text>
+			</view>
+			<view class="radix-options">
+				<view
+					v-for="item in RADIX_OPTIONS"
+					:key="item.base"
+					:class="['radix-option', base == item.base ? 'is-selected' : '']"
+					@click="changeBase(item.base)"
+				>
+					<text class="radix-label">{{ item.label }}</text>
+				</view>
+			</view>
+			<view class="source-heading">
+				<text class="text-[24rpx] leading-[40rpx] text-[#7a8995]">{{ current.title }}数值</text>
+				<view class="px-[8rpx] py-[12rpx]" @click="clear">
+					<text class="text-[22rpx] leading-[36rpx] text-[#277ab8]">清空</text>
+				</view>
+			</view>
+			<input
+				v-model="input"
+				class="radix-value"
+				type="text"
+				:maxlength="-1"
+				placeholder="请输入整数"
+				@input="invalidate"
+			/>
+			<text class="dev-note">当前可输入 {{ current.digits }}；仅支持整数，可带正负号</text>
+		</view>
+		<text v-if="error.length > 0" class="dev-error">{{ error }}</text>
+		<view class="dev-primary" @click="convert">
+			<text class="dev-primary-label">开始换算</text>
+		</view>
+		<view class="dev-card radix-result-card">
+			<view class="dev-heading">
+				<text class="dev-card-title">换算结果</text>
+				<view v-if="results.length > 0" class="conversion-status">
+					<UniIcons type="checkmarkempty" size="30rpx" color="#399d8e" />
+					<text class="text-[22rpx] leading-[36rpx] text-[#399d8e]">换算完成</text>
+				</view>
+			</view>
+			<text v-if="results.length == 0" class="text-[24rpx] leading-[40rpx] text-[#7a8995]">{{ stale ? '输入或进制已变更，请重新换算' : '输入整数后，点击上方按钮开始换算' }}</text>
+			<view
+				v-for="(row, index) in results"
+				:key="row.base"
+				:class="['radix-result-row', index == results.length - 1 ? 'last-row' : '']"
+			>
+				<text class="radix-result-title">{{ row.title }}</text>
+				<text class="radix-result-value" :selectable="true">{{ row.display }}</text>
+				<view class="copy-action" @click="copyDeveloperText(row.raw)">
+					<UniIcons type="paperclip" size="34rpx" color="#277ab8" />
+				</view>
+			</view>
+		</view>
+		<text class="dev-footnote">二进制按 4 位分组显示，复制时不含空格。十六进制支持 A–F，输入时不区分大小写。最多支持 512 位整数，不经过浮点数转换；负数使用负号表示，不是补码。</text>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue';
+	import {
+		RADIX_OPTIONS,
+		RadixOption,
+		RadixResult,
+		convertRadix
+	} from '@/subPackages/development/utils/radix.uts';
+	import { copyDeveloperText } from '@/subPackages/development/utils/use-text-workspace.uts';
+	import { recordToolUsage } from '@/utils/tool-usage';
+	import { toast } from '@/utils/toast';
+	// data
+	const input = ref('255');
+	const base = ref(10);
+	const results = ref<RadixResult[]>([]);
+	const error = ref('');
+	const stale = ref(false);
+	// computed
+	const current = computed((): RadixOption => RADIX_OPTIONS.find((item: RadixOption): boolean => item.base == base.value)!);
+	// methods
+	const invalidate = () => {
+		stale.value = stale.value || results.value.length > 0;
+		results.value = [];
+		error.value = '';
+	};
+	const changeBase = (value: number) => {
+		if (base.value == value) return;
+		base.value = value;
+		invalidate();
+	};
+	const clear = () => {
+		input.value = '';
+		invalidate();
+		stale.value = false;
+	};
+	const convert = () => {
+		uni.hideKeyboard();
+		invalidate();
+		try {
+			results.value = convertRadix(input.value, base.value);
+			stale.value = false;
+		} catch (exception) {
+			error.value = (exception as Error).message;
+		}
+	};
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('radix').catch(() => toast('保存使用记录失败'));
+		convert();
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/developer-tools.scss';
+	.radix-input-card {
+		.radix-options {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+			.radix-option {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				width: 22%;
+				min-height: 82rpx;
+				border: 2rpx solid #e7ecf1;
+				border-radius: 16rpx;
+				&.is-selected {
+					border-color: #65a9df;
+					background-color: #eaf5fc;
+					.radix-label {
+						color: #277ab8;
+					}
+				}
+				.radix-label {
+					font-size: 28rpx;
+					line-height: 42rpx;
+					color: #7a8995;
+				}
+			}
+		}
+		.source-heading {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			margin-top: 18rpx;
+			margin-bottom: 12rpx;
+		}
+		.radix-value {
+			box-sizing: border-box;
+			width: 100%;
+			height: 112rpx;
+			padding: 20rpx 26rpx;
+			border: 2rpx solid #e7ecf1;
+			border-radius: 22rpx;
+			background-color: #f7f9fc;
+			font-family: monospace;
+			font-size: 42rpx;
+			color: #233d50;
+		}
+	}
+
+	.radix-result-card {
+		.dev-heading {
+			.conversion-status {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+			}
+		}
+		.radix-result-row {
+			display: flex;
+			box-sizing: border-box;
+			flex-direction: row;
+			align-items: flex-start;
+			min-height: 92rpx;
+			padding: 18rpx 0;
+			border-bottom: 2rpx solid #e7ecf1;
+			&.last-row {
+				border-bottom-width: 0;
+			}
+			.radix-result-title {
+				flex-shrink: 0;
+				width: 196rpx;
+				padding-top: 12rpx;
+				font-size: 22rpx;
+				line-height: 38rpx;
+				color: #7a8995;
+			}
+			.radix-result-value {
+				flex: 1;
+				min-width: 0;
+				padding-top: 10rpx;
+				font-family: monospace;
+				font-size: 32rpx;
+				line-height: 44rpx;
+				word-break: break-all;
+				color: #277ab8;
+			}
+			.copy-action {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				flex-shrink: 0;
+				width: 64rpx;
+				min-height: 64rpx;
+				margin-left: 8rpx;
+			}
+		}
+	}
+</style>

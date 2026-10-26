@@ -1,0 +1,50 @@
+export type RadixOption = { base : number, label : string, title : string, suffix : string, digits : string }
+export type RadixResult = { base : number, title : string, raw : string, display : string }
+
+// data
+export const RADIX_OPTIONS : RadixOption[] = [
+	{ base: 2, label: '2', title: '二进制', suffix: 'BIN', digits: '0–1' },
+	{ base: 8, label: '8', title: '八进制', suffix: 'OCT', digits: '0–7' },
+	{ base: 10, label: '10', title: '十进制', suffix: 'DEC', digits: '0–9' },
+	{ base: 16, label: '16', title: '十六进制', suffix: 'HEX', digits: '0–9、A–F' }
+]
+const DIGITS = '0123456789ABCDEF'
+
+// methods
+const convertDigits = (source : string, from : number, to : number) : string => {
+	const output : number[] = [0]
+	for (let index = 0; index < source.length; index++) {
+		let carry = DIGITS.indexOf(source[index])
+		for (let place = 0; place < output.length; place++) {
+			const value = output[place] * from + carry
+			output[place] = value % to
+			carry = Math.floor(value / to)
+		}
+		while (carry > 0) { output.push(carry % to); carry = Math.floor(carry / to) }
+	}
+	return output.reverse().map((value : number) : string => DIGITS[value]).join('')
+}
+
+export const convertRadix = (value : string, base : number) : RadixResult[] => {
+	if (![2, 8, 10, 16].includes(base)) throw new Error('请选择有效的输入进制')
+	let source = value.trim().toUpperCase()
+	if (source.length == 0) throw new Error('请输入需要换算的整数')
+	const negative = source.startsWith('-')
+	if (source.startsWith('-') || source.startsWith('+')) source = source.slice(1)
+	const prefix = base == 2 ? '0B' : base == 8 ? '0O' : base == 16 ? '0X' : ''
+	if (prefix.length > 0 && source.startsWith(prefix)) source = source.slice(2)
+	if (source.length == 0) throw new Error('符号或进制前缀后还需输入整数')
+	if (source.length > 512) throw new Error('最多支持 512 位整数（不计符号和前缀）')
+	for (let index = 0; index < source.length; index++) {
+		const digit = DIGITS.indexOf(source[index])
+		if (digit < 0 || digit >= base) throw new Error('第 ' + (index + 1) + ' 位“' + source[index] + '”不属于 ' + base + ' 进制；仅支持整数')
+	}
+	source = source.replace(/^0+/, '')
+	if (source.length == 0) source = '0'
+	return RADIX_OPTIONS.map((option : RadixOption) : RadixResult => {
+		const converted = convertDigits(source, base, option.base)
+		const sign = negative && converted != '0' ? '-' : ''
+		const grouped = option.base == 2 ? converted.replace(/\B(?=(\d{4})+(?!\d))/g, ' ') : converted
+		return { base: option.base, title: option.title + ' · ' + option.suffix, raw: sign + converted, display: sign + grouped }
+	})
+}

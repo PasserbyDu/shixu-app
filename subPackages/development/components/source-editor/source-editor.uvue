@@ -1,0 +1,94 @@
+<template>
+	<view class="dev-card source-card">
+		<view class="dev-heading">
+			<text class="dev-card-title">{{ title }}</text>
+			<view class="source-actions">
+				<view v-for="action in actions" :key="action.id" class="source-action" @click="trigger(action.id)">
+					<text class="text-[22rpx] leading-[36rpx] text-[#277ab8]">{{ action.label }}</text>
+				</view>
+			</view>
+		</view>
+		<textarea
+			:value="value"
+			class="source-input"
+			:maxlength="-1"
+			:placeholder="placeholder"
+			:show-confirm-bar="false"
+			@input="changeInput"
+		/>
+		<slot />
+		<text v-if="hint.length > 0" class="dev-note">{{ hint }}</text>
+		<text class="dev-note">已输入 {{ value.length }} 字符；单次最多 {{ TEXT_LIMIT }} 字符，仅在本机处理</text>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { TEXT_LIMIT } from '@/subPackages/development/utils/use-text-workspace.uts';
+	defineProps<{
+		value: string;
+		title: string;
+		hint: string;
+		placeholder: string;
+	}>();
+	const emit = defineEmits<{
+		(e: 'change', value: string): void;
+		(e: 'paste'): void;
+		(e: 'example'): void;
+		(e: 'clear'): void;
+	}>();
+	type SourceAction = {
+		id: string;
+		label: string;
+	};
+	const actions: SourceAction[] = [{
+		id: 'paste',
+		label: '粘贴'
+	}, {
+		id: 'example',
+		label: '示例'
+	}, {
+		id: 'clear',
+		label: '清空'
+	}];
+	const changeInput = (event: UniTextareaInputEvent) => {
+		emit('change', event.detail.value);
+	};
+	const trigger = (action: string) => {
+		if (action == 'paste') emit('paste');else if (action == 'example') emit('example');else emit('clear');
+	};
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/developer-tools.scss';
+	.source-card {
+		.dev-heading {
+			.source-actions {
+				display: flex;
+				flex-direction: row;
+				flex-shrink: 0;
+				.source-action {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					justify-content: center;
+					min-width: 72rpx;
+					min-height: 60rpx;
+					margin-left: 8rpx;
+				}
+			}
+		}
+		.source-input {
+			box-sizing: border-box;
+			width: 100%;
+			height: 184rpx;
+			padding: 22rpx;
+			border: 2rpx solid #e7ecf1;
+			border-radius: 22rpx;
+			background-color: #f7f9fc;
+			font-family: monospace;
+			font-size: 26rpx;
+			line-height: 40rpx;
+			color: #233d50;
+		}
+	}
+</style>

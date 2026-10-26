@@ -1,0 +1,57 @@
+import { ref } from 'vue'
+import { toast } from '@/utils/toast'
+
+export const TEXT_LIMIT = 20000
+
+export const copyDeveloperText = (value : string) => {
+	uni.setClipboardData({ data: value, showToast: false, success: () => toast('结果已复制'), fail: () => toast('复制失败，请重试') })
+}
+
+export const useTextWorkspace = (initial : string) => {
+	// data
+	const source = ref(initial)
+	const result = ref('')
+	const hasResult = ref(false)
+	const stale = ref(false)
+	const error = ref('')
+	const pasting = ref(false)
+	let revision = 0
+	let active = true
+	// methods
+	const invalidate = () => {
+		revision++
+		stale.value = stale.value || hasResult.value
+		result.value = ''; hasResult.value = false; error.value = ''
+	}
+	const setSource = (value : string) => { source.value = value; invalidate() }
+	const clear = () => { setSource(''); stale.value = false }
+	const paste = () => {
+		if (pasting.value) return
+		pasting.value = true
+		const snapshot = revision
+		uni.getClipboardData({
+			success: (response) => {
+				if (!active) return
+				if (snapshot != revision) return toast('内容已修改，本次粘贴已取消')
+				if (response.data.length == 0) return toast('剪贴板没有文字')
+				if (response.data.length > TEXT_LIMIT) return toast('最多支持 20,000 字符，请分段处理')
+				setSource(response.data)
+			},
+			fail: () => { if (active) toast('读取剪贴板失败，请手动粘贴') },
+			complete: () => { pasting.value = false }
+		})
+	}
+	const process = (transform : (value : string) => string) => {
+		uni.hideKeyboard()
+		invalidate()
+		try {
+			if (source.value.trim().length == 0) throw new Error('请先输入需要处理的内容')
+			if (source.value.length > TEXT_LIMIT) throw new Error('最多支持 20,000 字符')
+			result.value = transform(source.value)
+			hasResult.value = true; stale.value = false
+		} catch (exception) { error.value = (exception as Error).message }
+	}
+	const copy = () => { if (!hasResult.value) return toast('请先处理内容'); copyDeveloperText(result.value) }
+	const dispose = () => { active = false; revision++ }
+	return { source, result, hasResult, stale, error, setSource, clear, invalidate, paste, process, copy, dispose }
+}

@@ -1,0 +1,173 @@
+<template>
+	<tool-page title="代码格式化" subtitle="整理缩进与空格，让代码更便于阅读和检查">
+		<view class="dev-card settings-card">
+			<view class="dev-heading">
+				<text class="dev-card-title">格式设置</text>
+			</view>
+			<view class="language-options">
+				<view
+					v-for="item in languages"
+					:key="item.id"
+					:class="['language-option', item.id == 'javascript' ? 'wide-option' : '', item.id == language ? 'is-selected' : '']"
+					@click="changeLanguage(item.id)"
+				>
+					<text class="language-label">{{ item.label }}</text>
+				</view>
+			</view>
+			<view class="indent-setting">
+				<text class="indent-label">缩进</text>
+				<picker class="flex-1" :range="indentLabels" :value="indentation == 2 ? 0 : 1" @change="changeIndent">
+					<view class="indent-picker">
+						<text class="text-[26rpx] leading-[42rpx] text-[#233d50]">{{ indentation }} 个空格</text>
+						<UniIcons type="bottom" size="28rpx" color="#277ab8" />
+					</view>
+				</picker>
+			</view>
+		</view>
+		<source-editor
+			:value="source"
+			title="输入代码"
+			hint="请先选择与代码对应的语言"
+			:placeholder="'粘贴或输入 ' + languageLabel + ' 代码'"
+			@change="setSource"
+			@paste="paste"
+			@example="loadExample"
+			@clear="clear"
+		/>
+		<text v-if="error.length > 0" class="dev-error">{{ error }}</text>
+		<view class="dev-primary" @click="format">
+			<text class="dev-primary-label">格式化代码</text>
+		</view>
+		<format-result
+			:result="result"
+			:hasResult="hasResult"
+			:stale="stale"
+			status="处理完成"
+			copyLabel="复制代码"
+			@copy="copy"
+		/>
+		<text class="dev-footnote">仅调整排版，不执行代码；支持 JS / HTML / CSS。排版成功不代表通过完整语法校验。HTML 中的预格式文本和脚本内容会保留。</text>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue';
+	import SourceEditor from '@/subPackages/development/components/source-editor/source-editor.uvue';
+	import FormatResult from '@/subPackages/development/components/format-result/format-result.uvue';
+	import { formatCode } from '@/subPackages/development/utils/code-format.uts';
+	import { useTextWorkspace } from '@/subPackages/development/utils/use-text-workspace.uts';
+	import { recordToolUsage } from '@/utils/tool-usage';
+	import { toast } from '@/utils/toast';
+	// data
+	type LanguageOption = {
+		id: string;
+		label: string;
+		example: string;
+	};
+	const languages: LanguageOption[] = [{
+		id: 'javascript',
+		label: 'JavaScript',
+		example: 'function add(a,b){return a+b;}'
+	}, {
+		id: 'html',
+		label: 'HTML',
+		example: '<div class="card"><h1>拾序有方</h1><p>让日常井然有序</p></div>'
+	}, {
+		id: 'css',
+		label: 'CSS',
+		example: '.card{padding:16px;background:#fff;color:#233d50;}@media(min-width:768px){.card{padding:24px;}}'
+	}];
+	const language = ref('javascript');
+	const indentation = ref(2);
+	const indentLabels = ['2 个空格', '4 个空格'];
+	const {
+		source,
+		result,
+		hasResult,
+		stale,
+		error,
+		setSource,
+		clear,
+		invalidate,
+		paste,
+		process,
+		copy,
+		dispose
+	} = useTextWorkspace(languages[0].example);
+	// computed
+	const languageLabel = computed((): string => languages.find((item: LanguageOption): boolean => item.id == language.value)!.label);
+	// methods
+	const changeLanguage = (value: string) => {
+		if (language.value == value) return;
+		language.value = value;
+		invalidate();
+	};
+	const changeIndent = (event: UniPickerChangeEvent) => {
+		indentation.value = Number(event.detail.value) == 0 ? 2 : 4;
+		invalidate();
+	};
+	const loadExample = () => {
+		setSource(languages.find((item: LanguageOption): boolean => item.id == language.value)!.example);
+	};
+	const format = () => {
+		process((value: string): string => formatCode(value, language.value, indentation.value));
+	};
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('code').catch(() => toast('保存使用记录失败'));
+		format();
+	});
+	onUnload(() => {
+		dispose();
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/developer-tools.scss';
+	.settings-card {
+		.language-options {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+			.language-option {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				box-sizing: border-box;
+				width: 25%;
+				min-height: 68rpx;
+				padding: 10rpx;
+				border: 2rpx solid #e7ecf1;
+				border-radius: 16rpx;
+				&.wide-option {
+					width: 42%;
+				}
+				&.is-selected {
+					border-color: #65a9df;
+					background-color: #eaf5fc;
+					.language-label {
+						color: #277ab8;
+					}
+				}
+				.language-label {
+					font-size: 24rpx;
+					line-height: 40rpx;
+					text-align: center;
+					color: #7a8995;
+				}
+			}
+		}
+		.indent-setting {
+			.indent-picker {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: flex-end;
+				min-height: 64rpx;
+				padding-left: 20rpx;
+				padding-right: 10rpx;
+			}
+		}
+	}
+</style>

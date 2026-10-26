@@ -1,0 +1,128 @@
+.dev-card {
+	display: flex;
+	flex-direction: column;
+	margin: 0 32rpx 30rpx;
+	padding: 28rpx 30rpx;
+	border: 2rpx solid #e7ecf1;
+	border-radius: 30rpx;
+	background-color: #ffffff;
+	.dev-heading {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 22rpx;
+		.dev-card-title {
+			flex: 1;
+			min-width: 0;
+			font-size: 30rpx;
+			line-height: 46rpx;
+			color: #233d50;
+		}
+	}
+}
+
+.dev-primary {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	min-height: 92rpx;
+	margin: 0 32rpx 30rpx;
+	padding: 16rpx 24rpx;
+	border-radius: 22rpx;
+	background-color: #277fb8;
+	.dev-primary-label {
+		font-size: 28rpx;
+		line-height: 44rpx;
+		text-align: center;
+		color: #ffffff;
+	}
+}
+
+.dev-outline {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	min-height: 88rpx;
+	padding: 14rpx 22rpx;
+	border: 2rpx solid #65a9df;
+	border-radius: 22rpx;
+	background-color: #ffffff;
+	.dev-outline-label {
+		font-size: 26rpx;
+		line-height: 42rpx;
+		text-align: center;
+		color: #277ab8;
+	}
+}
+
+.dev-note {
+	display: block;
+	margin-top: 18rpx;
+	font-size: 22rpx;
+	line-height: 36rpx;
+	color: #7a8995;
+}
+
+.dev-footnote {
+	display: block;
+	margin: 0 36rpx 24rpx;
+	font-size: 22rpx;
+	line-height: 38rpx;
+	color: #7a8995;
+}
+
+.dev-error {
+	display: block;
+	margin: 0 36rpx 24rpx;
+	font-size: 24rpx;
+	line-height: 38rpx;
+	color: #ba5151;
+}
+
+.indent-setting {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	margin-top: 24rpx;
+	.indent-label {
+		width: 100rpx;
+		flex-shrink: 0;
+		font-size: 24rpx;
+		line-height: 40rpx;
+		color: #7a8995;
+	}
+	.indent-options {
+		display: flex;
+		flex-direction: row;
+		flex: 1;
+		.indent-option {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: center;
+			flex: 1;
+			min-width: 0;
+			min-height: 66rpx;
+			margin-left: 18rpx;
+			border: 2rpx solid #e7ecf1;
+			border-radius: 16rpx;
+			&.is-selected {
+				border-color: #65a9df;
+				background-color: #eaf5fc;
+				.indent-value {
+					color: #277ab8;
+				}
+			}
+			.indent-value {
+				font-size: 24rpx;
+				line-height: 40rpx;
+				color: #7a8995;
+			}
+		}
+	}
+}
