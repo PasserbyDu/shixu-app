@@ -1,0 +1,318 @@
+<template>
+	<view v-if="visible" class="cascade-picker-mask flex-column" @click="handleCancel">
+		<view class="cascade-picker-panel" @click.stop>
+			<view class="picker-title-row df align-items-center">
+				<text class="picker-title fs34 fw600 text-color">{{ title }}</text>
+			</view>
+			<picker-view
+				class="picker-view"
+				:value="selectedIndexes"
+				indicator-style="height: 80rpx; border-top: 1rpx solid #D9DEE5; border-bottom: 1rpx solid #D9DEE5;"
+				mask-style="background-image: none; background-color: transparent;"
+				@change="handlePickerChange"
+				:immediate-change="true"
+			>
+				<picker-view-column
+					v-for="(column, columnIndex) in columns"
+					:key="columnIndex"
+					:class="columnIndex == 0 ? 'picker-column picker-column-first' : 'picker-column'"
+				>
+					<view v-for="(item, itemIndex) in column.values" :key="itemIndex" class="picker-item flex-center">
+						<text :class="selectedIndexes[columnIndex] == itemIndex ? 'picker-item-text picker-item-active' : 'picker-item-text'">{{ item }}</text>
+					</view>
+				</picker-view-column>
+			</picker-view>
+			<view class="picker-actions df">
+				<view class="picker-button picker-cancel flex-center" @click="handleCancel">
+					<text class="fs32 fw600 picker-cancel-text">取消</text>
+				</view>
+				<view class="picker-button picker-confirm flex-center" @click="handleConfirm">
+					<text class="fs32 fw600 picker-confirm-text">确认</text>
+				</view>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, watch } from 'vue'
+
+	type PickerColumn = {
+		values : string[]
+	}
+
+	type CascadePickerResult = {
+		value : string
+		label : string
+		indexes : number[]
+	}
+
+	const props = withDefaults(defineProps<{
+		visible : boolean
+		title ?: string
+		mode ?: string
+		value ?: string
+		options ?: string[]
+		startYear ?: number
+		endYear ?: number
+		minuteStep ?: number
+	}>(), {
+		visible: false,
+		title: '选择器',
+		mode: 'single',
+		value: '',
+		options: () : string[] => [] as string[],
+		startYear: 0,
+		endYear: 0,
+		minuteStep: 1
+	})
+
+	const emit = defineEmits<{
+		(e : 'cancel') : void
+		(e : 'confirm', result : CascadePickerResult) : void
+	}>()
+
+	// data
+	const columns = ref<PickerColumn[]>([] as PickerColumn[])
+	const selectedIndexes = ref<number[]>([] as number[])
+
+	// methods
+	const padZero = (value : number) : string => value < 10 ? '0' + value.toString() : value.toString()
+
+	const createNumberValues = (start : number, end : number, suffix : string, step : number = 1) : string[] => {
+		const values : string[] = []
+		let current = start
+		while (current <= end) {
+			values.push((suffix == ':' ? padZero(current) : current.toString()) + (suffix == ':' ? '' : suffix))
+			current += step
+		}
+		return values
+	}
+
+	const getDaysInMonth = (year : number, month : number) : number => {
+		return new Date(year, month, 0).getDate()
+	}
+
+	const findValueIndex = (values : string[], value : string, fallback : number = 0) : number => {
+		const index = values.indexOf(value)
+		return index >= 0 ? index : Math.max(0, Math.min(fallback, values.length - 1))
+	}
+
+	const initDateColumns = () => {
+		const today = new Date()
+		const startYear = props.startYear > 0 ? props.startYear : today.getFullYear()
+		const endYear = props.endYear >= startYear ? props.endYear : startYear + 5
+		const valueParts = props.value.split('-')
+		const selectedYear = valueParts.length >= 1 && Number(valueParts[0]) > 0 ? Number(valueParts[0]) : today.getFullYear()
+		const selectedMonth = valueParts.length >= 2 && Number(valueParts[1]) > 0 ? Number(valueParts[1]) : today.getMonth() + 1
+		const selectedDay = valueParts.length >= 3 && Number(valueParts[2]) > 0 ? Number(valueParts[2]) : today.getDate()
+		const years = createNumberValues(startYear, endYear, '年')
+		const months = createNumberValues(1, 12, '月')
+		const yearIndex = findValueIndex(years, selectedYear.toString() + '年')
+		const monthIndex = findValueIndex(months, selectedMonth.toString() + '月')
+		if (props.mode == 'month') {
+			columns.value = [{ values: years }, { values: months }]
+			selectedIndexes.value = [yearIndex, monthIndex]
+			return
+		}
+		const actualYear = startYear + yearIndex
+		const days = createNumberValues(1, getDaysInMonth(actualYear, monthIndex + 1), '日')
+		const dayIndex = findValueIndex(days, selectedDay.toString() + '日')
+		columns.value = [
+			{ values: years },
+			{ values: months },
+			{ values: days }
+		]
+		selectedIndexes.value = [yearIndex, monthIndex, dayIndex]
+	}
+
+	const initTimeColumns = () => {
+		const now = new Date()
+		const valueParts = props.value.split(':')
+		const selectedHour = valueParts.length >= 1 && !isNaN(Number(valueParts[0])) ? Number(valueParts[0]) : now.getHours()
+		const selectedMinute = valueParts.length >= 2 && !isNaN(Number(valueParts[1])) ? Number(valueParts[1]) : now.getMinutes()
+		const step = props.minuteStep > 0 && props.minuteStep <= 30 ? props.minuteStep : 1
+		const hours = createNumberValues(0, 23, ':')
+		const minutes = createNumberValues(0, 59, ':', step)
+		const maxMinute = Math.floor(59 / step) * step
+		const nearestMinute = Math.min(maxMinute, Math.round(selectedMinute / step) * step)
+		columns.value = [
+			{ values: hours },
+			{ values: minutes }
+		]
+		selectedIndexes.value = [
+			findValueIndex(hours, padZero(selectedHour)),
+			findValueIndex(minutes, padZero(nearestMinute))
+		]
+	}
+
+	const initSingleColumn = () => {
+		const values = props.options.length > 0 ? props.options : ['暂无选项']
+		columns.value = [{ values }]
+		selectedIndexes.value = [findValueIndex(values, props.value)]
+	}
+
+	const initColumns = () => {
+		if (props.mode == 'date' || props.mode == 'month') {
+			initDateColumns()
+			return
+		}
+		if (props.mode == 'time') {
+			initTimeColumns()
+			return
+		}
+		initSingleColumn()
+	}
+
+	const refreshDateDays = (indexes : number[]) => {
+		if (columns.value.length < 3 || indexes.length < 3) return
+		const yearText = columns.value[0].values[indexes[0]]
+		const monthText = columns.value[1].values[indexes[1]]
+		const year = Number(yearText.replace('年', ''))
+		const month = Number(monthText.replace('月', ''))
+		const days = createNumberValues(1, getDaysInMonth(year, month), '日')
+		const dayIndex = Math.min(indexes[2], days.length - 1)
+		columns.value = [columns.value[0], columns.value[1], { values: days }]
+		selectedIndexes.value = [indexes[0], indexes[1], dayIndex]
+	}
+
+	const handlePickerChange = (event : any) => {
+		const indexes : number[] = event != null && event.detail != null && Array.isArray(event.detail.value) ? event.detail.value as number[] : []
+		if (indexes.length == 0) return
+		selectedIndexes.value = indexes
+		if (props.mode == 'date') refreshDateDays(indexes)
+	}
+
+	const getSelectedTexts = () : string[] => {
+		const values : string[] = []
+		for (let index = 0; index < columns.value.length; index++) {
+			const column = columns.value[index]
+			const itemIndex = index < selectedIndexes.value.length ? selectedIndexes.value[index] : 0
+			values.push(column.values[itemIndex])
+		}
+		return values
+	}
+
+	const handleCancel = () => {
+		emit('cancel')
+	}
+
+	const handleConfirm = () => {
+		const selectedTexts = getSelectedTexts()
+		let value = selectedTexts.join('')
+		if (props.mode == 'month' && selectedTexts.length >= 2) {
+			const year = selectedTexts[0].replace('年', '')
+			const month = padZero(Number(selectedTexts[1].replace('月', '')))
+			value = year + '-' + month
+		}
+		if (props.mode == 'date' && selectedTexts.length >= 3) {
+			const year = selectedTexts[0].replace('年', '')
+			const month = padZero(Number(selectedTexts[1].replace('月', '')))
+			const day = padZero(Number(selectedTexts[2].replace('日', '')))
+			value = year + '-' + month + '-' + day
+		}
+		if (props.mode == 'time' && selectedTexts.length >= 2) value = selectedTexts[0] + ':' + selectedTexts[1]
+		emit('confirm', {
+			value,
+			label: selectedTexts.join(' '),
+			indexes: selectedIndexes.value
+		})
+	}
+
+	// watch
+	watch(() : boolean => props.visible, (visible : boolean) => {
+		if (visible) initColumns()
+	}, { immediate: true })
+</script>
+
+<style scoped lang="scss">
+	@import "@/uni.scss";
+
+	.cascade-picker-mask {
+		position: fixed;
+		left: 0;
+		top: 0;
+		width: 750rpx;
+		height: 100%;
+		justify-content: flex-end;
+		background-color: rgba(0, 0, 0, 0.45);
+		z-index: 1000;
+
+		.cascade-picker-panel {
+			width: 750rpx;
+			padding-bottom: constant(safe-area-inset-bottom);
+			padding-bottom: env(safe-area-inset-bottom);
+			border-radius: 24rpx 24rpx 0 0;
+			background-color: $uni-bg-color;
+			box-sizing: border-box;
+
+			.picker-title-row {
+				height: 100rpx;
+				padding: 0 38rpx;
+				border-bottom: 1rpx solid #E6E9ED;
+				box-sizing: border-box;
+			}
+
+			.picker-view {
+				width: 750rpx;
+				height: 430rpx;
+
+				.picker-column {
+					border-left: 1rpx solid #E6E9ED;
+					box-sizing: border-box;
+
+					&.picker-column-first {
+						border-left-width: 0;
+					}
+				}
+
+				.picker-item {
+					height: 80rpx;
+
+					.picker-item-text {
+						font-size: 32rpx;
+						font-weight: 400;
+						color: #4F5968;
+						opacity: 1;
+
+						&.picker-item-active {
+							font-size: 34rpx;
+							font-weight: 600;
+							color: #101828;
+						}
+					}
+				}
+			}
+
+			.picker-actions {
+				height: 134rpx;
+				padding: 28rpx 120rpx 20rpx;
+				border-top: 1rpx solid #E6E9ED;
+				box-sizing: border-box;
+
+				.picker-button {
+					width: 240rpx;
+					height: 78rpx;
+					border-radius: 16rpx;
+
+					&.picker-cancel {
+						margin-right: 32rpx;
+						background-color: #F1F1F1;
+
+						.picker-cancel-text {
+							color: #222222;
+						}
+					}
+
+					&.picker-confirm {
+						background-color: $primary-deep-blue;
+
+						.picker-confirm-text {
+							color: $uni-text-color-inverse;
+						}
+					}
+				}
+			}
+		}
+	}
+</style>

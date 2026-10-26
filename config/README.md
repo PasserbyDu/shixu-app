@@ -40,7 +40,7 @@ const allTools = getAllTools()
 const categories = getToolCategories()
 ```
 
-分类 ID：`life` 生活、`office` 办公、`image` 图片、`development` 开发、`finance` 财务、`ai` AI。
+分类 ID：`life` 生活、`office` 办公、`image` 图片、`development` 开发、`finance` 财务、`ai` AI、`games` 休闲游戏。
 
 `getToolsByCategory('all')` 等同于 `getAllTools()`；不存在的分类返回空数组。
 查询返回新的数组；工具和分类对象用于只读展示，页面不要直接修改配置对象。
@@ -61,3 +61,6 @@ const categories = getToolCategories()
 当前已接入的新增工具：`image-pdf`、`pdf-merge`、`pdf-split`、`text` 对应办公分包；`image` 对应图片分包的图片压缩。
 首页、分类、收藏、最近使用均复用 `navigateToTool`，无需在各页面单独维护新路由。
 各平台支持范围与待验收用例见 `subPackages/office/README.md`。
+
+休闲游戏分类 ID 为 `games`。`2048` 工具对应 `subPackages/games/number-2048.uvue`，游戏规则与本地存档说明见 `subPackages/games/README.md`。
+`klotski` 工具对应同一分包中的 `klotski.uvue`，提供华容道横刀立马关卡；棋盘、撤销历史和前台用时均在本地保存。

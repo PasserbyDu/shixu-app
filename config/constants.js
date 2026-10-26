@@ -1,2 +1,5 @@
 export const STORAGE_TOKEN_KEY = 'shixu:accessToken'
 export const STORAGE_USER_INFO_KEY = 'shixu:userInfo'
+export const STORAGE_GAME_2048_STATE_KEY = 'shixu:game2048:state'
+export const STORAGE_GAME_2048_BEST_KEY = 'shixu:game2048:best'
+export const STORAGE_KLOTSKI_STATE_KEY = 'shixu:klotski:state'

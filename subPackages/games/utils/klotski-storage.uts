@@ -1,0 +1,21 @@
+import { STORAGE_KLOTSKI_STATE_KEY } from '@/config/constants'
+import { getStorage, setStorage } from '@/utils/storage'
+
+// 历史可持续增长，异步保存。队列保证旧快照不会晚于新快照落盘。
+let writeQueue : Promise<boolean> = Promise.resolve(true)
+let latestSnapshot : string | null = null
+
+export const loadKlotskiSnapshot = async () : Promise<string> => {
+	// 同一进程中离开后立即返回，也能得到刚提交的快照。
+	const current = latestSnapshot
+	if (current != null) return current
+	const stored : any = await getStorage(STORAGE_KLOTSKI_STATE_KEY, '')
+	return typeof stored == 'string' ? stored as string : ''
+}
+
+export const saveKlotskiSnapshot = (snapshot : string) : Promise<boolean> => {
+	latestSnapshot = snapshot
+	const task = writeQueue.then(() : Promise<boolean> => setStorage(STORAGE_KLOTSKI_STATE_KEY, snapshot))
+	writeQueue = task.catch(() : boolean => false)
+	return task
+}

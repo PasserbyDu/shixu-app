@@ -112,6 +112,27 @@
 					}
 				}
 			]
+		},
+		{
+			"root": "subPackages/games",
+			"pages": [
+				{
+					"path": "number-2048",
+					"style": {
+						"navigationBarTitleText": "数字 2048",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F6F8FD"
+					}
+				},
+				{
+					"path": "klotski",
+					"style": {
+						"navigationBarTitleText": "华容道",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F6F8FD"
+					}
+				}
+			]
 		}
 	],
 	"tabBar": {

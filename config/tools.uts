@@ -118,6 +118,16 @@ const tools : Tool[] = [
 		id: 'deposit', title: '存款利息', shortTitle: '利息计算', summary: '计算收益金额',
 		description: '支持多种存款方式的利息计算', keywords: '存款 利息 财务 计算 收益',
 		icon: 'wallet', iconText: '', color: '#f19b25', background: '#fff5e8'
+	},
+	{
+		id: '2048', title: '数字 2048', shortTitle: '数字 2048', summary: '滑动合并，挑战高分',
+		description: '合并相同数字，挑战 2048 和自己的最高分', keywords: '2048 数字 合并 休闲 游戏 益智',
+		icon: '', iconText: '数', color: '#318fc2', background: '#e8f6ff'
+	},
+	{
+		id: 'klotski', title: '华容道', shortTitle: '华容道', summary: '经典横刀立马',
+		description: '移动棋子，让曹操从下方出口离开', keywords: '华容道 横刀立马 曹操 休闲 游戏 益智 klotski',
+		icon: '', iconText: '华', color: '#318fc2', background: '#e8f6ff'
 	}
 ]
 
@@ -148,6 +158,10 @@ const categories : ToolCategory[] = [
 	{
 		id: 'ai', title: 'AI 工具', shortTitle: 'AI', subtitle: '智能创作助手',
 		icon: 'chatbubble', color: '#c840a7', background: '#fceff7', toolIds: []
+	},
+	{
+		id: 'games', title: '休闲游戏', shortTitle: '游戏', subtitle: '益智休闲，轻松一刻',
+		icon: 'flag', color: '#318fc2', background: '#e8f6ff', toolIds: ['2048', 'klotski']
 	}
 ]
 
@@ -188,6 +202,10 @@ export const getToolPath = (id : string) : string => {
 			return '/subPackages/office/text-cleaner'
 		case 'image':
 			return '/subPackages/image/image-compress'
+		case '2048':
+			return '/subPackages/games/number-2048'
+		case 'klotski':
+			return '/subPackages/games/klotski'
 	}
 	return ''
 }

@@ -1,0 +1,245 @@
+export type KlotskiPiece = {
+	id : string
+	label : string
+	width : number
+	height : number
+	start : number
+}
+
+export type KlotskiMove = {
+	piece : number
+	dx : number
+	dy : number
+}
+
+export type KlotskiSave = {
+	positions : number[]
+	moves : KlotskiMove[]
+	elapsedMs : number
+	started : boolean
+}
+
+export type KlotskiLevel = {
+	id : string
+	name : string
+	positions : number[]
+	horizontal : number[]
+}
+
+export type KlotskiProgress = {
+	levelIndex : number
+	snapshots : string[]
+}
+
+// data
+export const KLOTSKI_COLUMNS = 4
+export const KLOTSKI_ROWS = 5
+export const KLOTSKI_MAX_MOVES = 10000
+export const KLOTSKI_PIECES : KlotskiPiece[] = [
+	{ id: 'caocao', label: '曹操', width: 2, height: 2, start: 1 },
+	{ id: 'guanyu', label: '关羽', width: 1, height: 2, start: 0 },
+	{ id: 'zhangfei', label: '张飞', width: 1, height: 2, start: 3 },
+	{ id: 'zhaoyun', label: '赵云', width: 1, height: 2, start: 8 },
+	{ id: 'machao', label: '马超', width: 1, height: 2, start: 11 },
+	{ id: 'huangzhong', label: '黄忠', width: 2, height: 1, start: 9 },
+	{ id: 'soldier-one', label: '兵', width: 1, height: 1, start: 13 },
+	{ id: 'soldier-two', label: '兵', width: 1, height: 1, start: 14 },
+	{ id: 'soldier-three', label: '兵', width: 1, height: 1, start: 16 },
+	{ id: 'soldier-four', label: '兵', width: 1, height: 1, start: 19 }
+]
+
+// 经典布局，顺序与 KLOTSKI_PIECES 一致；horizontal 指定开局横置的武将索引。
+// 布局参考：https://game.everyonepiano.cn/35-huarongdao/
+export const KLOTSKI_LEVELS : KlotskiLevel[] = [
+	{ id: 'heng-dao-li-ma', name: '横刀立马', positions: [1, 0, 3, 8, 11, 9, 13, 14, 16, 19], horizontal: [5] },
+	{ id: 'zhi-hui-ruo-ding', name: '指挥若定', positions: [1, 0, 3, 12, 15, 9, 13, 14, 8, 11], horizontal: [5] },
+	{ id: 'jiang-yong-cao-ying', name: '将拥曹营', positions: [1, 4, 7, 9, 10, 16, 12, 15, 18, 19], horizontal: [5] },
+	{ id: 'qi-tou-bing-jin', name: '齐头并进', positions: [1, 0, 3, 12, 15, 13, 8, 9, 10, 11], horizontal: [5] },
+	{ id: 'bing-fen-san-lu', name: '兵分三路', positions: [1, 4, 7, 12, 15, 9, 0, 3, 13, 14], horizontal: [5] },
+	{ id: 'yu-sheng-xi-li', name: '雨声淅沥', positions: [1, 0, 11, 8, 13, 9, 3, 7, 16, 19], horizontal: [5] },
+	{ id: 'zuo-you-bu-bing', name: '左右布兵', positions: [1, 8, 9, 10, 11, 17, 0, 3, 4, 7], horizontal: [5] },
+	{ id: 'tao-hua-yuan-zhong', name: '桃花园中', positions: [1, 4, 7, 9, 10, 17, 0, 3, 12, 15], horizontal: [5] },
+	{ id: 'yi-lu-jin-jun', name: '一路进军', positions: [1, 0, 8, 9, 10, 17, 3, 7, 11, 15], horizontal: [5] },
+	{ id: 'yi-lu-shun-feng', name: '一路顺风', positions: [1, 0, 11, 8, 14, 9, 3, 7, 13, 17], horizontal: [5] },
+	{ id: 'wei-er-bu-jian', name: '围而不歼', positions: [1, 0, 8, 13, 14, 9, 3, 7, 11, 15], horizontal: [5] },
+	{ id: 'jie-zu-xian-deng', name: '捷足先登', positions: [1, 12, 13, 14, 15, 9, 0, 3, 4, 7], horizontal: [5] },
+	{ id: 'cha-chi-nan-fei', name: '插翅难飞', positions: [1, 0, 12, 15, 13, 8, 3, 7, 10, 11], horizontal: [4, 5] },
+	{ id: 'shou-kou-ru-ping', name: '守口如瓶', positions: [1, 0, 3, 9, 16, 18, 8, 11, 12, 15], horizontal: [4, 5] },
+	{ id: 'shou-kou-ru-ping-2', name: '守口如瓶（二）', positions: [1, 4, 7, 9, 16, 18, 0, 3, 12, 15], horizontal: [4, 5] },
+	{ id: 'shuang-jiang-dang-lu', name: '双将挡路', positions: [1, 0, 11, 8, 9, 13, 3, 7, 16, 19], horizontal: [4, 5] },
+	{ id: 'heng-ma-dang-guan', name: '横马当关', positions: [1, 0, 3, 13, 8, 10, 12, 15, 16, 19], horizontal: [4, 5] },
+	{ id: 'ceng-ceng-she-fang', name: '层层设防', positions: [1, 0, 3, 9, 13, 17, 8, 11, 12, 15], horizontal: [3, 4, 5] },
+	{ id: 'ceng-ceng-she-fang-2', name: '层层设防（二）', positions: [1, 4, 7, 9, 13, 17, 0, 3, 12, 15], horizontal: [3, 4, 5] },
+	{ id: 'bing-dang-jiang-zu', name: '兵挡将阻', positions: [1, 8, 3, 9, 13, 17, 0, 4, 11, 15], horizontal: [3, 4, 5] },
+	{ id: 'du-sai-yao-dao', name: '堵塞要道', positions: [1, 8, 9, 10, 14, 17, 0, 3, 4, 7], horizontal: [3, 4, 5] },
+	{ id: 'weng-zhong-zhi-bie', name: '瓮中之鳖', positions: [1, 0, 3, 8, 10, 13, 12, 15, 16, 19], horizontal: [3, 4, 5] },
+	{ id: 'ceng-luan-die-zhang', name: '层峦叠嶂', positions: [1, 0, 3, 12, 14, 9, 8, 11, 16, 19], horizontal: [3, 4, 5] },
+	{ id: 'shui-xie-bu-tong', name: '水泄不通', positions: [1, 0, 8, 10, 12, 14, 3, 7, 16, 19], horizontal: [2, 3, 4, 5] },
+	{ id: 'si-lu-jin-bing', name: '四路进兵', positions: [1, 8, 10, 14, 18, 16, 0, 3, 4, 7], horizontal: [2, 3, 4, 5] },
+	{ id: 'ru-di-wu-men', name: '入地无门', positions: [1, 0, 9, 12, 14, 17, 3, 7, 8, 11], horizontal: [2, 3, 4, 5] },
+	{ id: 'yong-chuang-wu-guan', name: '勇闯五关', positions: [1, 8, 10, 12, 14, 17, 0, 3, 4, 7], horizontal: [1, 2, 3, 4, 5] },
+	{ id: 'si-mian-chu-ge', name: '四面楚歌', positions: [5, 0, 3, 12, 11, 13, 1, 2, 8, 19], horizontal: [5] },
+	{ id: 'qian-hu-hou-yong', name: '前呼后拥', positions: [2, 4, 8, 10, 12, 14, 0, 1, 18, 19], horizontal: [1, 2, 3, 4, 5] },
+	{ id: 'bing-lin-cao-ying', name: '兵临曹营', positions: [1, 8, 11, 13, 14, 9, 0, 3, 4, 7], horizontal: [5] }
+]
+
+// methods
+export const getKlotskiPieces = (levelIndex : number = 0) : KlotskiPiece[] => {
+	const index = Number.isInteger(levelIndex) && levelIndex >= 0 && levelIndex < KLOTSKI_LEVELS.length ? levelIndex : 0
+	const level = KLOTSKI_LEVELS[index]
+	return KLOTSKI_PIECES.map((piece : KlotskiPiece, pieceIndex : number) : KlotskiPiece => {
+		const general = pieceIndex >= 1 && pieceIndex <= 5
+		const horizontal = level.horizontal.includes(pieceIndex)
+		return {
+			id: piece.id,
+			label: piece.label,
+			width: general ? (horizontal ? 2 : 1) : piece.width,
+			height: general ? (horizontal ? 1 : 2) : piece.height,
+			start: level.positions[pieceIndex]
+		}
+	})
+}
+
+export const initialKlotski = (levelIndex : number = 0) : number[] => {
+	const index = Number.isInteger(levelIndex) && levelIndex >= 0 && levelIndex < KLOTSKI_LEVELS.length ? levelIndex : 0
+	return KLOTSKI_LEVELS[index].positions.slice()
+}
+
+// 位置为左上角格子的编号。完整验证每枚棋子的边界与占位。
+export const klotskiOccupancy = (positions : number[], levelIndex : number = 0) : number[] | null => {
+	if (positions.length != KLOTSKI_PIECES.length) return null
+	const pieces = getKlotskiPieces(levelIndex)
+	const occupied : number[] = []
+	for (let index = 0; index < KLOTSKI_COLUMNS * KLOTSKI_ROWS; index++) occupied.push(-1)
+	for (let index = 0; index < positions.length; index++) {
+		const position = positions[index]
+		if (!Number.isInteger(position) || position < 0 || position >= 20) return null
+		const piece = pieces[index]
+		const x = position % KLOTSKI_COLUMNS
+		const y = Math.floor(position / KLOTSKI_COLUMNS)
+		if (x + piece.width > KLOTSKI_COLUMNS || y + piece.height > KLOTSKI_ROWS) return null
+		for (let row = 0; row < piece.height; row++) {
+			for (let column = 0; column < piece.width; column++) {
+				const cell = (y + row) * KLOTSKI_COLUMNS + x + column
+				if (occupied[cell] != -1) return null
+				occupied[cell] = index
+			}
+		}
+	}
+	return occupied
+}
+
+// 逐格验证整条路径，禁止跨越棋子、斜移、旋转、重叠与越界。
+export const moveKlotski = (positions : number[], move : KlotskiMove, levelIndex : number = 0) : number[] | null => {
+	if (!Number.isInteger(move.piece) || move.piece < 0 || move.piece >= KLOTSKI_PIECES.length) return null
+	if (!Number.isInteger(move.dx) || !Number.isInteger(move.dy)) return null
+	if ((move.dx == 0 && move.dy == 0) || (move.dx != 0 && move.dy != 0)) return null
+	if (Math.abs(move.dx) > 3 || Math.abs(move.dy) > 4) return null
+	const occupied = klotskiOccupancy(positions, levelIndex)
+	if (occupied == null) return null
+	const piece = getKlotskiPieces(levelIndex)[move.piece]
+	const originX = positions[move.piece] % KLOTSKI_COLUMNS
+	const originY = Math.floor(positions[move.piece] / KLOTSKI_COLUMNS)
+	const distance = Math.abs(move.dx) + Math.abs(move.dy)
+	const directionX = move.dx == 0 ? 0 : (move.dx > 0 ? 1 : -1)
+	const directionY = move.dy == 0 ? 0 : (move.dy > 0 ? 1 : -1)
+	for (let step = 1; step <= distance; step++) {
+		const x = originX + directionX * step
+		const y = originY + directionY * step
+		if (x < 0 || y < 0 || x + piece.width > KLOTSKI_COLUMNS || y + piece.height > KLOTSKI_ROWS) return null
+		for (let row = 0; row < piece.height; row++) {
+			for (let column = 0; column < piece.width; column++) {
+				const other = occupied[(y + row) * KLOTSKI_COLUMNS + x + column]
+				if (other != -1 && other != move.piece) return null
+			}
+		}
+	}
+	const result = positions.slice()
+	result[move.piece] += move.dy * KLOTSKI_COLUMNS + move.dx
+	return result
+}
+
+export const klotskiWon = (positions : number[]) : boolean => positions.length == 10 && positions[0] == 13
+
+// 沿拖动方向最多可以走几格，供界面限制拖动范围。
+export const klotskiDragLimit = (positions : number[], piece : number, horizontal : boolean, sign : number, levelIndex : number = 0) : number => {
+	if (sign != -1 && sign != 1) return 0
+	let limit = 0
+	for (let step = 1; step <= (horizontal ? 3 : 4); step++) {
+		const move : KlotskiMove = { piece, dx: horizontal ? step * sign : 0, dy: horizontal ? 0 : step * sign }
+		if (moveKlotski(positions, move, levelIndex) == null) break
+		limit = step
+	}
+	return limit
+}
+
+export const encodeKlotski = (moves : KlotskiMove[], elapsedMs : number, started : boolean) : string => {
+	const history = moves.map((move : KlotskiMove) : string => move.piece + ':' + move.dx + ':' + move.dy).join(';')
+	return '1|' + Math.floor(elapsedMs) + '|' + (started ? '1' : '0') + '|' + history
+}
+
+// 从初始关卡逐步复演存档，拒绝非法或被修改的布局、越界历史与通关后的移动。
+export const decodeKlotski = (serialized : string, levelIndex : number = 0) : KlotskiSave | null => {
+	if (!Number.isInteger(levelIndex) || levelIndex < 0 || levelIndex >= KLOTSKI_LEVELS.length) return null
+	if (serialized.length == 0 || serialized.length > 100000) return null
+	const parts = serialized.split('|')
+	if (parts.length != 4 || parts[0] != '1' || !/^\d+$/.test(parts[1])) return null
+	const elapsedMs = Number(parts[1])
+	if (!Number.isFinite(elapsedMs) || !Number.isInteger(elapsedMs) || elapsedMs > 31536000000) return null
+	if (parts[2] != '0' && parts[2] != '1') return null
+	const tokens = parts[3].length > 0 ? parts[3].split(';') : []
+	if (tokens.length > KLOTSKI_MAX_MOVES) return null
+	let positions = initialKlotski(levelIndex)
+	const moves : KlotskiMove[] = []
+	for (let index = 0; index < tokens.length; index++) {
+		if (!/^\d:-?[0-4]:-?[0-4]$/.test(tokens[index]) || klotskiWon(positions)) return null
+		const values = tokens[index].split(':')
+		const move : KlotskiMove = { piece: Number(values[0]), dx: Number(values[1]), dy: Number(values[2]) }
+		const next = moveKlotski(positions, move, levelIndex)
+		if (next == null) return null
+		positions = next
+		moves.push(move)
+	}
+	const started = parts[2] == '1'
+	if (!started && (moves.length > 0 || elapsedMs > 0)) return null
+	return { positions, moves, elapsedMs, started }
+}
+
+export const encodeKlotskiProgress = (levelIndex : number, snapshots : string[]) : string => {
+	return '2|' + levelIndex + '|' + snapshots.join('~')
+}
+
+export const decodeKlotskiProgress = (serialized : string) : KlotskiProgress => {
+	const snapshots = KLOTSKI_LEVELS.map((_level : KlotskiLevel) : string => '')
+	const empty : KlotskiProgress = { levelIndex: 0, snapshots }
+	if (serialized.length > KLOTSKI_LEVELS.length * 100001 + 100) return empty
+	// 旧版单关存档迁移到第一关。
+	if (serialized.startsWith('1|')) {
+		if (decodeKlotski(serialized) != null) snapshots[0] = serialized
+		return empty
+	}
+	const separator = serialized.indexOf('|', 2)
+	if (!serialized.startsWith('2|') || separator < 0) return empty
+	const selected = serialized.substring(2, separator)
+	if (!/^\d{1,2}$/.test(selected)) return empty
+	const levelIndex = Number(selected)
+	if (levelIndex >= KLOTSKI_LEVELS.length) return empty
+	const saved = serialized.substring(separator + 1).split('~')
+	// 兼容旧版的 10 / 20 关存档，新关卡自动以空进度补齐。
+	if (saved.length != 10 && saved.length != 20 && saved.length != KLOTSKI_LEVELS.length) return empty
+	if (levelIndex >= saved.length) return empty
+	for (let index = 0; index < saved.length; index++) {
+		if (decodeKlotski(saved[index], index) != null) snapshots[index] = saved[index]
+	}
+	return { levelIndex, snapshots }
+}
+
+export const formatKlotskiTime = (elapsedMs : number) : string => {
+	const seconds = Math.floor(Math.max(0, elapsedMs) / 1000)
+	const hours = Math.floor(seconds / 3600)
+	const minutes = Math.floor((seconds % 3600) / 60)
+	const remaining = seconds % 60
+	const minuteText = minutes < 10 ? '0' + minutes : minutes.toString()
+	const secondText = remaining < 10 ? '0' + remaining : remaining.toString()
+	return hours > 0 ? hours + ':' + minuteText + ':' + secondText : minuteText + ':' + secondText
+}

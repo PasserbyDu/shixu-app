@@ -1,0 +1,666 @@
+<template>
+	<view class="klotski-page">
+		<scroll-view class="flex-1 w-full" :scroll-y="!dragging && !levelPickerVisible">
+			<page-header
+				:fixed="isHeaderFixed"
+				title="华容道"
+				titleColor="#243b4d"
+				titleFontSize="30rpx"
+				titleFontWeight="500"
+				headerClass="page-header-calculator-bg"
+			/>
+			<view class="klotski-intro">
+				<text class="intro-title">华容道</text>
+				<text class="intro-description">移动棋子，让曹操从下方出口离开</text>
+			</view>
+			<view class="level-summary">
+				<view class="level-information" @click="openLevelPicker">
+					<text class="summary-label">第 {{ levelIndex + 1 }} 关 · 切换 ›</text>
+					<text class="level-name">{{ levels[levelIndex].name }}</text>
+				</view>
+				<view class="steps-information">
+					<text class="summary-label">步数</text>
+					<text class="steps-value" :class="{ 'is-long': moves.length > 9999 }">{{ moves.length }}</text>
+				</view>
+				<view class="time-information">
+					<text class="summary-label">用时</text>
+					<text class="time-value" :class="{ 'is-long': timeText.length > 8 }">{{ timeText }}</text>
+				</view>
+			</view>
+			<view class="klotski-board-section">
+				<view class="board-frame">
+					<view
+						class="klotski-board"
+						@touchmove.stop.prevent="moveDrag"
+						@touchend="endDrag"
+						@touchcancel="cancelDrag"
+					>
+						<view
+							v-for="(piece, index) in pieces"
+							:key="piece.id"
+							class="chess-piece"
+							:class="{ 'is-caocao': index == 0, 'is-dragging': dragging && dragIndex == index }"
+							:style="pieceStyle(index)"
+							@touchstart="startDrag($event, index)"
+						>
+							<text class="piece-label">{{ piece.label }}</text>
+						</view>
+					</view>
+					<view v-if="!ready || restartPending || won" class="board-state">
+						<text class="state-title">{{ stateTitle }}</text>
+						<text class="state-description">{{ stateDescription }}</text>
+						<template v-if="ready">
+							<view class="state-action secondary-action" @click="restartPending ? cancelRestart() : undoMove()">
+								<text class="state-action-label secondary-label">{{ restartPending ? '继续本局' : '撤销一步' }}</text>
+							</view>
+							<view class="state-action" @click="restartGame">
+								<text class="state-action-label">{{ restartPending ? '确认重新开始' : '再来一局' }}</text>
+							</view>
+						</template>
+					</view>
+				</view>
+				<text class="exit-label">↓ 出口 ↓</text>
+			</view>
+			<view class="klotski-actions">
+				<view class="game-button undo-button" :class="{ 'is-disabled': !ready || moves.length == 0 || restartPending }" @click="undoMove">
+					<text class="button-label undo-label">撤销一步</text>
+				</view>
+				<view class="game-button ml-[28rpx]" :class="{ 'is-disabled': !ready }" @click="requestRestart">
+					<text class="button-label">重新开始</text>
+				</view>
+			</view>
+			<view class="klotski-notes">
+				<text class="notes-text">拖动棋子到相邻空位，不可旋转或重叠。</text>
+				<text class="notes-text mt-[12rpx]">经典 4×5 棋盘 · 共 10 枚棋子</text>
+			</view>
+			<text v-if="storageFailed" class="storage-message">暂时无法保存本局进度，请检查本地存储空间；仍可继续游戏。</text>
+		</scroll-view>
+		<cascade-picker
+			:visible="levelPickerVisible"
+			title="选择关卡"
+			mode="single"
+			:value="levelOptions[levelIndex]"
+			:options="levelOptions"
+			@cancel="closeLevelPicker"
+			@confirm="confirmLevelPicker"
+		/>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue'
+	import CascadePicker from '@/components/cascade-picker/cascade-picker.uvue'
+	import {
+		KlotskiLevel, KlotskiMove, KLOTSKI_LEVELS, KLOTSKI_MAX_MOVES, initialKlotski, getKlotskiPieces,
+		moveKlotski, klotskiDragLimit, klotskiWon, encodeKlotski, decodeKlotski,
+		encodeKlotskiProgress, decodeKlotskiProgress, formatKlotskiTime
+	} from '@/subPackages/games/utils/klotski'
+	import { loadKlotskiSnapshot, saveKlotskiSnapshot } from '@/subPackages/games/utils/klotski-storage'
+	import { recordToolUsage } from '@/utils/tool-usage'
+	import { toast } from '@/utils/toast'
+
+	type LevelPickerResult = {
+		value : string
+		label : string
+		indexes : number[]
+	}
+
+	// data
+	const isHeaderFixed = ref(false)
+	const levels = KLOTSKI_LEVELS
+	const levelIndex = ref(0)
+	const levelOptions = levels.map((level : KlotskiLevel, index : number) : string => (index + 1) + '. ' + level.name)
+	const levelPickerVisible = ref(false)
+	let levelSnapshots : string[] = levels.map(() : string => '')
+	const positions = ref<number[]>(initialKlotski())
+	const moves = ref<KlotskiMove[]>([])
+	const ready = ref(false)
+	const started = ref(false)
+	const restartPending = ref(false)
+	const storageFailed = ref(false)
+	const elapsedMs = ref(0)
+	const displayElapsedMs = ref(0)
+	const dragging = ref(false)
+	const dragIndex = ref(-1)
+	const dragX = ref(0)
+	const dragY = ref(0)
+	const cellSize = 128
+	const cellGap = 12
+	const cellPitch = cellSize + cellGap
+	const boardPadding = 18
+	let dragAxis = ''
+	let touchIdentifier = -1
+	let startX = 0
+	let startY = 0
+	let pixelRatio = 1
+	let activeSince = 0
+	let clockTimer = -1
+	let lastAutoSaveAt = 0
+	let visible = false
+	let disposed = false
+	let storageReadFailed = false
+	let saveVersion = 0
+
+	// computed
+	const pieces = computed(() => getKlotskiPieces(levelIndex.value))
+	const won = computed(() : boolean => klotskiWon(positions.value))
+	const timeText = computed(() : string => formatKlotskiTime(displayElapsedMs.value))
+	const stateTitle = computed(() : string => {
+		if (!ready.value) return '正在恢复棋局…'
+		return restartPending.value ? '重新开始？' : '成功脱困！'
+	})
+	const stateDescription = computed(() : string => {
+		if (!ready.value) return '稍等片刻，马上继续挑战'
+		if (restartPending.value) return '本局进度、步数和用时将清空。'
+		return '曹操已到达出口，完成本局挑战。\n' + moves.value.length + ' 步 · ' + timeText.value
+	})
+
+	// methods
+	const currentElapsed = () : number => elapsedMs.value + (activeSince > 0 ? Math.max(0, Date.now() - activeSince) : 0)
+	const saveGame = () => {
+		if (!ready.value || storageReadFailed) return
+		const version = ++saveVersion
+		levelSnapshots[levelIndex.value] = encodeKlotski(moves.value, currentElapsed(), started.value)
+		const snapshot = encodeKlotskiProgress(levelIndex.value, levelSnapshots)
+		saveKlotskiSnapshot(snapshot).then(() => {
+			if (!disposed && version == saveVersion) storageFailed.value = false
+		}).catch(() => {
+			if (!disposed && version == saveVersion) storageFailed.value = true
+		})
+	}
+	const pauseClock = () => {
+		elapsedMs.value = currentElapsed()
+		activeSince = 0
+		displayElapsedMs.value = elapsedMs.value
+		if (clockTimer >= 0) clearInterval(clockTimer)
+		clockTimer = -1
+	}
+	const startClock = () => {
+		if (!ready.value || !visible || !started.value || won.value || restartPending.value || levelPickerVisible.value || activeSince > 0) return
+		activeSince = Date.now()
+		lastAutoSaveAt = activeSince
+		displayElapsedMs.value = currentElapsed()
+		clockTimer = setInterval(() => {
+			displayElapsedMs.value = currentElapsed()
+			if (Date.now() - lastAutoSaveAt >= 10000) {
+				lastAutoSaveAt = Date.now()
+				saveGame()
+			}
+		}, 1000)
+	}
+	const cancelDrag = () => {
+		dragging.value = false
+		dragIndex.value = -1
+		dragX.value = 0
+		dragY.value = 0
+		dragAxis = ''
+		touchIdentifier = -1
+	}
+	const pieceStyle = (index : number) : string => {
+		const piece = pieces.value[index]
+		const selected = dragging.value && dragIndex.value == index
+		const x = boardPadding + (positions.value[index] % 4) * cellPitch + (selected ? dragX.value : 0)
+		const y = boardPadding + Math.floor(positions.value[index] / 4) * cellPitch + (selected ? dragY.value : 0)
+		const width = piece.width * cellSize + (piece.width - 1) * cellGap
+		const height = piece.height * cellSize + (piece.height - 1) * cellGap
+		return 'left: ' + x + 'rpx;top: ' + y + 'rpx;width: ' + width + 'rpx;height: ' + height + 'rpx;z-index: ' + (selected ? 2 : 1) + ';'
+	}
+	const startDrag = (event : UniTouchEvent, index : number) => {
+		cancelDrag()
+		if (!ready.value || won.value || restartPending.value || levelPickerVisible.value || event.touches.length != 1) return
+		const touch = event.touches[0]
+		startX = touch.clientX
+		startY = touch.clientY
+		touchIdentifier = touch.identifier
+		pixelRatio = uni.getWindowInfo().windowWidth / 750
+		dragIndex.value = index
+		dragging.value = true
+	}
+	const updateDrag = (clientX : number, clientY : number) => {
+		const dx = (clientX - startX) / pixelRatio
+		const dy = (clientY - startY) / pixelRatio
+		if (dragAxis.length == 0 && Math.max(Math.abs(dx), Math.abs(dy)) >= 16) {
+			dragAxis = Math.abs(dx) >= Math.abs(dy) ? 'horizontal' : 'vertical'
+		}
+		if (dragAxis.length == 0) return
+		const horizontal = dragAxis == 'horizontal'
+		const delta = horizontal ? dx : dy
+		const limit = klotskiDragLimit(positions.value, dragIndex.value, horizontal, delta >= 0 ? 1 : -1, levelIndex.value)
+		const offset = Math.min(Math.abs(delta), limit * cellPitch) * (delta >= 0 ? 1 : -1)
+		dragX.value = horizontal ? offset : 0
+		dragY.value = horizontal ? 0 : offset
+	}
+	const moveDrag = (event : UniTouchEvent) => {
+		if (!dragging.value) return
+		if (event.touches.length != 1 || event.touches[0].identifier != touchIdentifier) {
+			cancelDrag()
+			return
+		}
+		updateDrag(event.touches[0].clientX, event.touches[0].clientY)
+	}
+	const endDrag = (event : UniTouchEvent) => {
+		if (!dragging.value) return
+		if (event.changedTouches.length != 1 || event.changedTouches[0].identifier != touchIdentifier) {
+			cancelDrag()
+			return
+		}
+		updateDrag(event.changedTouches[0].clientX, event.changedTouches[0].clientY)
+		const move : KlotskiMove = {
+			piece: dragIndex.value,
+			dx: (dragX.value >= 0 ? 1 : -1) * Math.round(Math.abs(dragX.value) / cellPitch),
+			dy: (dragY.value >= 0 ? 1 : -1) * Math.round(Math.abs(dragY.value) / cellPitch)
+		}
+		cancelDrag()
+		if (move.dx == 0 && move.dy == 0) return
+		if (moves.value.length >= KLOTSKI_MAX_MOVES) return toast('本局已达 10000 步，请撤销或重新开始')
+		const next = moveKlotski(positions.value, move, levelIndex.value)
+		if (next == null) return
+		positions.value = next
+		moves.value.push(move)
+		started.value = true
+		if (won.value) pauseClock()
+		else startClock()
+		saveGame()
+	}
+	const undoMove = () => {
+		if (!ready.value || restartPending.value || moves.value.length == 0) return
+		cancelDrag()
+		const previous = moves.value[moves.value.length - 1]
+		const next = moveKlotski(positions.value, { piece: previous.piece, dx: -previous.dx, dy: -previous.dy }, levelIndex.value)
+		if (next == null) return toast('当前步骤无法撤销，请重新开始')
+		positions.value = next
+		moves.value.pop()
+		startClock()
+		saveGame()
+	}
+	const restartGame = () => {
+		if (!ready.value) return
+		cancelDrag()
+		pauseClock()
+		positions.value = initialKlotski(levelIndex.value)
+		moves.value = []
+		elapsedMs.value = 0
+		displayElapsedMs.value = 0
+		started.value = false
+		restartPending.value = false
+		saveGame()
+	}
+	const requestRestart = () => {
+		if (!ready.value) return
+		cancelDrag()
+		if (won.value || !started.value) {
+			restartGame()
+			return
+		}
+		pauseClock()
+		restartPending.value = true
+		saveGame()
+	}
+	const cancelRestart = () => {
+		restartPending.value = false
+		startClock()
+	}
+	const restoreLevel = () => {
+		const saved = decodeKlotski(levelSnapshots[levelIndex.value], levelIndex.value)
+		positions.value = saved != null ? saved.positions : initialKlotski(levelIndex.value)
+		moves.value = saved != null ? saved.moves : []
+		elapsedMs.value = saved != null ? saved.elapsedMs : 0
+		displayElapsedMs.value = elapsedMs.value
+		started.value = saved != null ? saved.started : false
+		restartPending.value = false
+	}
+	const selectLevel = (index : number) => {
+		if (!ready.value || index == levelIndex.value || index < 0 || index >= levels.length) return
+		cancelDrag()
+		pauseClock()
+		levelSnapshots[levelIndex.value] = encodeKlotski(moves.value, elapsedMs.value, started.value)
+		levelIndex.value = index
+		restoreLevel()
+		startClock()
+		saveGame()
+	}
+	const openLevelPicker = () => {
+		if (!ready.value || levelPickerVisible.value) return
+		cancelDrag()
+		pauseClock()
+		levelPickerVisible.value = true
+		saveGame()
+	}
+	const closeLevelPicker = () => {
+		levelPickerVisible.value = false
+		startClock()
+	}
+	const confirmLevelPicker = (result : LevelPickerResult) => {
+		levelPickerVisible.value = false
+		if (result.indexes.length > 0) selectLevel(result.indexes[0])
+		startClock()
+	}
+
+	// lifecycle
+	onLoad(async () => {
+		try {
+			const snapshot = await loadKlotskiSnapshot()
+			if (disposed) return
+			const progress = decodeKlotskiProgress(snapshot)
+			levelIndex.value = progress.levelIndex
+			levelSnapshots = progress.snapshots
+			restoreLevel()
+		} catch (error) {
+			if (disposed) return
+			storageReadFailed = true
+			storageFailed.value = true
+		}
+		if (disposed) return
+		ready.value = true
+		startClock()
+		saveGame()
+		recordToolUsage('klotski').catch(() => {
+			if (!disposed) toast('保存使用记录失败')
+		})
+	})
+	onShow(() => {
+		visible = true
+		startClock()
+	})
+	onHide(() => {
+		visible = false
+		cancelDrag()
+		pauseClock()
+		saveGame()
+	})
+	onResize(() => {
+		cancelDrag()
+	})
+	onUnload(() => {
+		visible = false
+		cancelDrag()
+		pauseClock()
+		saveGame()
+		disposed = true
+		ready.value = false
+	})
+</script>
+
+<style scoped lang="scss">
+	.klotski-page {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		width: 100%;
+		background-color: #f6f8fd;
+	}
+
+	.klotski-intro {
+		display: flex;
+		flex-direction: column;
+		padding: 28rpx 40rpx 38rpx;
+		background: linear-gradient(180deg, #eaf5fc 0%, #f6f8fd 100%);
+
+		.intro-title {
+			display: block;
+			font-size: 46rpx;
+			font-weight: 700;
+			line-height: 64rpx;
+			color: #243b4d;
+		}
+
+		.intro-description {
+			display: block;
+			margin-top: 12rpx;
+			font-size: 22rpx;
+			line-height: 36rpx;
+			color: #8797a5;
+		}
+	}
+
+
+	.level-summary {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		margin: 0 32rpx 38rpx;
+		padding: 24rpx 30rpx;
+		border-radius: 28rpx;
+		background-color: #ffffff;
+
+		.level-information {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			min-width: 0;
+
+			.level-name {
+				margin-top: 8rpx;
+				font-size: 34rpx;
+				font-weight: 500;
+				line-height: 48rpx;
+				color: #243b4d;
+			}
+		}
+
+		.steps-information {
+			display: flex;
+			flex-direction: column;
+			width: 100rpx;
+			margin-left: 20rpx;
+
+			.steps-value {
+				margin-top: 8rpx;
+				font-size: 38rpx;
+				font-weight: 500;
+				line-height: 48rpx;
+				color: #318fc2;
+
+				&.is-long {
+					font-size: 30rpx;
+				}
+			}
+		}
+
+		.time-information {
+			display: flex;
+			flex-direction: column;
+			width: 142rpx;
+			margin-left: 20rpx;
+
+			.time-value {
+				margin-top: 8rpx;
+				font-size: 34rpx;
+				line-height: 48rpx;
+				white-space: nowrap;
+				color: #243b4d;
+
+				&.is-long {
+					font-size: 24rpx;
+				}
+			}
+		}
+
+		.summary-label {
+			display: block;
+			font-size: 22rpx;
+			line-height: 34rpx;
+			color: #8797a5;
+		}
+	}
+
+	.klotski-board-section {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+
+		.board-frame {
+			position: relative;
+			width: 584rpx;
+			height: 724rpx;
+
+			.klotski-board {
+				position: relative;
+				width: 584rpx;
+				height: 724rpx;
+				border-radius: 28rpx;
+				background-color: #dbe8f3;
+
+				.chess-piece {
+					position: absolute;
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					justify-content: center;
+					box-sizing: border-box;
+					border: 3rpx solid transparent;
+					border-radius: 18rpx;
+					background-color: #ecf8ff;
+
+					&.is-caocao {
+						background-color: #2d8fc7;
+
+						.piece-label {
+							color: #ffffff;
+						}
+					}
+
+					&.is-dragging {
+						border-color: #7cbfe4;
+					}
+
+					.piece-label {
+						font-size: 34rpx;
+						font-weight: 500;
+						line-height: 52rpx;
+						white-space: nowrap;
+						text-align: center;
+						color: #243b4d;
+					}
+				}
+			}
+
+			.board-state {
+				position: absolute;
+				left: 0;
+				right: 0;
+				top: 0;
+				bottom: 0;
+				z-index: 3;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				padding: 36rpx;
+				border-radius: 28rpx;
+				background-color: rgba(246, 250, 253, 0.96);
+
+				.state-title {
+					font-size: 40rpx;
+					font-weight: 500;
+					line-height: 60rpx;
+					text-align: center;
+					color: #243b4d;
+				}
+
+				.state-description {
+					margin: 20rpx 0 28rpx;
+					font-size: 24rpx;
+					line-height: 40rpx;
+					white-space: pre-wrap;
+					text-align: center;
+					color: #708b9e;
+				}
+
+				.state-action {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					justify-content: center;
+					width: 360rpx;
+					min-height: 84rpx;
+					margin-top: 18rpx;
+					border-radius: 20rpx;
+					background-color: #2d8fc7;
+
+					&.secondary-action {
+						background-color: #e4f3fc;
+					}
+
+					.state-action-label {
+						font-size: 28rpx;
+						line-height: 42rpx;
+						text-align: center;
+						color: #ffffff;
+
+						&.secondary-label {
+							color: #318fc2;
+						}
+					}
+				}
+			}
+		}
+
+		.exit-label {
+			margin-top: 20rpx;
+			font-size: 28rpx;
+			font-weight: 500;
+			line-height: 42rpx;
+			text-align: center;
+			color: #318fc2;
+		}
+	}
+
+	.klotski-actions {
+		display: flex;
+		flex-direction: row;
+		margin: 30rpx 32rpx 38rpx;
+
+		.game-button {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: center;
+			flex: 1;
+			min-width: 0;
+			min-height: 90rpx;
+			border-radius: 20rpx;
+			background-color: #2d8fc7;
+
+			&.undo-button {
+				background-color: #e4f3fc;
+			}
+
+			&.is-disabled {
+				opacity: 0.5;
+			}
+
+			.button-label {
+				font-size: 28rpx;
+				line-height: 42rpx;
+				text-align: center;
+				color: #ffffff;
+
+				&.undo-label {
+					color: #318fc2;
+				}
+			}
+		}
+	}
+
+	.klotski-notes {
+		display: flex;
+		flex-direction: column;
+		margin: 0 40rpx 64rpx;
+
+		.notes-text {
+			display: block;
+			font-size: 22rpx;
+			line-height: 38rpx;
+			color: #8797a5;
+		}
+	}
+
+	.storage-message {
+		display: block;
+		margin: -36rpx 40rpx 60rpx;
+		font-size: 22rpx;
+		line-height: 36rpx;
+		color: #a87947;
+	}
+</style>

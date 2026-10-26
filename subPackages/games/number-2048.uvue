@@ -1,0 +1,481 @@
+<template>
+	<scroll-view class="number-game-page" :scroll-y="!touching">
+		<page-header
+			:fixed="isHeaderFixed"
+			title="数字 2048"
+			titleColor="#243b4d"
+			titleFontSize="30rpx"
+			titleFontWeight="500"
+			headerClass="page-header-calculator-bg"
+		/>
+		<view class="game-intro">
+			<text class="intro-title">数字 2048</text>
+			<text class="intro-description">滑动合并相同数字，向 2048 再近一步</text>
+		</view>
+		<view class="game-scores">
+			<view class="score-card">
+				<text class="score-label">当前得分</text>
+				<text class="score-value current-score" :class="{ 'is-long': scoreText.length > 10 }">{{ scoreText }}</text>
+			</view>
+			<view class="score-card ml-[30rpx]">
+				<text class="score-label">历史最佳</text>
+				<text class="score-value" :class="{ 'is-long': bestText.length > 10 }">{{ bestText }}</text>
+			</view>
+		</view>
+		<view class="game-board-wrap">
+			<view
+				class="game-board"
+				@touchstart="startTouch"
+				@touchmove.stop.prevent="moveTouch"
+				@touchend="endTouch"
+				@touchcancel="cancelTouch"
+			>
+				<view v-for="(row, rowIndex) in boardRows" :key="rowIndex" class="board-row" :class="{ 'is-last': rowIndex == 3 }">
+					<view
+						v-for="cell in row"
+						:key="cell.index"
+						class="board-cell"
+						:class="{ 'is-merged': mergedIndices.includes(cell.index) }"
+						:style="'background-color: ' + tileColor(cell.value) + ';'"
+					>
+						<text
+							v-if="cell.value > 0"
+							class="tile-number"
+							:style="tileTextStyle(cell.value)"
+						>{{ cell.value }}</text>
+					</view>
+				</view>
+			</view>
+			<view v-if="overlayVisible" class="board-state">
+				<text class="state-title">{{ stateTitle }}</text>
+				<text class="state-description">{{ stateDescription }}</text>
+				<view v-if="restartPending" class="state-action secondary-action" @click="cancelRestart">
+					<text class="state-action-label secondary-label">继续本局</text>
+				</view>
+				<view v-else-if="showWin && !gameOver" class="state-action" @click="continueGame">
+					<text class="state-action-label">继续挑战</text>
+				</view>
+				<view class="state-action" :class="{ 'secondary-action': showWin && !gameOver && !restartPending }" @click="restartGame">
+					<text class="state-action-label" :class="{ 'secondary-label': showWin && !gameOver && !restartPending }">{{ restartPending ? '确认重新开始' : '再来一局' }}</text>
+				</view>
+			</view>
+		</view>
+		<view class="restart-button" @click="requestRestart"><text class="restart-label">重新开始</text></view>
+		<view class="game-help">
+			<text class="help-title">玩法提示</text>
+			<text class="help-description">上下左右滑动，相同数字碰撞后合并。</text>
+			<text class="help-description">棋盘填满且无法合并时，游戏结束。</text>
+		</view>
+		<text v-if="storageFailed" class="storage-message">暂时无法保存本局进度，请检查本地存储空间；仍可继续游戏。</text>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue'
+	import {
+		canMove, createBoard, decodeGame, encodeGame, formatGameScore,
+		hasWon, slideBoard, spawnTile, tileColor, validScore
+	} from '@/subPackages/games/utils/number-2048'
+	import { STORAGE_GAME_2048_STATE_KEY, STORAGE_GAME_2048_BEST_KEY } from '@/config/constants'
+	import { getStorageSync, setStorageSync } from '@/utils/storage'
+	import { recordToolUsage } from '@/utils/tool-usage'
+	import { toast } from '@/utils/toast'
+
+	// data
+	type BoardCell = { index : number, value : number }
+	const isHeaderFixed = ref(false)
+	const board = ref<number[]>(createBoard())
+	const score = ref(0)
+	const bestScore = ref(0)
+	const continued = ref(false)
+	const ready = ref(false)
+	const touching = ref(false)
+	const restartPending = ref(false)
+	const storageFailed = ref(false)
+	const mergedIndices = ref<number[]>([])
+	let startX = 0
+	let startY = 0
+	let gestureValid = false
+	let storageReadFailed = false
+
+	// computed
+	const scoreText = computed(() : string => formatGameScore(score.value))
+	const bestText = computed(() : string => formatGameScore(bestScore.value))
+	const gameOver = computed(() : boolean => !canMove(board.value))
+	const showWin = computed(() : boolean => hasWon(board.value) && !continued.value)
+	const overlayVisible = computed(() : boolean => restartPending.value || showWin.value || gameOver.value)
+	const boardRows = computed(() : BoardCell[][] => {
+		const rows : BoardCell[][] = []
+		for (let row = 0; row < 4; row++) {
+			const cells : BoardCell[] = []
+			for (let column = 0; column < 4; column++) {
+				const index = row * 4 + column
+				cells.push({ index, value: board.value[index] })
+			}
+			rows.push(cells)
+		}
+		return rows
+	})
+	const stateTitle = computed(() : string => {
+		if (restartPending.value) return '重新开始？'
+		return showWin.value ? '成功合成 2048！' : '本局结束'
+	})
+	const stateDescription = computed(() : string => {
+		if (restartPending.value) return '本局进度将清空，历史最佳会保留。'
+		if (showWin.value && !gameOver.value) return '当前得分 ' + scoreText.value + '，继续挑战更大的数字吧。'
+		return '本局得分 ' + scoreText.value + '，再来一局挑战自己。'
+	})
+
+	// methods
+	const saveGame = () => {
+		if (!ready.value) return
+		// 初次读取出错时不以新棋局覆盖尚未读出的旧记录。
+		if (storageReadFailed) {
+			storageFailed.value = true
+			return
+		}
+		try {
+			setStorageSync(STORAGE_GAME_2048_BEST_KEY, bestScore.value.toString())
+			setStorageSync(STORAGE_GAME_2048_STATE_KEY, encodeGame(board.value, score.value, continued.value))
+			storageFailed.value = false
+		} catch (error) {
+			storageFailed.value = true
+		}
+	}
+	const cancelTouch = () => {
+		touching.value = false
+		gestureValid = false
+	}
+	const performMove = (direction : string) => {
+		if (!ready.value || overlayVisible.value) return
+		const move = slideBoard(board.value, direction)
+		if (!move.changed) return
+		if (!validScore(score.value + move.gained)) return toast('得分超出有效范围，请重新开始')
+		const spawned = spawnTile(move.board)
+		board.value = spawned.board
+		score.value += move.gained
+		bestScore.value = Math.max(bestScore.value, score.value)
+		mergedIndices.value = move.mergedIndices
+		saveGame()
+	}
+	const startTouch = (event : UniTouchEvent) => {
+		cancelTouch()
+		if (!ready.value || overlayVisible.value || event.touches.length != 1) return
+		startX = event.touches[0].clientX
+		startY = event.touches[0].clientY
+		gestureValid = true
+		touching.value = true
+	}
+	const moveTouch = (event : UniTouchEvent) => {
+		if (event.touches.length != 1) cancelTouch()
+	}
+	const endTouch = (event : UniTouchEvent) => {
+		const valid = gestureValid
+		cancelTouch()
+		if (!valid || event.changedTouches.length != 1) return
+		const deltaX = event.changedTouches[0].clientX - startX
+		const deltaY = event.changedTouches[0].clientY - startY
+		// 触点为逻辑像素；短距离点击不作为移动，手势结束后只执行一个方向。
+		if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 18) return
+		const direction = Math.abs(deltaX) >= Math.abs(deltaY) ? (deltaX > 0 ? 'right' : 'left') : (deltaY > 0 ? 'down' : 'up')
+		performMove(direction)
+	}
+	const restartGame = () => {
+		cancelTouch()
+		board.value = createBoard()
+		score.value = 0
+		continued.value = false
+		restartPending.value = false
+		mergedIndices.value = []
+		saveGame()
+	}
+	const requestRestart = () => {
+		if (!ready.value) return
+		cancelTouch()
+		if (gameOver.value) {
+			restartGame()
+			return
+		}
+		restartPending.value = true
+	}
+	const cancelRestart = () => {
+		restartPending.value = false
+	}
+	const continueGame = () => {
+		if (!showWin.value || gameOver.value) return
+		continued.value = true
+		saveGame()
+	}
+	const tileTextStyle = (value : number) : string => {
+		const length = value.toString().length
+		const size = length > 8 ? 20 : length > 6 ? 26 : length > 4 ? 34 : 44
+		return 'color: ' + (value >= 256 ? '#ffffff' : '#318fc2') + ';font-size: ' + size + 'rpx;'
+	}
+
+	// lifecycle
+	onLoad(() => {
+		try {
+			const best : any = getStorageSync(STORAGE_GAME_2048_BEST_KEY, '')
+			if (typeof best == 'number' || (typeof best == 'string' && /^\d+$/.test(best as string))) {
+				const savedBest = Number(best)
+				if (validScore(savedBest)) bestScore.value = savedBest
+			}
+			const saved : any = getStorageSync(STORAGE_GAME_2048_STATE_KEY, '')
+			if (typeof saved == 'string') {
+				const game = decodeGame(saved as string)
+				if (game != null) {
+					board.value = game.board
+					score.value = game.score
+					continued.value = game.continued
+					bestScore.value = Math.max(bestScore.value, game.score)
+				}
+			}
+		} catch (error) {
+			storageReadFailed = true
+			storageFailed.value = true
+		}
+		ready.value = true
+		saveGame()
+		recordToolUsage('2048').catch(() => toast('保存使用记录失败'))
+	})
+	onHide(() => {
+		cancelTouch()
+		saveGame()
+	})
+	onUnload(() => {
+		cancelTouch()
+		saveGame()
+		ready.value = false
+	})
+</script>
+
+<style scoped lang="scss">
+	.number-game-page {
+		flex: 1;
+		width: 100%;
+		background-color: #f6f8fd;
+	}
+
+	.game-intro {
+		display: flex;
+		flex-direction: column;
+		padding: 28rpx 40rpx 38rpx;
+		background: linear-gradient(180deg, #eaf5fc 0%, #f6f8fd 100%);
+
+		.intro-title {
+			display: block;
+			font-size: 46rpx;
+			font-weight: 700;
+			line-height: 64rpx;
+			color: #243b4d;
+		}
+
+		.intro-description {
+			display: block;
+			margin-top: 12rpx;
+			font-size: 22rpx;
+			line-height: 36rpx;
+			color: #8797a5;
+		}
+	}
+
+	.game-scores {
+		display: flex;
+		flex-direction: row;
+		margin: 0 32rpx 38rpx;
+
+		.score-card {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			min-width: 0;
+			padding: 24rpx 30rpx;
+			border-radius: 28rpx;
+			background-color: #ffffff;
+
+			.score-label {
+				display: block;
+				font-size: 22rpx;
+				line-height: 34rpx;
+				color: #8797a5;
+			}
+
+			.score-value {
+				display: block;
+				margin-top: 4rpx;
+				font-size: 44rpx;
+				font-weight: 700;
+				line-height: 60rpx;
+				word-break: break-all;
+				color: #243b4d;
+
+				&.current-score {
+					color: #318fc2;
+				}
+
+				&.is-long {
+					font-size: 26rpx;
+				}
+			}
+		}
+	}
+
+	.game-board-wrap {
+		position: relative;
+		margin: 0 32rpx;
+
+		.game-board {
+			display: flex;
+			flex-direction: column;
+			box-sizing: border-box;
+			width: 686rpx;
+			padding: 18rpx;
+			border-radius: 28rpx;
+			background-color: #dbe8f3;
+
+			.board-row {
+				display: flex;
+				flex-direction: row;
+				justify-content: space-between;
+				margin-bottom: 18rpx;
+
+				&.is-last {
+					margin-bottom: 0;
+				}
+
+				.board-cell {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					justify-content: center;
+					box-sizing: border-box;
+					width: 149rpx;
+					height: 149rpx;
+					border: 3rpx solid transparent;
+					border-radius: 18rpx;
+
+					&.is-merged {
+						border-color: #ffffff;
+					}
+
+					.tile-number {
+						font-weight: 700;
+						line-height: 70rpx;
+						white-space: nowrap;
+						text-align: center;
+					}
+				}
+			}
+		}
+
+		.board-state {
+			position: absolute;
+			left: 0;
+			right: 0;
+			top: 0;
+			bottom: 0;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			padding: 40rpx;
+			border-radius: 28rpx;
+			background-color: rgba(246, 250, 253, 0.95);
+
+			.state-title {
+				font-size: 42rpx;
+				font-weight: 500;
+				line-height: 62rpx;
+				text-align: center;
+				color: #243b4d;
+			}
+
+			.state-description {
+				margin: 20rpx 0 28rpx;
+				font-size: 24rpx;
+				line-height: 40rpx;
+				text-align: center;
+				color: #708b9e;
+			}
+
+			.state-action {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				width: 360rpx;
+				min-height: 84rpx;
+				margin-top: 18rpx;
+				border-radius: 20rpx;
+				background-color: #2d8fc7;
+
+				&.secondary-action {
+					background-color: #e4f3fc;
+				}
+
+				.state-action-label {
+					font-size: 28rpx;
+					line-height: 42rpx;
+					text-align: center;
+					color: #ffffff;
+
+					&.secondary-label {
+						color: #318fc2;
+					}
+				}
+			}
+		}
+	}
+
+	.restart-button {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		min-height: 92rpx;
+		margin: 38rpx 32rpx 36rpx;
+		border-radius: 20rpx;
+		background-color: #2d8fc7;
+
+		.restart-label {
+			font-size: 28rpx;
+			font-weight: 500;
+			line-height: 42rpx;
+			text-align: center;
+			color: #ffffff;
+		}
+	}
+
+	.game-help {
+		display: flex;
+		flex-direction: column;
+		margin: 0 32rpx 64rpx;
+		padding: 24rpx 30rpx;
+		border-radius: 28rpx;
+		background-color: #ffffff;
+
+		.help-title {
+			display: block;
+			margin-bottom: 12rpx;
+			font-size: 26rpx;
+			font-weight: 500;
+			line-height: 40rpx;
+			color: #243b4d;
+		}
+
+		.help-description {
+			display: block;
+			font-size: 22rpx;
+			line-height: 38rpx;
+			color: #8797a5;
+		}
+	}
+
+	.storage-message {
+		display: block;
+		margin: -36rpx 40rpx 60rpx;
+		font-size: 22rpx;
+		line-height: 36rpx;
+		color: #a87947;
+	}
+</style>

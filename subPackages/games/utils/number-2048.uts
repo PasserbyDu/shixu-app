@@ -1,0 +1,148 @@
+export type BoardMove = {
+	board : number[]
+	changed : boolean
+	gained : number
+	mergedIndices : number[]
+}
+
+export type TileSpawn = {
+	board : number[]
+	index : number
+}
+
+export type SavedGame = {
+	board : number[]
+	score : number
+	continued : boolean
+}
+
+export const GAME_SIZE = 4
+export const GAME_TARGET = 2048
+
+// methods
+export const emptyBoard = () : number[] => {
+	const board : number[] = []
+	for (let index = 0; index < GAME_SIZE * GAME_SIZE; index++) board.push(0)
+	return board
+}
+
+const lineIndex = (lane : number, step : number, direction : string) : number => {
+	if (direction == 'left') return lane * GAME_SIZE + step
+	if (direction == 'right') return lane * GAME_SIZE + GAME_SIZE - 1 - step
+	if (direction == 'up') return step * GAME_SIZE + lane
+	return (GAME_SIZE - 1 - step) * GAME_SIZE + lane
+}
+
+// 先压紧，再相邻配对；合并后的方块在同一回合不参与第二次合并。
+export const slideBoard = (source : number[], direction : string) : BoardMove => {
+	const board = source.slice()
+	const mergedIndices : number[] = []
+	let gained = 0
+	if (source.length != GAME_SIZE * GAME_SIZE || !['left', 'right', 'up', 'down'].includes(direction)) {
+		return { board, changed: false, gained, mergedIndices }
+	}
+	for (let lane = 0; lane < GAME_SIZE; lane++) {
+		const values : number[] = []
+		for (let step = 0; step < GAME_SIZE; step++) {
+			const value = source[lineIndex(lane, step, direction)]
+			if (value > 0) values.push(value)
+		}
+		const merged : number[] = []
+		let cursor = 0
+		while (cursor < values.length) {
+			if (cursor + 1 < values.length && values[cursor] == values[cursor + 1]) {
+				const value = values[cursor] * 2
+				mergedIndices.push(lineIndex(lane, merged.length, direction))
+				merged.push(value)
+				gained += value
+				cursor += 2
+			} else {
+				merged.push(values[cursor])
+				cursor++
+			}
+		}
+		for (let step = 0; step < GAME_SIZE; step++) {
+			board[lineIndex(lane, step, direction)] = step < merged.length ? merged[step] : 0
+		}
+	}
+	const changed = board.some((value : number, index : number) : boolean => value != source[index])
+	return { board, changed, gained, mergedIndices }
+}
+
+// 只由成功移动的回合调用；空位均匀抽样，2/4 的概率分别为 90%/10%。
+export const spawnTile = (source : number[]) : TileSpawn => {
+	const board = source.slice()
+	const spaces : number[] = []
+	for (let index = 0; index < board.length; index++) {
+		if (board[index] == 0) spaces.push(index)
+	}
+	if (spaces.length == 0) return { board, index: -1 }
+	const index = spaces[Math.floor(Math.random() * spaces.length)]
+	board[index] = Math.random() < 0.9 ? 2 : 4
+	return { board, index }
+}
+
+export const createBoard = () : number[] => spawnTile(spawnTile(emptyBoard()).board).board
+
+export const canMove = (board : number[]) : boolean => {
+	if (board.length != GAME_SIZE * GAME_SIZE) return false
+	for (let index = 0; index < board.length; index++) {
+		if (board[index] == 0) return true
+		const row = Math.floor(index / GAME_SIZE)
+		const column = index % GAME_SIZE
+		if (column < GAME_SIZE - 1 && board[index] == board[index + 1]) return true
+		if (row < GAME_SIZE - 1 && board[index] == board[index + GAME_SIZE]) return true
+	}
+	return false
+}
+
+export const hasWon = (board : number[]) : boolean => board.some((value : number) : boolean => value >= GAME_TARGET)
+
+const isValidTile = (value : number) : boolean => {
+	if (!Number.isFinite(value) || !Number.isInteger(value) || value < 0 || value > 2147483648) return false
+	if (value == 0) return true
+	let remaining = value
+	while (remaining > 2 && remaining % 2 == 0) remaining /= 2
+	return remaining == 2
+}
+
+export const validScore = (value : number) : boolean => {
+	return Number.isFinite(value) && Number.isInteger(value) && value >= 0 && value <= 9007199254740991
+}
+
+// 存为短字符串，避开跨端 JSON 对象反序列化差异；格式带版本号。
+export const encodeGame = (board : number[], score : number, continued : boolean) : string => {
+	return '1|' + score + '|' + (continued ? '1' : '0') + '|' + board.join(',')
+}
+
+export const decodeGame = (serialized : string) : SavedGame | null => {
+	if (serialized.length == 0 || serialized.length > 512) return null
+	const parts = serialized.split('|')
+	if (parts.length != 4 || parts[0] != '1' || !/^\d+$/.test(parts[1])) return null
+	if (parts[2] != '0' && parts[2] != '1') return null
+	const score = Number(parts[1])
+	if (!validScore(score)) return null
+	const values = parts[3].split(',')
+	if (values.length != GAME_SIZE * GAME_SIZE) return null
+	const board : number[] = []
+	for (let index = 0; index < values.length; index++) {
+		if (!/^\d+$/.test(values[index])) return null
+		const value = Number(values[index])
+		if (!isValidTile(value)) return null
+		board.push(value)
+	}
+	if (board.filter((value : number) : boolean => value > 0).length < 2) return null
+	return { board, score, continued: parts[2] == '1' && hasWon(board) }
+}
+
+export const formatGameScore = (score : number) : string => score.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+
+export const tileColor = (value : number) : string => {
+	if (value == 0) return '#c8dfea'
+	if (value <= 8) return '#e8f6ff'
+	if (value <= 32) return '#b5e1f4'
+	if (value <= 128) return '#88cae8'
+	if (value <= 512) return '#57b4df'
+	if (value <= 2048) return '#2d8fc7'
+	return '#246da1'
+}
