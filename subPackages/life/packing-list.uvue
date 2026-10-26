@@ -1,0 +1,393 @@
+<template>
+	<tool-page title="行李清单" subtitle="出门前逐项打勾，让每一次出发更从容">
+		<view class="tool-result packing-summary">
+			<text class="summary-title">{{ templates[active].title }}</text>
+			<view class="summary-count">
+				<text class="text-[26rpx] leading-[42rpx] text-[#278dca]">已装好 {{ packedCount }} / {{ currentItems.length }} 件</text>
+				<text class="text-[26rpx] leading-[42rpx] text-[#278dca]">{{ percentage }}%</text>
+			</view>
+			<view class="progress-track">
+				<view class="progress-fill" :style="'width: ' + percentage + '%;'" />
+			</view>
+		</view>
+		<view class="packing-heading">
+			<text class="text-[30rpx] leading-[46rpx] font-medium text-[#233d50]">我的物品</text>
+			<view class="heading-actions">
+				<view class="heading-action" @click="managing = !managing">
+					<text class="text-[22rpx] leading-[38rpx] text-[#278dca]">{{ managing ? '完成' : '管理' }}</text>
+				</view>
+				<picker :disabled="!ready" :range="templateLabels" :value="active" @change="changeTemplate">
+					<view class="heading-action">
+						<text class="text-[22rpx] leading-[38rpx] text-[#278dca]">切换模板 ›</text>
+					</view>
+				</picker>
+			</view>
+		</view>
+		<view v-for="group in nonEmptyGroups" :key="group.id" class="tool-card packing-group">
+			<view class="group-heading">
+				<text class="text-[26rpx] leading-[42rpx] font-medium text-[#278dca]">{{ group.title }}</text>
+				<view v-if="expanded.includes(group.id)" @click="toggleGroup(group.id)">
+					<text class="text-[22rpx] leading-[38rpx] text-[#8795a1]">收起</text>
+				</view>
+			</view>
+			<view v-for="item in shownItems(group.id)" :key="item.id" class="packing-item">
+				<view class="item-toggle" @click="toggleItem(item.id)">
+					<UniIcons
+						:type="item.packed ? 'checkbox-filled' : 'checkbox'"
+						size="38rpx"
+						:color="item.packed ? '#2e91c6' : '#c5cdd3'"
+					/>
+					<text :class="['item-name', item.packed ? 'is-packed' : '']">{{ item.name }}</text>
+				</view>
+				<view v-if="managing" class="remove-item" @click="removeItem(item.id)">
+					<UniIcons type="closeempty" size="28rpx" color="#8795a1" />
+				</view>
+				<view v-else-if="!expanded.includes(group.id)" class="expand-items" @click="toggleGroup(group.id)">
+					<text class="text-[22rpx] leading-[38rpx] text-[#8795a1]">共 {{ groupCount(group.id) }} 件 ›</text>
+				</view>
+			</view>
+		</view>
+		<view v-if="currentItems.length == 0" class="tool-card empty-packing">
+			<empty-state image="" description="清单还是空的，添加第一件物品吧" />
+		</view>
+		<view v-if="lastRemoved != null" class="undo-row" @click="undoRemove">
+			<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">已移除“{{ lastRemoved!.item.name }}”，点击撤销</text>
+		</view>
+		<view v-if="adding" class="tool-card add-item-card">
+			<text class="card-title">添加物品</text>
+			<input v-model="itemName" class="item-name-input" :maxlength="-1" placeholder="物品名称（最多40字）" />
+			<view class="tool-row">
+				<text class="row-label">所属分类</text>
+				<picker class="row-control" :range="groupLabels" :value="itemGroup" @change="changeGroup">
+					<view class="tool-field">
+						<text class="field-value">{{ groupLabels[itemGroup] }}</text>
+						<UniIcons type="bottom" size="26rpx" color="#278dca" />
+					</view>
+				</picker>
+			</view>
+			<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
+			<view class="form-actions">
+				<view class="form-cancel" @click="adding = false">
+					<text class="text-[26rpx] leading-[42rpx] text-[#8795a1]">取消</text>
+				</view>
+				<view class="form-save" @click="addItem">
+					<text class="text-[26rpx] leading-[42rpx] text-white">添加到清单</text>
+				</view>
+			</view>
+		</view>
+		<view v-if="!adding" class="tool-primary" @click="openAdd">
+			<UniIcons type="plusempty" size="30rpx" color="#ffffff" />
+			<text class="primary-text ml-[10rpx]">{{ ready ? '添加物品' : '正在读取清单…' }}</text>
+		</view>
+		<text v-if="storageMessage.length > 0" class="tool-footnote">{{ storageMessage }}</text>
+		<view v-if="storageFailed" class="retry-save" @click="retrySave">
+			<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">重新保存当前清单</text>
+		</view>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue';
+	import { PACKING_GROUPS, PACKING_TEMPLATES, PackingGroup, PackingItem, PackingList, PackingTemplate, decodePacking, encodePacking, newPackingLists } from '@/subPackages/life/utils/packing-list.uts';
+	import { packingStore } from '@/subPackages/life/utils/everyday-storage.uts';
+	import { recordToolUsage } from '@/utils/tool-usage';
+	import { toast } from '@/utils/toast';
+	// data
+	type RemovedItem = {
+		item: PackingItem;
+		index: number;
+	};
+	const templates = PACKING_TEMPLATES;
+	const templateLabels = templates.map((template: PackingTemplate): string => template.title);
+	const groupLabels = PACKING_GROUPS.map((group: PackingGroup): string => group.title);
+	const lists = ref<PackingList[]>(newPackingLists());
+	const active = ref(0);
+	const expanded = ref<number[]>([0, 1]);
+	const ready = ref(false);
+	const managing = ref(false);
+	const adding = ref(false);
+	const itemName = ref('');
+	const itemGroup = ref(0);
+	const formError = ref('');
+	const storageFailed = ref(false);
+	const storageMessage = ref('');
+	const lastRemoved = ref<RemovedItem | null>(null);
+	let readFailed = false;
+	let disposed = false;
+	let saveVersion = 0;
+	// computed
+	const currentItems = computed((): PackingItem[] => lists.value[active.value].items);
+	const packedCount = computed((): number => currentItems.value.filter((item: PackingItem): boolean => item.packed).length);
+	const percentage = computed((): number => currentItems.value.length == 0 ? 0 : Math.round(packedCount.value / currentItems.value.length * 100));
+	const nonEmptyGroups = computed((): PackingGroup[] => PACKING_GROUPS.filter((group: PackingGroup): boolean => currentItems.value.some((item: PackingItem): boolean => item.group == group.id)));
+	// methods
+	const groupCount = (id: number): number => currentItems.value.filter((item: PackingItem): boolean => item.group == id).length;
+	const shownItems = (id: number): PackingItem[] => {
+		const items = currentItems.value.filter((item: PackingItem): boolean => item.group == id);
+		return expanded.value.includes(id) ? items : items.slice(0, 1);
+	};
+	const persist = () => {
+		if (!ready.value || readFailed) return;
+		const version = ++saveVersion;
+		packingStore.save(encodePacking(active.value, lists.value)).then(() => {
+			if (!disposed && version == saveVersion) {
+				storageFailed.value = false;
+				storageMessage.value = '';
+			}
+		}).catch(() => {
+			if (!disposed && version == saveVersion) {
+				storageFailed.value = true;
+				storageMessage.value = '保存失败，本次勾选仍可保留在当前页面，请重试保存';
+			}
+		});
+	};
+	const retrySave = () => {
+		readFailed = false;
+		persist();
+	};
+	const toggleGroup = (id: number) => {
+		expanded.value = expanded.value.includes(id) ? expanded.value.filter((value: number): boolean => value != id) : expanded.value.concat([id]);
+	};
+	const toggleItem = (id: number) => {
+		if (!ready.value) return;
+		const item = currentItems.value.find((value: PackingItem): boolean => value.id == id);
+		if (item == null) return;
+		item.packed = !item.packed;
+		persist();
+	};
+	const changeTemplate = (event: UniPickerChangeEvent) => {
+		const index = Number(event.detail.value);
+		if (!ready.value || !Number.isInteger(index) || index < 0 || index >= templates.length) return;
+		active.value = index;
+		expanded.value = [0, 1];
+		adding.value = false;
+		lastRemoved.value = null;
+		persist();
+	};
+	const openAdd = () => {
+		if (!ready.value) return;
+		if (currentItems.value.length >= 100) return toast('单个清单最多 100 件物品');
+		itemName.value = '';
+		itemGroup.value = 0;
+		formError.value = '';
+		adding.value = true;
+	};
+	const changeGroup = (event: UniPickerChangeEvent) => {
+		itemGroup.value = Number(event.detail.value);
+	};
+	const addItem = () => {
+		if (!ready.value) return;
+		const name = itemName.value.trim();
+		if (name.length == 0 || name.length > 40) {
+			formError.value = '物品名称需为 1 至 40 字';
+			return;
+		}
+		if (![0, 1, 2].includes(itemGroup.value)) {
+			formError.value = '请选择有效分类';
+			return;
+		}
+		if (currentItems.value.length >= 100) {
+			formError.value = '单个清单最多 100 件物品';
+			return;
+		}
+		if (currentItems.value.some((item: PackingItem): boolean => item.group == itemGroup.value && item.name == name)) {
+			formError.value = '该分类已存在同名物品';
+			return;
+		}
+		let id = 1;
+		currentItems.value.forEach((item: PackingItem) => {
+			id = Math.max(id, item.id + 1);
+		});
+		if (lastRemoved.value != null) id = Math.max(id, lastRemoved.value!.item.id + 1);
+		currentItems.value.push({
+			id,
+			group: itemGroup.value,
+			name,
+			packed: false
+		});
+		if (!expanded.value.includes(itemGroup.value)) expanded.value.push(itemGroup.value);
+		adding.value = false;
+		uni.hideKeyboard();
+		persist();
+	};
+	const removeItem = (id: number) => {
+		if (!ready.value) return;
+		const index = currentItems.value.findIndex((item: PackingItem): boolean => item.id == id);
+		if (index < 0) return;
+		lastRemoved.value = {
+			item: currentItems.value[index],
+			index
+		};
+		currentItems.value.splice(index, 1);
+		persist();
+	};
+	const undoRemove = () => {
+		if (!ready.value || lastRemoved.value == null) return;
+		if (currentItems.value.length >= 100) return toast('清单已满，暂时无法撤销');
+		const removed = lastRemoved.value!;
+		if (currentItems.value.some((item: PackingItem): boolean => item.id == removed.item.id || item.group == removed.item.group && item.name == removed.item.name)) return toast('该物品已存在，无法重复恢复');
+		currentItems.value.splice(Math.min(removed.index, currentItems.value.length), 0, removed.item);
+		lastRemoved.value = null;
+		persist();
+	};
+	// lifecycle
+	onLoad(async () => {
+		recordToolUsage('packing-list').catch(() => toast('保存使用记录失败'));
+		try {
+			const saved = decodePacking(await packingStore.load());
+			if (disposed) return;
+			lists.value = saved.lists;
+			active.value = saved.active;
+		} catch (exception) {
+			if (!disposed) {
+				readFailed = true;
+				storageFailed.value = true;
+				storageMessage.value = '本地清单读取失败，当前展示新清单。可继续整理，确认后重新保存当前清单';
+			}
+		}
+		if (!disposed) ready.value = true;
+	});
+	onUnload(() => {
+		disposed = true;
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/practical-tools.scss';
+	.packing-summary {
+		.summary-title {
+			font-size: 32rpx;
+			font-weight: 500;
+			line-height: 48rpx;
+			color: #233d50;
+		}
+		.summary-count {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			margin-top: 18rpx;
+		}
+		.progress-track {
+			height: 12rpx;
+			margin-top: 24rpx;
+			margin-bottom: 14rpx;
+			border-radius: 8rpx;
+			background-color: #cfe7f5;
+			overflow: hidden;
+			.progress-fill {
+				height: 12rpx;
+				border-radius: 8rpx;
+				background-color: #2e91c6;
+			}
+		}
+	}
+
+	.packing-heading {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		margin: 6rpx 36rpx 24rpx;
+		.heading-actions {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			.heading-action {
+				padding: 10rpx 0 10rpx 24rpx;
+			}
+		}
+	}
+
+	.packing-group {
+		.group-heading {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			margin-bottom: 12rpx;
+		}
+		.packing-item {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			min-height: 76rpx;
+			.item-toggle {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				flex: 1;
+				min-width: 0;
+				min-height: 76rpx;
+				.item-name {
+					flex: 1;
+					margin-left: 20rpx;
+					font-size: 28rpx;
+					line-height: 44rpx;
+					color: #233d50;
+					&.is-packed {
+						color: #929ca5;
+					}
+				}
+			}
+			.remove-item {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				width: 60rpx;
+				min-height: 68rpx;
+			}
+			.expand-items {
+				margin-left: 12rpx;
+				padding: 14rpx 0;
+			}
+		}
+	}
+
+	.empty-packing {
+		min-height: 180rpx;
+	}
+
+	.undo-row {
+		margin: 0 40rpx 24rpx;
+	}
+
+	.add-item-card {
+		.item-name-input {
+			box-sizing: border-box;
+			width: 100%;
+			height: 86rpx;
+			padding: 16rpx 22rpx;
+			border-radius: 20rpx;
+			background-color: #f5f8fc;
+			font-size: 28rpx;
+			color: #233d50;
+		}
+		.form-error {
+			margin-top: 18rpx;
+			font-size: 24rpx;
+			line-height: 38rpx;
+			color: #be5555;
+		}
+		.form-actions {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: flex-end;
+			margin-top: 24rpx;
+			.form-cancel {
+				padding: 16rpx 30rpx;
+			}
+			.form-save {
+				padding: 16rpx 30rpx;
+				border-radius: 18rpx;
+				background-color: #2e91c6;
+			}
+		}
+	}
+
+	.retry-save {
+		margin: 0 44rpx 24rpx;
+	}
+</style>

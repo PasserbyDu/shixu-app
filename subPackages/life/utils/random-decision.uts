@@ -1,0 +1,34 @@
+export type DecisionOption = { id : number, text : string }
+export type DecisionTheme = { question : string, options : string[] }
+
+// methods
+export const validateDecision = (question : string, options : DecisionOption[]) : DecisionTheme => {
+	const title = question.trim()
+	if (title.length == 0 || title.length > 60) throw new Error('请填写 1 至 60 字的主题')
+	if (options.length < 2 || options.length > 20) throw new Error('请保留 2 至 20 个候选项')
+	const values : string[] = []
+	for (let index = 0; index < options.length; index++) {
+		const text = options[index].text.trim()
+		if (text.length == 0 || text.length > 40) throw new Error('第 ' + (index + 1) + ' 个选项需为 1 至 40 字')
+		if (values.includes(text)) throw new Error('候选项不能重复：' + text)
+		values.push(text)
+	}
+	return { question: title, options: values }
+}
+
+export const chooseDecision = (theme : DecisionTheme) : string => {
+	if (theme.options.length < 2) throw new Error('至少需要两个候选项')
+	return theme.options[Math.floor(Math.random() * theme.options.length)]
+}
+
+export const encodeDecision = (theme : DecisionTheme) : string => '1|' + encodeURIComponent(theme.question) + '|' + theme.options.map((text : string) : string => encodeURIComponent(text)).join(';')
+
+export const decodeDecision = (snapshot : string) : DecisionTheme | null => {
+	if (snapshot.length == 0) return null
+	if (snapshot.length > 20000) throw new Error('本地主题数据超出范围')
+	const parts = snapshot.split('|')
+	if (parts.length != 3 || parts[0] != '1') throw new Error('本地主题版本不匹配')
+	const question = decodeURIComponent(parts[1])
+	const options = parts[2].split(';').map((text : string, index : number) : DecisionOption => ({ id: index + 1, text: decodeURIComponent(text) }))
+	return validateDecision(question, options)
+}

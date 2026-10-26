@@ -1,0 +1,280 @@
+<template>
+	<tool-page title="随机决定" subtitle="把纠结交给小决定，把时间留给喜欢的事">
+		<view class="tool-card question-card">
+			<text class="text-[24rpx] leading-[40rpx] text-[#8795a1] mb-[18rpx]">这次决定什么？</text>
+			<input
+				v-model="question"
+				class="decision-input"
+				:disabled="!ready"
+				:maxlength="-1"
+				placeholder="填写这次的小决定"
+				@input="editTheme"
+			/>
+		</view>
+		<view class="tool-card choices-card">
+			<view class="choices-heading">
+				<text class="text-[28rpx] leading-[44rpx] font-medium text-[#233d50]">候选选项</text>
+				<text class="text-[24rpx] leading-[40rpx] text-[#8795a1]">{{ options.length }} 个</text>
+			</view>
+			<view v-for="(option, index) in options" :key="option.id" class="choice-row">
+				<text class="choice-index">{{ index + 1 }}.</text>
+				<input
+					v-model="option.text"
+					class="choice-input"
+					:disabled="!ready"
+					:maxlength="-1"
+					placeholder="填写候选项"
+					@input="editTheme"
+				/>
+				<view class="remove-choice" @click="removeOption(option.id)">
+					<UniIcons type="closeempty" size="28rpx" :color="options.length > 2 ? '#8795a1' : '#c5cdd3'" />
+				</view>
+			</view>
+			<view class="add-choice" @click="addOption">
+				<UniIcons type="plusempty" size="26rpx" color="#278dca" />
+				<text class="text-[24rpx] leading-[40rpx] text-[#278dca] ml-[8rpx]">添加选项</text>
+			</view>
+		</view>
+		<text v-if="error.length > 0" class="tool-error">{{ error }}</text>
+		<view class="tool-primary" @click="decide">
+			<text class="primary-text">{{ ready ? '帮我决定' : '正在读取主题…' }}</text>
+		</view>
+		<view class="tool-result decision-result">
+			<text class="result-label">这次就选</text>
+			<text class="result-value">{{ selected.length > 0 ? selected : '等待你的选择' }}</text>
+			<text class="tool-note">{{ selected.length > 0 ? options.length + ' 个选项，等概率随机抽取' : '填写至少两个不同选项，再点击帮我决定' }}</text>
+		</view>
+		<view class="tool-card save-row">
+			<text class="text-[26rpx] leading-[42rpx] text-[#233d50] flex-1">保存为常用主题</text>
+			<switch :checked="remember" :disabled="!ready" color="#2e91c6" @change="toggleRemember" />
+		</view>
+		<text v-if="saveMessage.length > 0" class="tool-footnote">{{ saveMessage }}</text>
+		<view v-if="saveFailed" class="retry-save" @click="retrySave">
+			<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">重新保存当前设置</text>
+		</view>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { ref } from 'vue';
+	import { DecisionOption, chooseDecision, decodeDecision, encodeDecision, validateDecision } from '@/subPackages/life/utils/random-decision.uts';
+	import { decisionStore } from '@/subPackages/life/utils/everyday-storage.uts';
+	import { recordToolUsage } from '@/utils/tool-usage';
+	import { toast } from '@/utils/toast';
+	// data
+	const question = ref('今天午饭吃什么');
+	const options = ref<DecisionOption[]>([{
+		id: 1,
+		text: '面条'
+	}, {
+		id: 2,
+		text: '米饭套餐'
+	}, {
+		id: 3,
+		text: '饺子'
+	}, {
+		id: 4,
+		text: '轻食'
+	}]);
+	const selected = ref('');
+	const remember = ref(false);
+	const ready = ref(false);
+	const error = ref('');
+	const saveMessage = ref('');
+	const saveFailed = ref(false);
+	let nextId = 5;
+	let saveTimer = -1;
+	let saveVersion = 0;
+	let disposed = false;
+	// methods
+	const cancelPendingSave = () => {
+		if (saveTimer >= 0) clearTimeout(saveTimer);
+		saveTimer = -1;
+	};
+	const persist = () => {
+		cancelPendingSave();
+		if (!ready.value) return;
+		let snapshot = '';
+		if (remember.value) {
+			try {
+				snapshot = encodeDecision(validateDecision(question.value, options.value));
+			} catch (exception) {
+				saveMessage.value = '当前内容未保存：' + (exception as Error).message;
+				return;
+			}
+		}
+		const version = ++saveVersion;
+		decisionStore.save(snapshot).then(() => {
+			if (disposed || version != saveVersion) return;
+			saveFailed.value = false;
+			saveMessage.value = remember.value ? '已保存在本机，下次打开时恢复当前主题' : '';
+		}).catch(() => {
+			if (disposed || version != saveVersion) return;
+			saveFailed.value = true;
+			saveMessage.value = '本地保存失败，本次仍可继续决定';
+		});
+	};
+	const editTheme = () => {
+		selected.value = '';
+		error.value = '';
+		if (!ready.value || !remember.value) return;
+		saveVersion++;
+		saveMessage.value = '修改待保存';
+		cancelPendingSave();
+		saveTimer = setTimeout(() => {
+			saveTimer = -1;
+			persist();
+		}, 250);
+	};
+	const addOption = () => {
+		if (!ready.value) return;
+		if (options.value.length >= 20) return toast('最多添加 20 个选项');
+		options.value.push({
+			id: nextId++,
+			text: ''
+		});
+		editTheme();
+	};
+	const removeOption = (id: number) => {
+		if (!ready.value) return;
+		if (options.value.length <= 2) return toast('至少保留两个候选项');
+		options.value = options.value.filter((option: DecisionOption): boolean => option.id != id);
+		editTheme();
+	};
+	const decide = () => {
+		if (!ready.value) return;
+		uni.hideKeyboard();
+		selected.value = '';
+		error.value = '';
+		try {
+			selected.value = chooseDecision(validateDecision(question.value, options.value));
+		} catch (exception) {
+			error.value = (exception as Error).message;
+		}
+	};
+	const toggleRemember = (event: UniSwitchChangeEvent) => {
+		if (!ready.value) return;
+		remember.value = event.detail.value;
+		persist();
+	};
+	const retrySave = () => {
+		persist();
+	};
+	// lifecycle
+	onLoad(async () => {
+		recordToolUsage('random-decision').catch(() => toast('保存使用记录失败'));
+		try {
+			const saved = decodeDecision(await decisionStore.load());
+			if (disposed) return;
+			if (saved != null) {
+				question.value = saved.question;
+				options.value = saved.options.map((text: string, index: number): DecisionOption => ({
+					id: index + 1,
+					text
+				}));
+				nextId = options.value.length + 1;
+				remember.value = true;
+			}
+		} catch (exception) {
+			if (!disposed) {
+				saveFailed.value = true;
+				saveMessage.value = '常用主题读取失败，可继续使用或重新保存当前设置';
+			}
+		}
+		if (!disposed) ready.value = true;
+	});
+	onHide(() => {
+		if (saveTimer >= 0) persist();
+	});
+	onUnload(() => {
+		if (saveTimer >= 0) persist();
+		disposed = true;
+		cancelPendingSave();
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/practical-tools.scss';
+	.question-card {
+		.decision-input {
+			box-sizing: border-box;
+			width: 100%;
+			height: 82rpx;
+			padding: 16rpx 24rpx;
+			border-radius: 20rpx;
+			background-color: #f5f8fc;
+			font-size: 30rpx;
+			color: #233d50;
+		}
+	}
+
+	.choices-card {
+		.choices-heading {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			margin-bottom: 22rpx;
+		}
+		.choice-row {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			min-height: 76rpx;
+			margin-bottom: 16rpx;
+			padding: 0 12rpx 0 24rpx;
+			border-radius: 18rpx;
+			background-color: #f5f8fc;
+			.choice-index {
+				flex-shrink: 0;
+				margin-right: 10rpx;
+				font-size: 26rpx;
+				line-height: 42rpx;
+				color: #233d50;
+			}
+			.choice-input {
+				flex: 1;
+				min-width: 0;
+				height: 70rpx;
+				font-size: 26rpx;
+				color: #233d50;
+			}
+			.remove-choice {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				flex-shrink: 0;
+				width: 60rpx;
+				min-height: 70rpx;
+			}
+		}
+		.add-choice {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			min-height: 60rpx;
+		}
+	}
+
+	.decision-result {
+		align-items: center;
+		.result-value {
+			font-size: 52rpx;
+			line-height: 76rpx;
+			text-align: center;
+		}
+		.tool-note {
+			text-align: center;
+		}
+	}
+
+	.save-row {
+		flex-direction: row;
+		align-items: center;
+	}
+
+	.retry-save {
+		margin: 0 44rpx 24rpx;
+	}
+</style>

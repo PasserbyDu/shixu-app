@@ -1,0 +1,46 @@
+import { ref } from 'vue';
+export const useToolChime = () => {
+	// data
+	const audioError = ref('');
+	let context: InnerAudioContext | null = null;
+	let disposed = false;
+	// methods
+	const play = () => {
+		if (disposed) return;
+		try {
+			audioError.value = '';
+			if (context == null) {
+				context = uni.createInnerAudioContext();
+				context!.src = '/static/audio/tool-chime.wav';
+				context!.obeyMuteSwitch = true;
+				context!.volume = 0.45;
+				context!.onError(() => {
+					if (!disposed) audioError.value = '提示音暂不可用，计时仍可正常使用';
+				});
+			}
+			context!.stop();
+			context!.play();
+		} catch (exception) {
+			audioError.value = '提示音暂不可用，计时仍可正常使用';
+		}
+	};
+	const stop = () => {
+		try {
+			context?.stop();
+		} catch (exception) {/* 停止声音失败不阻断计时和存档。 */}
+	};
+	const destroy = () => {
+		disposed = true;
+		stop();
+		try {
+			context?.destroy();
+		} catch (exception) {/* 释放已失效的原生音频实例。 */}
+		context = null;
+	};
+	return {
+		audioError,
+		play,
+		stop,
+		destroy
+	};
+};

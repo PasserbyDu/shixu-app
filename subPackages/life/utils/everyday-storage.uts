@@ -1,0 +1,30 @@
+import { STORAGE_DECISION_THEME_KEY, STORAGE_PACKING_LIST_KEY } from '@/config/constants'
+import { getStorage, setStorage } from '@/utils/storage'
+
+export type SnapshotStore = {
+	load : () => Promise<string>,
+	save : (snapshot : string) => Promise<boolean>
+}
+
+// 同一进程内缓存最新快照，串行写入，防止旧请求晚落盘覆盖新状态。
+export const createSnapshotStore = (key : string) : SnapshotStore => {
+	let latest : string | null = null
+	let queue : Promise<boolean> = Promise.resolve(true)
+	const load = async () : Promise<string> => {
+		if (latest != null) return latest!
+		const saved : any = await getStorage(key, '')
+		if (latest != null) return latest!
+		if (typeof saved != 'string') throw new Error('本地数据格式不正确')
+		return saved as string
+	}
+	const save = (snapshot : string) : Promise<boolean> => {
+		latest = snapshot
+		const task = queue.then(() : Promise<boolean> => setStorage(key, snapshot))
+		queue = task.catch(() : boolean => false)
+		return task
+	}
+	return { load, save }
+}
+
+export const decisionStore = createSnapshotStore(STORAGE_DECISION_THEME_KEY)
+export const packingStore = createSnapshotStore(STORAGE_PACKING_LIST_KEY)

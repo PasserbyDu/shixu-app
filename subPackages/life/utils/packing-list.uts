@@ -1,0 +1,52 @@
+export type PackingGroup = { id : number, title : string }
+export type PackingItem = { id : number, group : number, name : string, packed : boolean }
+export type PackingTemplate = { id : string, title : string, names : string[][] }
+export type PackingList = { templateId : string, items : PackingItem[] }
+export type PackingSnapshot = { active : number, lists : PackingList[] }
+
+// data
+export const PACKING_GROUPS : PackingGroup[] = [
+	{ id: 0, title: '证件与随身' }, { id: 1, title: '电子设备' }, { id: 2, title: '衣物与洗漱' }
+]
+export const PACKING_TEMPLATES : PackingTemplate[] = [
+	{ id: 'weekend', title: '周末短途 · 2 天 1 夜', names: [['身份证', '手机'], ['充电器', '充电宝'], ['换洗衣物', '洗漱用品', '毛巾', '睡衣']] },
+	{ id: 'business', title: '商务出差 · 3 天 2 夜', names: [['身份证', '手机', '银行卡'], ['充电器', '充电宝', '笔记本电脑', '电脑充电器'], ['换洗衣物', '洗漱用品', '商务衣物']] },
+	{ id: 'travel', title: '长途旅行 · 7 天 6 夜', names: [['身份证', '手机', '银行卡', '钥匙'], ['充电器', '充电宝', '耳机', '相机'], ['换洗衣物', '洗漱用品', '毛巾', '睡衣', '雨伞', '便携水杯']] }
+]
+
+// methods
+export const newPackingLists = () : PackingList[] => PACKING_TEMPLATES.map((template : PackingTemplate) : PackingList => {
+	const items : PackingItem[] = []
+	for (let group = 0; group < template.names.length; group++) {
+		template.names[group].forEach((name : string) => { items.push({ id: items.length + 1, group, name, packed: false }) })
+	}
+	return { templateId: template.id, items }
+})
+
+export const encodePacking = (active : number, lists : PackingList[]) : string => {
+	return '1|' + active + '|' + lists.map((list : PackingList) : string => list.items.map((item : PackingItem) : string => item.id + ',' + item.group + ',' + (item.packed ? '1' : '0') + ',' + encodeURIComponent(item.name)).join(';')).join('|')
+}
+
+export const decodePacking = (snapshot : string) : PackingSnapshot => {
+	if (snapshot.length == 0) return { active: 0, lists: newPackingLists() }
+	if (snapshot.length > 200000) throw new Error('清单数据超出范围')
+	const parts = snapshot.split('|')
+	if (parts.length != 5 || parts[0] != '1' || !/^[0-2]$/.test(parts[1])) throw new Error('清单数据版本不匹配')
+	const lists : PackingList[] = []
+	for (let listIndex = 0; listIndex < 3; listIndex++) {
+		const items : PackingItem[] = []
+		const encoded = parts[listIndex + 2].length == 0 ? [] : parts[listIndex + 2].split(';')
+		if (encoded.length > 100) throw new Error('单个清单最多 100 件物品')
+		for (let index = 0; index < encoded.length; index++) {
+			const values = encoded[index].split(',')
+			if (values.length != 4 || !/^\d{1,10}$/.test(values[0]) || !/^[0-2]$/.test(values[1]) || !/^[01]$/.test(values[2])) throw new Error('物品数据格式不正确')
+			const id = Number(values[0])
+			const group = Number(values[1])
+			const name = decodeURIComponent(values[3]).trim()
+			if (id <= 0 || name.length == 0 || name.length > 40 || items.some((item : PackingItem) : boolean => item.id == id || (item.group == group && item.name == name))) throw new Error('物品数据无效或重复')
+			items.push({ id, group, name, packed: values[2] == '1' })
+		}
+		lists.push({ templateId: PACKING_TEMPLATES[listIndex].id, items })
+	}
+	return { active: Number(parts[1]), lists }
+}

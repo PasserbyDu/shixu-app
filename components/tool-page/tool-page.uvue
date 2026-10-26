@@ -1,5 +1,5 @@
 <template>
-	<scroll-view class="practical-page" scroll-y="true">
+	<scroll-view class="practical-page" scroll-y="true" :scroll-into-view="scrollIntoView">
 		<page-header
 			:fixed="isHeaderFixed"
 			:title="title"
@@ -19,10 +19,11 @@
 
 <script setup lang="uts">
 	import { ref } from 'vue';
-	defineProps<{
+	withDefaults(defineProps<{
 		title: string;
 		subtitle: string;
-	}>();
+		scrollIntoView?: string;
+	}>(), { scrollIntoView: '' });
 	const isHeaderFixed = ref(false);
 </script>
 

@@ -1,0 +1,328 @@
+<template>
+	<tool-page title="番茄专注" subtitle="留一段完整的时间，专心做好眼前这件事">
+		<view class="tool-card focus-card">
+			<view class="tool-tabs">
+				<view
+					v-for="(label, index) in modes"
+					:key="label"
+					:class="['tab-button', state.mode == index ? 'is-active' : '']"
+					@click="changeMode(index)"
+				>
+					<text class="tab-label">{{ label }}</text>
+				</view>
+			</view>
+			<view :class="['timer-ring', state.phase == 3 ? 'is-complete' : '']">
+				<text class="timer-round">{{ state.mode == 0 ? '第 ' + focusRound + ' 轮专注' : modes[state.mode] }}</text>
+				<text class="timer-digits">{{ timerClock(state.remaining) }}</text>
+				<text v-if="state.phase == 2 || state.phase == 3" class="timer-state">{{ state.phase == 3 ? '本阶段已完成' : '已暂停' }}</text>
+			</view>
+			<input
+				v-model="taskDraft"
+				class="task-input"
+				:disabled="!ready"
+				:maxlength="-1"
+				placeholder="今天想完成什么？点此填写任务"
+				@input="editTask"
+			/>
+			<text v-if="taskError.length > 0" class="tool-note">{{ taskError }}</text>
+		</view>
+		<view class="tool-primary" @click="toggleTimer">
+			<text class="primary-text">{{ ready ? primaryLabel : '正在恢复计时…' }}</text>
+		</view>
+		<text v-if="state.phase == 2 || state.phase == 3" class="secondary-action" @click="resetCurrent">重置本轮</text>
+		<view class="focus-statistics">
+			<view class="focus-stat">
+				<text class="stat-label">今日完成</text>
+				<text class="stat-value">{{ todayCount }} 轮</text>
+			</view>
+			<view class="focus-stat">
+				<text class="stat-label">累计专注</text>
+				<text class="stat-value">{{ Math.floor(state.totalMs / 60000) }} 分钟</text>
+			</view>
+		</view>
+		<view class="tool-card wellness-form settings-card">
+			<view class="settings-entry" @click="toggleSettings">
+				<view class="flex-1">
+					<text class="text-[28rpx] leading-[44rpx] font-medium text-[#233d50]">时长设置</text>
+					<text class="tool-note">专注 {{ state.config[0] }} 分钟 · 短休息 {{ state.config[1] }} 分钟</text>
+					<text class="tool-note">每 4 轮长休息 {{ state.config[2] }} 分钟</text>
+				</view>
+				<UniIcons type="right" size="28rpx" color="#8795a1" />
+			</view>
+			<view v-if="settingsOpen">
+				<view v-for="(label, index) in modes" :key="label" class="form-field">
+					<text class="form-label">{{ label }}时长（分钟）</text>
+					<input v-model="settingsDraft[index]" class="form-input" type="number" :maxlength="-1" />
+				</view>
+				<text v-if="settingsError.length > 0" class="form-error">{{ settingsError }}</text>
+				<view class="form-actions">
+					<text class="form-cancel" @click="settingsOpen = false">取消</text>
+					<text class="form-submit" @click="saveSettings">保存并重置本轮</text>
+				</view>
+			</view>
+		</view>
+		<text v-if="storageError.length > 0" class="tool-footnote">{{ storageError }}</text>
+		<text v-if="storageError.length > 0" class="archive-retry" @click="persist(true)">重新保存当前计时与统计</text>
+		<text v-if="audioError.length > 0" class="tool-footnote">{{ audioError }}</text>
+		<text class="tool-footnote">离开页面后按截止时间继续计时，返回时校正；当前阶段结束后等待你开启下一阶段，不自动连跑。累计专注包含已实际经过的专注时间。后台不保证声音或系统通知。</text>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue';
+	import { formatCalendarDate } from '@/utils/calculators';
+	import {
+	FocusDay,
+	advanceFocus,
+	decodeFocus,
+	encodeFocus,
+	initialFocus,
+	pauseFocus,
+	resetFocus,
+	startFocus,
+	timerClock,
+} from '@/subPackages/life/utils/focus-timer.uts';
+	import { archiveInteger } from '@/subPackages/life/utils/wellness-data.uts';
+	import { pomodoroStore, useSavedArchive } from '@/subPackages/life/utils/wellness-storage.uts';
+	import { useToolChime } from '@/subPackages/life/utils/use-tool-chime.uts';
+	import { recordToolUsage } from '@/utils/tool-usage';
+	import { toast } from '@/utils/toast';
+	// data
+	const archive = useSavedArchive(pomodoroStore);
+	const {
+		ready,
+		storageError
+	} = archive;
+	const chime = useToolChime();
+	const {
+		audioError
+	} = chime;
+	const state = ref(initialFocus());
+	const taskDraft = ref('');
+	const taskError = ref('');
+	const modes = ['专注', '短休息', '长休息'];
+	const today = ref(formatCalendarDate(new Date()));
+	const settingsOpen = ref(false);
+	const settingsDraft = ref<string[]>(['25', '5', '15']);
+	const settingsError = ref('');
+	let timer = -1;
+	let visible = false;
+	let lastSavedAt = 0;
+	let taskTimer = -1;
+	// computed
+	const focusRound = computed((): number => state.value.phase == 3 && state.value.mode == 0 ? (state.value.completed - 1) % 4 + 1 : state.value.completed % 4 + 1);
+	const todayCount = computed((): number => state.value.days.find((day: FocusDay): boolean => day.date == today.value)?.count ?? 0);
+	const primaryLabel = computed((): string => {
+		if (state.value.phase == 1) return '暂停' + modes[state.value.mode];
+		if (state.value.phase == 2) return '继续' + modes[state.value.mode];
+		if (state.value.phase == 3) return state.value.mode == 0 ? state.value.completed % 4 == 0 ? '开始长休息' : '开始短休息' : '开始专注';
+		return '开始' + modes[state.value.mode];
+	});
+	// methods
+	const stopTimer = () => {
+		if (timer >= 0) clearInterval(timer);
+		timer = -1;
+	};
+	const persist = (explicit: boolean = false) => {
+		archive.save(encodeFocus(state.value), explicit);
+		lastSavedAt = Date.now();
+	};
+	const tick = (withSound: boolean = true) => {
+		if (!ready.value) return;
+		today.value = formatCalendarDate(new Date());
+		const finished = advanceFocus(state.value, Date.now());
+		if (finished) {
+			stopTimer();
+			if (withSound && visible) chime.play();
+			persist();
+		} else if (state.value.phase == 1 && Date.now() - lastSavedAt >= 15000) persist();
+	};
+	const runTimer = () => {
+		stopTimer();
+		if (state.value.phase == 1 && visible) timer = setInterval(() => {
+			tick();
+		}, 250);
+	};
+	const toggleTimer = () => {
+		if (!ready.value) return;
+		if (state.value.phase == 1) {
+			tick(false);
+			pauseFocus(state.value, Date.now());
+			stopTimer();
+		} else {
+			if (taskDraft.value.length > 80) return toast('任务名称最多80字');
+			startFocus(state.value, Date.now());
+			settingsOpen.value = false;
+			runTimer();
+		}
+		persist();
+	};
+	const changeMode = (mode: number) => {
+		if (!ready.value || mode == state.value.mode) return;
+		if (state.value.phase == 1) return toast('请先暂停再切换阶段');
+		resetFocus(state.value, mode);
+		settingsOpen.value = false;
+		persist();
+	};
+	const resetCurrent = () => {
+		if (!ready.value || state.value.phase == 1) return;
+		resetFocus(state.value, state.value.mode);
+		persist();
+	};
+	const toggleSettings = () => {
+		if (!ready.value) return;
+		if (state.value.phase == 1) return toast('请先暂停再修改时长');
+		settingsDraft.value = state.value.config.map((value: number): string => value.toString());
+		settingsError.value = '';
+		settingsOpen.value = !settingsOpen.value;
+	};
+	const saveSettings = () => {
+		if (!ready.value || state.value.phase == 1) return toast('请先暂停再修改时长');
+		try {
+			const config = [archiveInteger(settingsDraft.value[0], 1, 180), archiveInteger(settingsDraft.value[1], 1, 60), archiveInteger(settingsDraft.value[2], 1, 120)];
+			state.value.config = config;
+			resetFocus(state.value, state.value.mode);
+			settingsOpen.value = false;
+			persist();
+		} catch (exception) {
+			settingsError.value = (exception as Error).message;
+		}
+	};
+	const editTask = () => {
+		if (taskTimer >= 0) clearTimeout(taskTimer);
+		taskTimer = -1;
+		if (taskDraft.value.length > 80) {
+			taskError.value = '任务最多80字，当前文字尚未保存';
+			return;
+		}
+		;
+		taskError.value = '';
+		state.value.task = taskDraft.value;
+		taskTimer = setTimeout(() => {
+			taskTimer = -1;
+			persist();
+		}, 300);
+	};
+	const checkpoint = () => {
+		visible = false;
+		stopTimer();
+		chime.stop();
+		if (taskTimer >= 0) clearTimeout(taskTimer);
+		taskTimer = -1;
+		if (!ready.value) return;
+		tick(false);
+		persist();
+	};
+	// lifecycle
+	onLoad(async () => {
+		recordToolUsage('pomodoro').catch(() => toast('保存使用记录失败'));
+		await archive.load((snapshot: string) => {
+			state.value = decodeFocus(snapshot);
+			taskDraft.value = state.value.task;
+		});
+		tick(false);
+		if (visible) runTimer();
+	});
+	onShow(() => {
+		visible = true;
+		today.value = formatCalendarDate(new Date());
+		tick(false);
+		runTimer();
+	});
+	onHide(() => {
+		checkpoint();
+	});
+	onUnload(() => {
+		checkpoint();
+		archive.dispose();
+		chime.destroy();
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/wellness-tools.scss';
+	.focus-card {
+		align-items: center;
+		.tool-tabs {
+			width: 100%;
+		}
+		.timer-ring {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			box-sizing: border-box;
+			width: 414rpx;
+			height: 414rpx;
+			margin-top: 56rpx;
+			border: 18rpx solid #2e91c6;
+			border-radius: 207rpx;
+			&.is-complete {
+				border-color: #55a88f;
+			}
+			.timer-round {
+				font-size: 24rpx;
+				line-height: 40rpx;
+				color: #8795a1;
+			}
+			.timer-digits {
+				font-size: 92rpx;
+				font-weight: 700;
+				line-height: 124rpx;
+				color: #233d50;
+			}
+			.timer-state {
+				font-size: 22rpx;
+				line-height: 36rpx;
+				color: #278dca;
+			}
+		}
+		.task-input {
+			box-sizing: border-box;
+			width: 100%;
+			height: 84rpx;
+			margin-top: 28rpx;
+			font-size: 24rpx;
+			text-align: center;
+			color: #233d50;
+		}
+	}
+
+	.focus-statistics {
+		display: flex;
+		flex-direction: row;
+		justify-content: space-between;
+		margin: 0 32rpx 30rpx;
+		.focus-stat {
+			box-sizing: border-box;
+			width: 48%;
+			padding: 26rpx 28rpx;
+			border-radius: 28rpx;
+			background-color: #ffffff;
+			.stat-label {
+				font-size: 22rpx;
+				line-height: 38rpx;
+				color: #8795a1;
+			}
+			.stat-value {
+				display: block;
+				margin-top: 14rpx;
+				font-size: 40rpx;
+				line-height: 60rpx;
+				color: #278dca;
+				word-break: break-all;
+			}
+		}
+	}
+
+	.settings-card {
+		.settings-entry {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			.tool-note {
+				margin-top: 10rpx;
+			}
+		}
+	}
+</style>

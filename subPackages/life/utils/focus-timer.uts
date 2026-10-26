@@ -1,0 +1,121 @@
+import { formatCalendarDate, padNumber } from '@/utils/calculators.uts';
+import { archiveInteger, validRecordDate } from '@/subPackages/life/utils/wellness-data.uts';
+export type FocusDay = {
+	date: string;
+	count: number;
+};
+export type FocusTimer = {
+	mode: number;
+	phase: number;
+	config: number[];
+	remaining: number;
+	deadline: number;
+	accounted: number;
+	totalMs: number;
+	completed: number;
+	task: string;
+	days: FocusDay[];
+};
+
+// methods
+export const initialFocus = (): FocusTimer => ({
+	mode: 0,
+	phase: 0,
+	config: [25, 5, 15],
+	remaining: 1500000,
+	deadline: 0,
+	accounted: 0,
+	totalMs: 0,
+	completed: 0,
+	task: '',
+	days: []
+});
+export const timerClock = (milliseconds: number): string => {
+	const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
+	return padNumber(Math.floor(seconds / 60)) + ':' + padNumber(seconds % 60);
+};
+export const resetFocus = (state: FocusTimer, mode: number) => {
+	state.mode = mode;
+	state.phase = 0;
+	state.remaining = state.config[mode] * 60000;
+	state.deadline = 0;
+	state.accounted = 0;
+};
+// 根据截止时间补计，而非每次定时器固定减一；一次只结算当前阶段。
+export const advanceFocus = (state: FocusTimer, now: number): boolean => {
+	if (state.phase != 1) return false;
+	if (now < state.accounted) {
+		state.deadline = now + state.remaining;
+		state.accounted = now;
+	}
+	const until = Math.min(now, state.deadline);
+	if (state.mode == 0) state.totalMs += Math.max(0, until - state.accounted);
+	state.accounted = until;
+	state.remaining = Math.max(0, state.deadline - now);
+	if (state.remaining > 0) return false;
+	const endedAt = state.deadline;
+	state.phase = 3;
+	state.deadline = 0;
+	state.accounted = 0;
+	if (state.mode == 0) {
+		state.completed++;
+		const date = formatCalendarDate(new Date(endedAt));
+		const day = state.days.find((entry: FocusDay): boolean => entry.date == date);
+		if (day == null) state.days.push({
+			date,
+			count: 1
+		});else day.count++;
+		state.days.sort((a: FocusDay, b: FocusDay): number => a.date > b.date ? -1 : a.date < b.date ? 1 : 0);
+		if (state.days.length > 200) state.days = state.days.slice(0, 200);
+	}
+	return true;
+};
+export const startFocus = (state: FocusTimer, now: number) => {
+	if (state.phase == 1) return;
+	if (state.phase == 3) resetFocus(state, state.mode == 0 ? state.completed % 4 == 0 ? 2 : 1 : 0);
+	state.phase = 1;
+	state.deadline = now + state.remaining;
+	state.accounted = now;
+};
+export const pauseFocus = (state: FocusTimer, now: number) => {
+	advanceFocus(state, now);
+	if (state.phase != 1) return;
+	state.phase = 2;
+	state.deadline = 0;
+	state.accounted = 0;
+};
+export const encodeFocus = (state: FocusTimer): string => ['1', state.mode.toString(), state.phase.toString(), state.config.join(','), state.remaining.toString(), state.deadline.toString(), state.accounted.toString(), state.totalMs.toString(), state.completed.toString(), encodeURIComponent(state.task), state.days.map((day: FocusDay): string => day.date + ',' + day.count).join(';')].join('|');
+export const decodeFocus = (snapshot: string): FocusTimer => {
+	if (snapshot.length == 0) return initialFocus();
+	if (snapshot.length > 30000) throw new Error('计时存档过大');
+	const data = snapshot.split('|');
+	if (data.length != 11 || data[0] != '1') throw new Error('计时存档版本不匹配');
+	const config = data[3].split(',');
+	if (config.length != 3) throw new Error('时长设置无效');
+	const state = initialFocus();
+	state.mode = archiveInteger(data[1], 0, 2);
+	state.phase = archiveInteger(data[2], 0, 3);
+	state.config = [archiveInteger(config[0], 1, 180), archiveInteger(config[1], 1, 60), archiveInteger(config[2], 1, 120)];
+	state.remaining = archiveInteger(data[4], 0, state.config[state.mode] * 60000);
+	state.deadline = archiveInteger(data[5], 0, 999999999999999);
+	state.accounted = archiveInteger(data[6], 0, 999999999999999);
+	state.totalMs = archiveInteger(data[7], 0, 999999999999999);
+	state.completed = archiveInteger(data[8], 0, 1000000000);
+	state.task = decodeURIComponent(data[9]);
+	if (state.task.length > 80) throw new Error('任务名称过长');
+	if (state.phase == 1 && (state.remaining <= 0 || state.accounted <= 0 || state.deadline - state.accounted != state.remaining)) throw new Error('计时截止数据无效');
+	if (state.phase != 1 && (state.deadline != 0 || state.accounted != 0)) throw new Error('非运行状态不应包含截止时间');
+	if (state.phase == 3 && state.remaining != 0 || state.phase == 0 && state.remaining != state.config[state.mode] * 60000 || state.phase == 2 && state.remaining <= 0) throw new Error('剩余时间与状态不匹配');
+	const days = data[10].length == 0 ? [] : data[10].split(';');
+	if (days.length > 200) throw new Error('日期统计超出范围');
+	days.forEach((value: string) => {
+		const parts = value.split(',');
+		if (parts.length != 2 || !validRecordDate(parts[0], true) || state.days.some((day: FocusDay): boolean => day.date == parts[0])) throw new Error('日期统计无效');
+		state.days.push({
+			date: parts[0],
+			count: archiveInteger(parts[1], 1, 1000000000)
+		});
+	});
+	if (state.days.reduce((sum: number, day: FocusDay): number => sum + day.count, 0) > state.completed) throw new Error('完成轮次统计不一致');
+	return state;
+};

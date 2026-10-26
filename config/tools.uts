@@ -70,19 +70,39 @@ const tools : Tool[] = [
 		icon: 'staff', iconText: '', color: '#278dca', background: '#e8f6ff'
 	},
 	{
+		id: 'random-decision', title: '随机决定', shortTitle: '随机决定', summary: '把纠结交给随机',
+		description: '编辑候选项，等概率抽选并保存常用主题', keywords: '随机 决定 选择 抽签 吃什么 选项',
+		icon: 'loop', iconText: '', color: '#278dca', background: '#e8f6ff'
+	},
+	{
+		id: 'packing-list', title: '行李清单', shortTitle: '行李清单', summary: '出行物品逐项勾选',
+		description: '按模板整理行李，新增物品并记录打包进度', keywords: '行李 清单 出行 旅行 打包 物品 短途 出差',
+		icon: 'list', iconText: '', color: '#278dca', background: '#e8f6ff'
+	},
+	{
 		id: 'account', title: '生活记账', shortTitle: '生活记账', summary: '日常收支记录',
 		description: '记录日常收入与支出', keywords: '生活 记账 收入 支出',
 		icon: 'compose', iconText: '', color: '#8c6cff', background: '#f3edff'
 	},
 	{
 		id: 'fitness', title: '健身记录', shortTitle: '健身记录', summary: '记录训练数据',
-		description: '记录训练数据与身体变化', keywords: '健身 训练 身体 运动',
+		description: '记录训练动作、组数及时长，查看每周训练统计', keywords: '健身 训练 组数 时长 运动 动作',
 		icon: 'heart', iconText: '', color: '#c65399', background: '#fceff7'
 	},
 	{
 		id: 'pet', title: '宠物管理', shortTitle: '宠物管理', summary: '记录宠物信息',
-		description: '记录宠物信息', keywords: '宠物 管理 信息',
+		description: '管理宠物档案，记录体重、疫苗和驱虫日期', keywords: '宠物 管理 体重 疫苗 驱虫 提醒',
 		icon: '', iconText: '', color: '#9462e9', background: '#f2eeff'
+	},
+	{
+		id: 'pomodoro', title: '番茄专注', shortTitle: '番茄专注', summary: '留一段完整的专注时间',
+		description: '专注与长短休息计时，记录完成轮数和累计时长', keywords: '番茄 专注 计时 休息 学习 工作',
+		icon: '', iconText: '专', color: '#278dca', background: '#e8f6ff'
+	},
+	{
+		id: 'breathing', title: '呼吸放松', shortTitle: '呼吸放松', summary: '跟随圆环放慢呼吸',
+		description: '选择练习时长，跟随吸气与呼气节奏放松', keywords: '呼吸 放松 节奏 练习 声音',
+		icon: '', iconText: '息', color: '#55a88f', background: '#e8f5ef'
 	},
 	{
 		id: 'image-pdf', title: '图片转 PDF', shortTitle: '图片转 PDF', summary: '多图合并生成',
@@ -163,6 +183,11 @@ const tools : Tool[] = [
 		id: 'klotski', title: '华容道', shortTitle: '华容道', summary: '经典横刀立马',
 		description: '移动棋子，让曹操从下方出口离开', keywords: '华容道 横刀立马 曹操 休闲 游戏 益智 klotski',
 		icon: '', iconText: '华', color: '#318fc2', background: '#e8f6ff'
+	},
+	{
+		id: 'party-dice', title: '聚会摇骰子', shortTitle: '聚会骰子', summary: '摇一摇，开盅看点数',
+		description: '1 至 6 颗骰子独立随机，支持盖盅、开盅与音效', keywords: '聚会 骰子 摇骰 点数 开盅 盖盅 随机 游戏',
+		icon: '', iconText: '骰', color: '#318fc2', background: '#e8f6ff'
 	}
 ]
 
@@ -170,7 +195,7 @@ const categories : ToolCategory[] = [
 	{
 		id: 'life', title: '生活工具', shortTitle: '生活', subtitle: '日常实用工具',
 		icon: 'home', color: '#0096f7', background: '#edf8ff',
-		toolIds: ['date', 'time', 'unit', 'retirement', 'age', 'lunar-date', 'kinship', 'account', 'fitness', 'pet']
+		toolIds: ['date', 'time', 'unit', 'retirement', 'age', 'lunar-date', 'kinship', 'random-decision', 'packing-list', 'account', 'fitness', 'pet', 'pomodoro', 'breathing']
 	},
 	{
 		id: 'office', title: '办公工具', shortTitle: '办公', subtitle: '提升工作效率',
@@ -196,7 +221,7 @@ const categories : ToolCategory[] = [
 	},
 	{
 		id: 'games', title: '休闲游戏', shortTitle: '游戏', subtitle: '益智休闲，轻松一刻',
-		icon: 'flag', color: '#318fc2', background: '#e8f6ff', toolIds: ['2048', 'klotski']
+		icon: 'flag', color: '#318fc2', background: '#e8f6ff', toolIds: ['2048', 'klotski', 'party-dice']
 	}
 ]
 
@@ -241,6 +266,18 @@ export const getToolPath = (id : string) : string => {
 			return '/subPackages/life/lunar-date'
 		case 'kinship':
 			return '/subPackages/life/kinship'
+		case 'random-decision':
+			return '/subPackages/life/random-decision'
+		case 'packing-list':
+			return '/subPackages/life/packing-list'
+		case 'fitness':
+			return '/subPackages/life/fitness'
+		case 'pet':
+			return '/subPackages/life/pets'
+		case 'pomodoro':
+			return '/subPackages/life/pomodoro'
+		case 'breathing':
+			return '/subPackages/life/breathing'
 		case 'mortgage':
 			return '/subPackages/finance/mortgage'
 		case 'car-loan':
@@ -259,6 +296,8 @@ export const getToolPath = (id : string) : string => {
 			return '/subPackages/games/number-2048'
 		case 'klotski':
 			return '/subPackages/games/klotski'
+		case 'party-dice':
+			return '/subPackages/games/party-dice'
 	}
 	return ''
 }

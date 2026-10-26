@@ -1,0 +1,431 @@
+<template>
+	<tool-page title="健身记录" subtitle="记录每一次训练，让进步有迹可循" :scrollIntoView="scrollTarget">
+		<view class="tool-card overview-card">
+			<view class="overview-heading">
+				<text class="text-[30rpx] leading-[46rpx] text-[#233d50]">本周概览</text>
+				<text class="text-[22rpx] leading-[36rpx] text-[#8795a1]">{{ week[0].slice(5).replace('-', '.') }}－{{ week[6].slice(5).replace('-', '.') }}</text>
+			</view>
+			<view class="overview-stats">
+				<view v-for="stat in stats" :key="stat.label" class="stat-column">
+					<view class="stat-main">
+						<text class="stat-number" :style="'font-size: ' + (stat.value >= 10000 ? 38 : 52) + 'rpx;'">{{ stat.value }}</text>
+						<text class="stat-unit">{{ stat.unit }}</text>
+					</view>
+					<text class="stat-label">{{ stat.label }}</text>
+				</view>
+			</view>
+		</view>
+		<view class="tool-card week-card">
+			<view class="week-heading">
+				<text class="text-[30rpx] leading-[46rpx] text-[#233d50]">本周训练</text>
+				<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">今天 {{ today.slice(5).replace('-', '/') }}</text>
+			</view>
+			<view class="week-days">
+				<view v-for="(date, index) in week" :key="date" class="week-day" @click="selectDay(date)">
+					<text class="day-label">{{ weekdays[index] }}</text>
+					<view
+						:class="['day-number', hasTraining(date) ? 'has-training' : '', date == today ? 'is-today' : '', date == selectedDate ? 'is-selected' : '']"
+					>
+						<text class="day-value">{{ Number(date.slice(8)) }}</text>
+					</view>
+				</view>
+			</view>
+		</view>
+		<view class="wellness-heading">
+			<text class="heading-text">{{ selectedDate.length > 0 ? selectedDate + ' 的训练' : showAll ? '全部训练' : '最近训练' }}</text>
+			<text class="heading-action" @click="toggleAll">{{ showAll ? '最近记录' : '全部记录' }} ›</text>
+		</view>
+		<text v-if="selectedDate.length > 0" class="secondary-action" @click="selectedDate = ''">取消日期筛选</text>
+		<view class="tool-card">
+			<view v-if="shownRecords.length == 0" class="empty-records">
+				<empty-state image="" :description="ready ? '还没有训练记录，记下今天的努力吧' : '正在读取训练记录…'" />
+			</view>
+			<view v-for="record in shownRecords" :key="record.id" class="history-row" @click="editRecord(record)">
+				<view class="training-icon">
+					<UniIcons type="flag" size="34rpx" color="#278dca" />
+				</view>
+				<view class="history-content">
+					<text class="history-title">{{ categories[record.category].title }}</text>
+					<text class="history-detail">{{ record.date.slice(0, 4) == today.slice(0, 4) ? record.date.slice(5).replace('-', '月') + '日' : record.date }} · {{ record.action }}</text>
+					<text class="history-detail">{{ record.sets }} 组 · {{ record.minutes }} 分钟</text>
+				</view>
+				<UniIcons type="right" size="28rpx" color="#8795a1" />
+			</view>
+		</view>
+		<view v-if="lastDeleted != null" class="secondary-action" @click="undoDelete">
+			<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">撤销删除“{{ lastDeleted!.action }}”</text>
+		</view>
+		<view class="library-link" @click="libraryOpen = !libraryOpen">
+			<UniIcons type="flag" size="30rpx" color="#278dca" />
+			<text class="flex-1 ml-[16rpx] text-[26rpx] leading-[42rpx] text-[#278dca]">动作库</text>
+			<text class="text-[22rpx] leading-[38rpx] text-[#8795a1]">{{ libraryOpen ? '收起' : '查看常用动作' }} ›</text>
+		</view>
+		<view v-if="libraryOpen" class="tool-card action-library">
+			<view v-for="(category, categoryIndex) in categories" :key="category.title" class="action-group">
+				<text class="text-[26rpx] leading-[42rpx] text-[#233d50]">{{ category.title }}</text>
+				<view class="action-options">
+					<view
+						v-for="name in category.actions"
+						:key="name"
+						class="action-option"
+						@click="newRecord(categoryIndex, name)"
+					>
+						<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">{{ name }}</text>
+					</view>
+				</view>
+			</view>
+		</view>
+		<view class="tool-primary" @click="newRecord(0, '')">
+			<UniIcons type="plusempty" size="30rpx" color="#ffffff" />
+			<text class="primary-text ml-[10rpx]">记录训练</text>
+		</view>
+		<view v-if="formOpen" id="fitness-form" class="tool-card wellness-form">
+			<text class="card-title">{{ editingId > 0 ? '编辑训练' : '记录训练' }}</text>
+			<view class="form-field">
+				<text class="form-label">训练日期</text>
+				<picker mode="date" :value="formDate" start="1900-01-01" :end="today" @change="changeDate">
+					<view class="tool-field">
+						<text class="field-value">{{ formDate }}</text>
+						<UniIcons type="bottom" size="26rpx" color="#278dca" />
+					</view>
+				</picker>
+			</view>
+			<view class="form-field">
+				<text class="form-label">训练分类</text>
+				<picker :range="categoryLabels" :value="formCategory" @change="changeCategory">
+					<view class="tool-field">
+						<text class="field-value">{{ categoryLabels[formCategory] }}</text>
+						<UniIcons type="bottom" size="26rpx" color="#278dca" />
+					</view>
+				</picker>
+			</view>
+			<view class="form-field">
+				<text class="form-label">动作名称</text>
+				<input v-model="formAction" class="form-input" :maxlength="-1" placeholder="填写动作，或从动作库选择" />
+			</view>
+			<view class="form-field">
+				<text class="form-label">组数（有氧可填 0）</text>
+				<input v-model="formSets" class="form-input" type="number" :maxlength="-1" />
+			</view>
+			<view class="form-field">
+				<text class="form-label">训练时长（分钟）</text>
+				<input v-model="formMinutes" class="form-input" type="number" :maxlength="-1" />
+			</view>
+			<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
+			<view class="form-actions">
+				<text v-if="editingId > 0" class="form-delete" @click="deleteRecord">删除记录</text>
+				<text class="form-cancel" @click="formOpen = false">取消</text>
+				<text class="form-submit" @click="saveRecord">保存训练</text>
+			</view>
+		</view>
+		<text v-if="storageError.length > 0" class="tool-footnote">{{ storageError }}</text>
+		<text v-if="storageError.length > 0" class="archive-retry" @click="persist(true)">重新保存当前记录</text>
+		<text class="tool-footnote">记录仅保存在本机，最多200条；每条记录计1次训练，概览按本周实际记录统计。</text>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { computed, nextTick, ref } from 'vue';
+	import { formatCalendarDate } from '@/utils/calculators';
+	import {
+	TRAINING_CATEGORIES,
+	Training,
+	TrainingCategory,
+	archiveInteger,
+	currentWeek,
+	decodeTraining,
+	encodeTraining,
+	nextRecordId,
+	validateTraining,
+} from '@/subPackages/life/utils/wellness-data.uts';
+	import { fitnessStore, useSavedArchive } from '@/subPackages/life/utils/wellness-storage.uts';
+	import { recordToolUsage } from '@/utils/tool-usage';
+	import { toast } from '@/utils/toast';
+	// data
+	type Stat = {
+		label: string;
+		value: number;
+		unit: string;
+	};
+	const archive = useSavedArchive(fitnessStore);
+	const {
+		ready,
+		storageError
+	} = archive;
+	const categories = TRAINING_CATEGORIES;
+	const categoryLabels = categories.map((category: TrainingCategory): string => category.title);
+	const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+	const today = ref(formatCalendarDate(new Date()));
+	const records = ref<Training[]>([]);
+	const selectedDate = ref('');
+	const showAll = ref(false);
+	const libraryOpen = ref(false);
+	const formOpen = ref(false);
+	const editingId = ref(0);
+	const formDate = ref(today.value);
+	const formCategory = ref(0);
+	const formAction = ref('');
+	const formSets = ref('4');
+	const formMinutes = ref('30');
+	const formError = ref('');
+	const scrollTarget = ref('');
+	const lastDeleted = ref<Training | null>(null);
+	// computed
+	const week = computed((): string[] => currentWeek(today.value));
+	const weeklyRecords = computed((): Training[] => records.value.filter((record: Training): boolean => record.date >= week.value[0] && record.date <= week.value[6]));
+	const stats = computed((): Stat[] => [{
+		label: '训练次数',
+		value: weeklyRecords.value.length,
+		unit: '次'
+	}, {
+		label: '训练组数',
+		value: weeklyRecords.value.reduce((sum: number, record: Training): number => sum + record.sets, 0),
+		unit: '组'
+	}, {
+		label: '累计时长',
+		value: weeklyRecords.value.reduce((sum: number, record: Training): number => sum + record.minutes, 0),
+		unit: '分钟'
+	}]);
+	const shownRecords = computed((): Training[] => {
+		const sorted = records.value.filter((record: Training): boolean => selectedDate.value.length == 0 || record.date == selectedDate.value).sort((a: Training, b: Training): number => a.date == b.date ? b.id - a.id : a.date > b.date ? -1 : 1);
+		return showAll.value || selectedDate.value.length > 0 ? sorted : sorted.slice(0, 5);
+	});
+	// methods
+	const persist = (explicit: boolean = false) => {
+		archive.save(encodeTraining(records.value), explicit);
+	};
+	const jump = () => {
+		scrollTarget.value = '';
+		nextTick(() => {
+			scrollTarget.value = 'fitness-form';
+		});
+	};
+	const hasTraining = (date: string): boolean => records.value.some((record: Training): boolean => record.date == date);
+	const selectDay = (date: string) => {
+		selectedDate.value = selectedDate.value == date ? '' : date;
+	};
+	const toggleAll = () => {
+		showAll.value = !showAll.value;
+		selectedDate.value = '';
+	};
+	const newRecord = (category: number, action: string) => {
+		if (!ready.value) return;
+		if (records.value.length >= 200) return toast('最多保存 200 条，请先清理旧记录');
+		today.value = formatCalendarDate(new Date());
+		editingId.value = 0;
+		formDate.value = selectedDate.value.length > 0 && selectedDate.value <= today.value ? selectedDate.value : today.value;
+		formCategory.value = category;
+		formAction.value = action;
+		formSets.value = category == 5 ? '0' : '4';
+		formMinutes.value = '30';
+		formError.value = '';
+		formOpen.value = true;
+		jump();
+	};
+	const editRecord = (record: Training) => {
+		editingId.value = record.id;
+		formDate.value = record.date;
+		formCategory.value = record.category;
+		formAction.value = record.action;
+		formSets.value = record.sets.toString();
+		formMinutes.value = record.minutes.toString();
+		formError.value = '';
+		formOpen.value = true;
+		jump();
+	};
+	const changeDate = (event: UniPickerChangeEvent) => {
+		formDate.value = (event.detail.value as string).replace(/\//g, '-');
+	};
+	const changeCategory = (event: UniPickerChangeEvent) => {
+		formCategory.value = Number(event.detail.value);
+	};
+	const saveRecord = () => {
+		if (!ready.value) return;
+		try {
+			const record: Training = {
+				id: editingId.value > 0 ? editingId.value : nextRecordId(records.value.map((entry: Training): number => entry.id).concat(lastDeleted.value == null ? [] : [lastDeleted.value!.id])),
+				date: formDate.value,
+				category: formCategory.value,
+				action: formAction.value.trim(),
+				sets: archiveInteger(formSets.value, 0, 1000),
+				minutes: archiveInteger(formMinutes.value, 1, 1440)
+			};
+			validateTraining(record);
+			if (editingId.value == 0) {
+				if (records.value.length >= 200) throw new Error('最多保存 200 条');
+				records.value.push(record);
+			} else records.value = records.value.map((entry: Training): Training => entry.id == editingId.value ? record : entry);
+			selectedDate.value = '';
+			formOpen.value = false;
+			uni.hideKeyboard();
+			persist();
+		} catch (exception) {
+			formError.value = (exception as Error).message;
+		}
+	};
+	const deleteRecord = () => {
+		const record = records.value.find((entry: Training): boolean => entry.id == editingId.value);
+		if (record == null) return;
+		lastDeleted.value = record;
+		records.value = records.value.filter((entry: Training): boolean => entry.id != editingId.value);
+		formOpen.value = false;
+		persist();
+	};
+	const undoDelete = () => {
+		if (lastDeleted.value == null || records.value.length >= 200) return;
+		records.value.push(lastDeleted.value!);
+		lastDeleted.value = null;
+		persist();
+	};
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('fitness').catch(() => toast('保存使用记录失败'));
+		archive.load((snapshot: string) => {
+			records.value = decodeTraining(snapshot);
+		});
+	});
+	onShow(() => {
+		today.value = formatCalendarDate(new Date());
+	});
+	onUnload(() => {
+		archive.dispose();
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/wellness-tools.scss';
+	.overview-card {
+		.overview-heading {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+		}
+		.overview-stats {
+			display: flex;
+			flex-direction: row;
+			margin-top: 40rpx;
+			.stat-column {
+				flex: 1;
+				min-width: 0;
+				.stat-main {
+					display: flex;
+					flex-direction: row;
+					align-items: flex-end;
+					flex-wrap: wrap;
+					.stat-number {
+						font-size: 52rpx;
+						line-height: 78rpx;
+						color: #278dca;
+					}
+					.stat-unit {
+						margin-left: 8rpx;
+						padding-bottom: 10rpx;
+						font-size: 20rpx;
+						line-height: 36rpx;
+						color: #8795a1;
+					}
+				}
+				.stat-label {
+					margin-top: 8rpx;
+					font-size: 22rpx;
+					line-height: 36rpx;
+					color: #8795a1;
+				}
+			}
+		}
+	}
+
+	.week-card {
+		.week-heading {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+			align-items: center;
+		}
+		.week-days {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+			margin-top: 20rpx;
+			.week-day {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				width: 13%;
+				.day-label {
+					font-size: 22rpx;
+					line-height: 38rpx;
+					color: #8795a1;
+				}
+				.day-number {
+					display: flex;
+					flex-direction: row;
+					justify-content: center;
+					align-items: center;
+					box-sizing: border-box;
+					width: 64rpx;
+					height: 68rpx;
+					margin-top: 12rpx;
+					border: 2rpx solid transparent;
+					border-radius: 20rpx;
+					&.has-training {
+						background-color: #e2f4ec;
+					}
+					&.is-today {
+						border-color: #278dca;
+					}
+					&.is-selected {
+						background-color: #dceffc;
+					}
+					.day-value {
+						font-size: 26rpx;
+						line-height: 42rpx;
+						color: #233d50;
+					}
+				}
+			}
+		}
+	}
+
+	.history-row {
+		.training-icon {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: center;
+			width: 76rpx;
+			height: 76rpx;
+			margin-right: 22rpx;
+			border-radius: 20rpx;
+			background-color: #e8f6ff;
+		}
+	}
+
+	.library-link {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		margin: 0 32rpx 30rpx;
+		padding: 20rpx 28rpx;
+		border-radius: 22rpx;
+		background-color: #e8f6ff;
+	}
+
+	.action-library {
+		.action-group {
+			margin-bottom: 18rpx;
+			.action-options {
+				display: flex;
+				flex-direction: row;
+				flex-wrap: wrap;
+				.action-option {
+					margin: 12rpx 12rpx 0 0;
+					padding: 10rpx 18rpx;
+					border-radius: 14rpx;
+					background-color: #e8f6ff;
+				}
+			}
+		}
+	}
+</style>

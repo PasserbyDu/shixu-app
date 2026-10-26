@@ -1,0 +1,55 @@
+import { ref } from 'vue';
+import { SnapshotStore, createSnapshotStore } from '@/subPackages/life/utils/everyday-storage.uts';
+import {
+	STORAGE_FITNESS_RECORDS_KEY,
+	STORAGE_PET_RECORDS_KEY,
+	STORAGE_POMODORO_KEY,
+} from '@/config/constants';
+// data
+export const fitnessStore = createSnapshotStore(STORAGE_FITNESS_RECORDS_KEY);
+export const petStore = createSnapshotStore(STORAGE_PET_RECORDS_KEY);
+export const pomodoroStore = createSnapshotStore(STORAGE_POMODORO_KEY);
+// methods
+export const useSavedArchive = (store: SnapshotStore) => {
+	// data
+	const ready = ref(false);
+	const storageError = ref('');
+	let blocked = false;
+	let version = 0;
+	let disposed = false;
+	// methods
+	const load = async (apply: (snapshot: string) => void) => {
+		try {
+			const snapshot = await store.load();
+			if (disposed) return;
+			apply(snapshot);
+		} catch (exception) {
+			if (!disposed) {
+				blocked = true;
+				storageError.value = '本地数据读取失败，当前显示初始状态。确认后可重新保存当前数据';
+			}
+		}
+		if (!disposed) ready.value = true;
+	};
+	const save = (snapshot: string, explicit: boolean = false) => {
+		if (!ready.value || disposed || blocked && !explicit) return;
+		if (explicit) blocked = false;
+		const current = ++version;
+		store.save(snapshot).then(() => {
+			if (!disposed && version == current) storageError.value = '';
+		}).catch(() => {
+			if (!disposed && version == current) storageError.value = '本地保存失败，当前页面仍可使用，请重新保存';
+		});
+	};
+	const dispose = () => {
+		disposed = true;
+		version++;
+	};
+	return {
+		ready,
+		storageError,
+		load,
+		save,
+		dispose
+	};
+};

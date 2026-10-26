@@ -1,0 +1,219 @@
+import { calendarDayNumber, formatCalendarDate, parseCalendarDate } from '@/utils/calculators.uts';
+export type Training = {
+	id: number;
+	date: string;
+	category: number;
+	action: string;
+	sets: number;
+	minutes: number;
+};
+export type TrainingCategory = {
+	title: string;
+	actions: string[];
+};
+export type PetWeight = {
+	id: number;
+	date: string;
+	kg: number;
+};
+export type PetCare = {
+	id: number;
+	type: number;
+	title: string;
+	date: string;
+	next: string;
+};
+export type Pet = {
+	id: number;
+	name: string;
+	breed: string;
+	birthday: string;
+	weights: PetWeight[];
+	care: PetCare[];
+};
+export type PetArchive = {
+	reminders: boolean;
+	pets: Pet[];
+};
+
+// data
+export const TRAINING_CATEGORIES: TrainingCategory[] = [{
+	title: '胸部训练',
+	actions: ['杠铃卧推', '俯卧撑', '哑铃飞鸟']
+}, {
+	title: '背部训练',
+	actions: ['坐姿划船', '引体向上', '高位下拉']
+}, {
+	title: '腿部训练',
+	actions: ['深蹲', '腿举', '弓步']
+}, {
+	title: '肩部训练',
+	actions: ['肩推', '侧平举']
+}, {
+	title: '手臂训练',
+	actions: ['弯举', '臂屈伸']
+}, {
+	title: '有氧训练',
+	actions: ['跑步', '骑行', '快走']
+}, {
+	title: '其他训练',
+	actions: ['自定义动作']
+}];
+
+// methods
+export const archiveInteger = (text: string, minimum: number, maximum: number): number => {
+	if (!/^\d{1,15}$/.test(text)) throw new Error('请输入有效整数');
+	const number = Number(text);
+	if (!Number.isInteger(number) || number < minimum || number > maximum) throw new Error('数值需在 ' + minimum + ' 至 ' + maximum + ' 之间');
+	return number;
+};
+export const validRecordDate = (value: string, future: boolean = false): boolean => {
+	const parts = parseCalendarDate(value);
+	return parts != null && parts.year >= 1900 && (future || value <= formatCalendarDate(new Date()));
+};
+export const nextRecordId = (ids: number[]): number => {
+	let next = Date.now();
+	ids.forEach((id: number) => {
+		next = Math.max(next, id + 1);
+	});
+	return next;
+};
+export const currentWeek = (today: string): string[] => {
+	const date = parseCalendarDate(today)!;
+	const atNoon = new Date(date.year, date.month - 1, date.day, 12);
+	const offset = (atNoon.getDay() + 6) % 7;
+	const days: string[] = [];
+	for (let index = 0; index < 7; index++) days.push(formatCalendarDate(new Date(date.year, date.month - 1, date.day - offset + index, 12)));
+	return days;
+};
+export const validateTraining = (record: Training) => {
+	if (!validRecordDate(record.date)) throw new Error('训练日期需为 1900 年起、不晚于今天的有效日期');
+	if (!Number.isInteger(record.category) || record.category < 0 || record.category >= TRAINING_CATEGORIES.length) throw new Error('请选择训练分类');
+	if (record.action.trim().length == 0 || record.action.trim().length > 60) throw new Error('动作名称需为 1 至 60 字');
+	archiveInteger(record.sets.toString(), 0, 1000);
+	archiveInteger(record.minutes.toString(), 1, 1440);
+};
+export const encodeTraining = (records: Training[]): string => '1|' + records.map((record: Training): string => [record.id.toString(), record.date, record.category.toString(), encodeURIComponent(record.action), record.sets.toString(), record.minutes.toString()].join(',')).join(';');
+export const decodeTraining = (snapshot: string): Training[] => {
+	if (snapshot.length == 0) return [];
+	if (snapshot.length > 150000 || !snapshot.startsWith('1|')) throw new Error('训练存档格式不正确');
+	const rows = snapshot.slice(2).length == 0 ? [] : snapshot.slice(2).split(';');
+	if (rows.length > 200) throw new Error('训练记录超出上限');
+	const result: Training[] = [];
+	rows.forEach((row: string) => {
+		const fields = row.split(',');
+		if (fields.length != 6) throw new Error('训练记录字段不完整');
+		const record: Training = {
+			id: archiveInteger(fields[0], 1, 999999999999999),
+			date: fields[1],
+			category: archiveInteger(fields[2], 0, 6),
+			action: decodeURIComponent(fields[3]),
+			sets: archiveInteger(fields[4], 0, 1000),
+			minutes: archiveInteger(fields[5], 1, 1440)
+		};
+		validateTraining(record);
+		if (result.some((item: Training): boolean => item.id == record.id)) throw new Error('训练记录 ID 重复');
+		result.push(record);
+	});
+	return result;
+};
+export const validatePet = (pet: Pet) => {
+	if (pet.name.trim().length == 0 || pet.name.trim().length > 30 || pet.breed.trim().length > 40) throw new Error('宠物名字需为 1 至 30 字，品种最多 40 字');
+	if (pet.birthday.length > 0 && !validRecordDate(pet.birthday)) throw new Error('生日不能晚于今天');
+};
+export const validateWeight = (weight: PetWeight) => {
+	if (!validRecordDate(weight.date) || !Number.isFinite(weight.kg) || weight.kg <= 0 || weight.kg > 2000) throw new Error('请选择有效日期，体重需大于 0 且不超过 2000 kg');
+};
+export const validateCare = (care: PetCare) => {
+	if (![0, 1].includes(care.type) || care.title.trim().length == 0 || care.title.trim().length > 60) throw new Error('请选择类型，项目名称需为 1 至 60 字');
+	if (!validRecordDate(care.date)) throw new Error('记录日期不能晚于今天');
+	if (care.next.length > 0 && (!validRecordDate(care.next, true) || care.next < care.date)) throw new Error('下次日期不能早于本次记录日期');
+};
+export const encodePets = (pets: Pet[], reminders: boolean): string => '1|' + (reminders ? '1' : '0') + '|' + pets.map((pet: Pet): string => [pet.id.toString(), encodeURIComponent(pet.name), encodeURIComponent(pet.breed), pet.birthday, pet.weights.map((weight: PetWeight): string => [weight.id.toString(), weight.date, weight.kg.toString()].join(',')).join(';'), pet.care.map((care: PetCare): string => [care.id.toString(), care.type.toString(), encodeURIComponent(care.title), care.date, care.next].join(',')).join(';')].join('^')).join('|');
+export const decodePets = (snapshot: string): PetArchive => {
+	if (snapshot.length == 0) return {
+		reminders: true,
+		pets: []
+	};
+	if (snapshot.length > 1000000) throw new Error('宠物存档过大');
+	const parts = snapshot.split('|');
+	if (parts.length < 3 || parts[0] != '1' || !['0', '1'].includes(parts[1])) throw new Error('宠物存档格式不正确');
+	const rows = parts.length == 3 && parts[2].length == 0 ? [] : parts.slice(2);
+	if (rows.length > 10) throw new Error('宠物数量超出上限');
+	const pets: Pet[] = [];
+	rows.forEach((row: string) => {
+		const fields = row.split('^');
+		if (fields.length != 6) throw new Error('宠物字段不完整');
+		const pet: Pet = {
+			id: archiveInteger(fields[0], 1, 999999999999999),
+			name: decodeURIComponent(fields[1]),
+			breed: decodeURIComponent(fields[2]),
+			birthday: fields[3],
+			weights: [],
+			care: []
+		};
+		validatePet(pet);
+		const weights = fields[4].length == 0 ? [] : fields[4].split(';');
+		const care = fields[5].length == 0 ? [] : fields[5].split(';');
+		if (weights.length > 100 || care.length > 100) throw new Error('宠物历史记录超出上限');
+		weights.forEach((value: string) => {
+			const data = value.split(',');
+			if (data.length != 3 || !/^\d+(\.\d{1,3})?$/.test(data[2])) throw new Error('体重数据无效');
+			const weight: PetWeight = {
+				id: archiveInteger(data[0], 1, 999999999999999),
+				date: data[1],
+				kg: Number(data[2])
+			};
+			validateWeight(weight);
+			if (pet.weights.some((entry: PetWeight): boolean => entry.id == weight.id)) throw new Error('体重 ID 重复');
+			pet.weights.push(weight);
+		});
+		care.forEach((value: string) => {
+			const data = value.split(',');
+			if (data.length != 5) throw new Error('照护数据无效');
+			const entry: PetCare = {
+				id: archiveInteger(data[0], 1, 999999999999999),
+				type: archiveInteger(data[1], 0, 1),
+				title: decodeURIComponent(data[2]),
+				date: data[3],
+				next: data[4]
+			};
+			validateCare(entry);
+			if (pet.care.some((item: PetCare): boolean => item.id == entry.id)) throw new Error('照护 ID 重复');
+			pet.care.push(entry);
+		});
+		if (pets.some((entry: Pet): boolean => entry.id == pet.id)) throw new Error('宠物 ID 重复');
+		pets.push(pet);
+	});
+	return {
+		reminders: parts[1] == '1',
+		pets
+	};
+};
+export const petAge = (birthday: string, today: string): string => {
+	if (birthday.length == 0) return '年龄未填写';
+	const born = parseCalendarDate(birthday)!;
+	const current = parseCalendarDate(today)!;
+	const age = current.year - born.year - (today.slice(5) < birthday.slice(5) ? 1 : 0);
+	return age <= 0 ? '不足 1 岁' : age + ' 岁';
+};
+export const latestWeight = (pet: Pet): PetWeight | null => {
+	const weights = pet.weights.slice().sort((a: PetWeight, b: PetWeight): number => a.date == b.date ? b.id - a.id : a.date > b.date ? -1 : 1);
+	return weights.length == 0 ? null : weights[0];
+};
+export const petReminder = (pet: Pet, today: string): string => {
+	const candidates: PetCare[] = [];
+	const records = pet.care.slice().sort((a: PetCare, b: PetCare): number => a.date == b.date ? b.id - a.id : a.date > b.date ? -1 : 1);
+	const seen: string[] = [];
+	records.forEach((record: PetCare) => {
+		const key = record.type + '|' + record.title.trim();
+		if (seen.includes(key)) return;
+		seen.push(key);
+		if (record.next.length > 0) candidates.push(record);
+	});
+	if (candidates.length == 0) return '未设置下次日期';
+	candidates.sort((a: PetCare, b: PetCare): number => a.next > b.next ? 1 : a.next < b.next ? -1 : 0);
+	const record = candidates[0];
+	const difference = calendarDayNumber(parseCalendarDate(record.next)!) - calendarDayNumber(parseCalendarDate(today)!);
+	return (record.type == 0 ? '下次疫苗 ' : '下次驱虫 ') + record.next + (candidates.length > 1 ? ' · ' + record.title : '') + (difference < 0 ? ' · 已过 ' + -difference + ' 天' : difference == 0 ? ' · 今天' : '');
+};

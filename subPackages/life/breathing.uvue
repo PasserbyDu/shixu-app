@@ -1,0 +1,300 @@
+<template>
+	<tool-page title="呼吸放松" subtitle="跟着圆环的节奏，给自己一小段安静时间">
+		<view class="tool-card breathing-settings">
+			<text class="text-[24rpx] leading-[40rpx] text-[#8795a1]">练习时长</text>
+			<view class="duration-options">
+				<view
+					v-for="value in durations"
+					:key="value"
+					:class="['duration-option', minutes == value ? 'is-selected' : '']"
+					@click="changeDuration(value)"
+				>
+					<text class="duration-label">{{ value }} 分钟</text>
+				</view>
+			</view>
+		</view>
+		<view class="breathing-visual">
+			<view class="breathing-orbit">
+				<view class="outer-halo" />
+				<view class="breath-wave" :style="'transform: scale(' + scale + ');'" />
+				<view class="breath-center">
+					<text class="breath-title">{{ centerTitle }}</text>
+					<text class="breath-subtitle">{{ centerSubtitle }}</text>
+					<text v-if="stage == 'running' || stage == 'paused'" class="breath-remaining">剩余 {{ timerClock(Math.max(0, minutes * 60000 - elapsed)) }}</text>
+				</view>
+			</view>
+		</view>
+		<view class="breathing-instruction">
+			<text class="text-[28rpx] leading-[44rpx] text-[#233d50]">吸气 4 秒 → 呼气 6 秒</text>
+			<text class="tool-note">圆环变大时吸气，变小时呼气</text>
+		</view>
+		<view class="tool-primary" @click="togglePractice">
+			<text class="primary-text">{{ stage == 'running' ? '暂停放松' : stage == 'paused' ? '继续放松' : '开始放松' }}</text>
+		</view>
+		<text v-if="stage == 'paused'" class="secondary-action" @click="endPractice">结束本次练习</text>
+		<view class="tool-card breath-sound">
+			<view class="flex-1">
+				<text class="text-[28rpx] leading-[44rpx] font-medium text-[#233d50]">声音提示</text>
+				<text class="tool-note">轻柔提示每一次节奏切换</text>
+			</view>
+			<switch :checked="sound" color="#278dca" @change="changeSound" />
+		</view>
+		<text v-if="settingsError.length > 0" class="tool-footnote">{{ settingsError }}</text>
+		<text v-if="audioError.length > 0" class="tool-footnote">{{ audioError }}</text>
+		<text class="tool-footnote text-center">{{ '保持舒服的节奏，无需用力或屏息\n随时可以暂停或结束；离开页面会暂停练习' }}</text>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue';
+	import { timerClock } from '@/subPackages/life/utils/focus-timer.uts';
+	import { useToolChime } from '@/subPackages/life/utils/use-tool-chime.uts';
+	import { STORAGE_BREATHING_KEY } from '@/config/constants';
+	import { getStorageSync, setStorageSync } from '@/utils/storage';
+	import { recordToolUsage } from '@/utils/tool-usage';
+	import { toast } from '@/utils/toast';
+	// data
+	const durations = [1, 3, 5];
+	const minutes = ref(1);
+	const sound = ref(false);
+	const elapsed = ref(0);
+	const stage = ref('idle');
+	const settingsError = ref('');
+	const chime = useToolChime();
+	const {
+		audioError
+	} = chime;
+	let interval = -1;
+	let activeSince = 0;
+	let baseElapsed = 0;
+	let previousSegment = -1;
+	let visible = false;
+	// computed
+	const phase = computed((): number => elapsed.value % 10000);
+	const inhaling = computed((): boolean => phase.value < 4000);
+	const phaseSeconds = computed((): number => Math.max(1, Math.ceil((inhaling.value ? 4000 - phase.value : 10000 - phase.value) / 1000)));
+	const scale = computed((): number => stage.value == 'idle' ? 1 : 0.78 + 0.22 * (phase.value < 4000 ? phase.value / 4000 : 1 - (phase.value - 4000) / 6000));
+	const centerTitle = computed((): string => stage.value == 'running' ? inhaling.value ? '慢慢吸气' : '慢慢呼气' : stage.value == 'paused' ? '已暂停' : stage.value == 'done' ? '练习完成' : stage.value == 'ended' ? '本次已结束' : '准备好了吗');
+	const centerSubtitle = computed((): string => stage.value == 'running' ? phaseSeconds.value + ' 秒' : stage.value == 'paused' ? '点击继续余下时间' : stage.value == 'done' || stage.value == 'ended' ? '已练习 ' + Math.floor(elapsed.value / 1000) + ' 秒' : '让呼吸自然一点');
+	// methods
+	const stopTimer = () => {
+		if (interval >= 0) clearInterval(interval);
+		interval = -1;
+	};
+	const persistSettings = () => {
+		try {
+			setStorageSync(STORAGE_BREATHING_KEY, '1|' + minutes.value + '|' + (sound.value ? '1' : '0'));
+			settingsError.value = '';
+		} catch (exception) {
+			settingsError.value = '设置暂未保存，本次仍可继续练习';
+		}
+	};
+	const tick = () => {
+		if (stage.value != 'running') return;
+		const now = Date.now();
+		if (now < activeSince) {
+			baseElapsed = elapsed.value;
+			activeSince = now;
+		}
+		elapsed.value = Math.min(minutes.value * 60000, baseElapsed + Math.max(0, now - activeSince));
+		if (elapsed.value >= minutes.value * 60000) {
+			stage.value = 'done';
+			stopTimer();
+			chime.stop();
+			if (sound.value && visible) chime.play();
+			return;
+		}
+		const segment = Math.floor(elapsed.value / 10000) * 2 + (elapsed.value % 10000 < 4000 ? 0 : 1);
+		if (segment != previousSegment) {
+			previousSegment = segment;
+			if (sound.value && visible) chime.play();
+		}
+	};
+	const pause = () => {
+		tick();
+		if (stage.value == 'running') stage.value = 'paused';
+		stopTimer();
+		chime.stop();
+	};
+	const togglePractice = () => {
+		if (stage.value == 'running') {
+			pause();
+			return;
+		}
+		if (stage.value != 'paused') {
+			elapsed.value = 0;
+			previousSegment = -1;
+		}
+		baseElapsed = elapsed.value;
+		activeSince = Date.now();
+		stage.value = 'running';
+		tick();
+		interval = setInterval(() => {
+			tick();
+		}, 100);
+	};
+	const endPractice = () => {
+		pause();
+		stage.value = 'ended';
+	};
+	const changeDuration = (value: number) => {
+		if (minutes.value == value) return;
+		if (stage.value == 'running' || stage.value == 'paused') return toast('请先结束本次练习再切换时长');
+		minutes.value = value;
+		elapsed.value = 0;
+		stage.value = 'idle';
+		persistSettings();
+	};
+	const changeSound = (event: UniSwitchChangeEvent) => {
+		sound.value = event.detail.value;
+		if (!sound.value) chime.stop();else if (stage.value == 'running') chime.play();
+		persistSettings();
+	};
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('breathing').catch(() => toast('保存使用记录失败'));
+		try {
+			const saved: any = getStorageSync(STORAGE_BREATHING_KEY, '1|1|0');
+			if (typeof saved == 'string') {
+				const parts = (saved as string).split('|');
+				if (parts.length == 3 && parts[0] == '1' && [1, 3, 5].includes(Number(parts[1])) && ['0', '1'].includes(parts[2])) {
+					minutes.value = Number(parts[1]);
+					sound.value = parts[2] == '1';
+				}
+			}
+		} catch (exception) {
+			settingsError.value = '设置读取失败，当前使用默认设置';
+		}
+	});
+	onShow(() => {
+		visible = true;
+	});
+	onHide(() => {
+		visible = false;
+		if (stage.value == 'running') pause();else {
+			stopTimer();
+			chime.stop();
+		}
+	});
+	onUnload(() => {
+		visible = false;
+		stopTimer();
+		chime.destroy();
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/wellness-tools.scss';
+	.breathing-settings {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		.duration-options {
+			display: flex;
+			flex-direction: row;
+			.duration-option {
+				padding: 12rpx 18rpx;
+				margin-left: 8rpx;
+				border-radius: 18rpx;
+				&.is-selected {
+					background-color: #e8f6ff;
+					.duration-label {
+						color: #278dca;
+					}
+				}
+				.duration-label {
+					font-size: 22rpx;
+					line-height: 38rpx;
+					color: #8795a1;
+				}
+			}
+		}
+	}
+
+	.breathing-visual {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		min-height: 570rpx;
+		.breathing-orbit {
+			position: relative;
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: center;
+			width: 500rpx;
+			height: 500rpx;
+			.outer-halo {
+				position: absolute;
+				left: 0;
+				top: 0;
+				width: 500rpx;
+				height: 500rpx;
+				border-radius: 250rpx;
+				background-color: #e4f3fc;
+			}
+			.breath-wave {
+				position: absolute;
+				left: 35rpx;
+				top: 35rpx;
+				width: 430rpx;
+				height: 430rpx;
+				border-radius: 215rpx;
+				background-color: #c6e7f7;
+				transition: transform 100ms linear;
+			}
+			.breath-center {
+				position: relative;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				width: 280rpx;
+				height: 280rpx;
+				padding: 16rpx;
+				box-sizing: border-box;
+				border-radius: 140rpx;
+				background-color: #ffffff;
+				.breath-title {
+					font-size: 34rpx;
+					font-weight: 500;
+					line-height: 52rpx;
+					text-align: center;
+					color: #278dca;
+				}
+				.breath-subtitle {
+					margin-top: 14rpx;
+					font-size: 22rpx;
+					line-height: 36rpx;
+					text-align: center;
+					color: #8795a1;
+				}
+				.breath-remaining {
+					margin-top: 12rpx;
+					font-size: 20rpx;
+					line-height: 32rpx;
+					color: #278dca;
+				}
+			}
+		}
+	}
+
+	.breathing-instruction {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		margin: 10rpx 32rpx 40rpx;
+		.tool-note {
+			margin-top: 14rpx;
+		}
+	}
+
+	.breath-sound {
+		flex-direction: row;
+		align-items: center;
+		.tool-note {
+			margin-top: 8rpx;
+		}
+	}
+</style>

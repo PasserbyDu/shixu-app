@@ -92,6 +92,54 @@
 						"navigationStyle": "custom",
 						"backgroundColor": "#F5F8FC"
 					}
+				},
+				{
+					"path": "random-decision",
+					"style": {
+						"navigationBarTitleText": "随机决定",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
+					"path": "packing-list",
+					"style": {
+						"navigationBarTitleText": "行李清单",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
+					"path": "fitness",
+					"style": {
+						"navigationBarTitleText": "健身记录",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
+					"path": "pets",
+					"style": {
+						"navigationBarTitleText": "宠物管理",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
+					"path": "pomodoro",
+					"style": {
+						"navigationBarTitleText": "番茄专注",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
+					"path": "breathing",
+					"style": {
+						"navigationBarTitleText": "呼吸放松",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
 				}
 			]
 		},
@@ -183,6 +231,14 @@
 						"navigationBarTitleText": "华容道",
 						"navigationStyle": "custom",
 						"backgroundColor": "#F6F8FD"
+					}
+				},
+				{
+					"path": "party-dice",
+					"style": {
+						"navigationBarTitleText": "聚会摇骰子",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
 					}
 				}
 			]

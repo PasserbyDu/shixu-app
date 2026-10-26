@@ -1,0 +1,306 @@
+<template>
+	<tool-page title="聚会摇骰子" subtitle="朋友围坐，摇出一点聚会的乐趣">
+		<view class="tool-card dice-settings">
+			<text class="card-title">骰子数量</text>
+			<view class="count-options">
+				<view
+					v-for="value in counts"
+					:key="value"
+					:class="['count-option', count == value ? 'is-selected' : '', stage == 'rolling' ? 'is-disabled' : '']"
+					@click="changeCount(value)"
+				>
+					<text class="count-label">{{ value }} 颗</text>
+				</view>
+			</view>
+		</view>
+		<view class="dice-board">
+			<view class="board-heading">
+				<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">{{ round == 0 ? '准备开始' : '第 ' + round + ' 轮' }}</text>
+				<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">{{ stageLabel }}</text>
+			</view>
+			<view class="dice-grid">
+				<dice-face v-for="(value, index) in displayedDice" :key="index" :value="value" :rolling="stage == 'rolling'" />
+			</view>
+			<text class="board-caption">{{ stage == 'revealed' ? '本轮点数 ' + values.join(' · ') : stage == 'rolling' ? '正在摇动，稍等一下…' : stage == 'covered' ? '已盖盅，点击开盅查看' : '选择数量，点击下方按钮摇骰' }}</text>
+		</view>
+		<view class="tool-card total-card">
+			<view class="total-values">
+				<text class="text-[24rpx] leading-[38rpx] text-[#8795a1]">点数合计</text>
+				<text class="total-number">{{ stage == 'revealed' ? total + ' 点' : '待开盅' }}</text>
+			</view>
+			<view
+				:class="['cover-button', stage == 'idle' || stage == 'rolling' ? 'is-disabled' : '']"
+				@click="toggleCover"
+			>
+				<text class="text-[26rpx] leading-[42rpx] text-[#278dca]">{{ stage == 'revealed' ? '盖盅隐藏' : '开盅查看' }}</text>
+			</view>
+		</view>
+		<view class="tool-primary" @click="roll">
+			<text class="primary-text">{{ stage == 'rolling' ? '正在摇骰…' : round == 0 ? '开始摇骰' : '再摇一次' }}</text>
+		</view>
+		<view class="tool-card audio-card">
+			<view class="flex-1">
+				<text class="text-[26rpx] leading-[42rpx] text-[#233d50]">音效</text>
+				<text class="tool-note">摇动与落骰声音</text>
+			</view>
+			<switch :checked="soundEnabled" color="#2e91c6" @change="changeSound" />
+		</view>
+		<text v-if="audioMessage.length > 0" class="tool-footnote">{{ audioMessage }}</text>
+		<text class="tool-footnote text-center">点击摇骰后开盅查看 · 聚会尽兴，饮酒量力</text>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue';
+	import DiceFace from '@/subPackages/games/components/dice-face/dice-face.uvue';
+	import { rollPartyDice } from '@/subPackages/games/utils/party-dice.uts';
+	import { STORAGE_DICE_SOUND_KEY } from '@/config/constants';
+	import { getStorageSync, setStorageSync } from '@/utils/storage';
+	import { recordToolUsage } from '@/utils/tool-usage';
+	import { toast } from '@/utils/toast';
+	// data
+	const counts = [1, 2, 3, 4, 5, 6];
+	const count = ref(5);
+	const values = ref<number[]>([]);
+	const animationValues = ref<number[]>([]);
+	const stage = ref('idle');
+	const round = ref(0);
+	const soundEnabled = ref(true);
+	const audioMessage = ref('');
+	let pendingValues: number[] = [];
+	let animationTimer = -1;
+	let settleTimer = -1;
+	let deadline = 0;
+	let visible = true;
+	let disposed = false;
+	let rollAudio: InnerAudioContext | null = null;
+	let landAudio: InnerAudioContext | null = null;
+	// computed
+	const stageLabel = computed((): string => stage.value == 'rolling' ? '摇动中' : stage.value == 'covered' ? '已盖盅' : stage.value == 'revealed' ? '已开盅' : '等待摇骰');
+	const displayedDice = computed((): number[] => {
+		if (stage.value == 'rolling') return animationValues.value;
+		if (stage.value == 'revealed') return values.value;
+		return counts.slice(0, count.value).map((): number => 0);
+	});
+	const total = computed((): number => values.value.reduce((sum: number, value: number): number => sum + value, 0));
+	// methods
+	const stopTimers = () => {
+		if (animationTimer >= 0) clearInterval(animationTimer);
+		if (settleTimer >= 0) clearTimeout(settleTimer);
+		animationTimer = -1;
+		settleTimer = -1;
+	};
+	const stopAudio = () => {
+		rollAudio?.stop();
+		landAudio?.stop();
+	};
+	const audioError = () => {
+		if (!disposed) audioMessage.value = '音效暂不可用；可以继续摇骰，也可关闭音效后重试';
+	};
+	const prepareAudio = () => {
+		if (rollAudio == null) {
+			rollAudio = uni.createInnerAudioContext();
+			rollAudio!.src = '/static/audio/dice-roll.wav';
+			rollAudio!.obeyMuteSwitch = true;
+			rollAudio!.onError(() => {
+				audioError();
+			});
+		}
+		if (landAudio == null) {
+			landAudio = uni.createInnerAudioContext();
+			landAudio!.src = '/static/audio/dice-land.wav';
+			landAudio!.obeyMuteSwitch = true;
+			landAudio!.onError(() => {
+				audioError();
+			});
+		}
+	};
+	const finishRoll = (withSound: boolean) => {
+		if (stage.value != 'rolling') return;
+		stopTimers();
+		rollAudio?.stop();
+		values.value = pendingValues.slice();
+		pendingValues = [];
+		animationValues.value = [];
+		stage.value = 'covered';
+		if (withSound && soundEnabled.value && visible && !disposed) {
+			try {
+				landAudio?.play();
+			} catch (exception) {
+				audioError();
+			}
+		}
+	};
+	const changeCount = (value: number) => {
+		if (stage.value == 'rolling' || count.value == value) return;
+		count.value = value;
+		values.value = [];
+		stage.value = 'idle';
+	};
+	const roll = () => {
+		if (stage.value == 'rolling' || disposed) return;
+		pendingValues = rollPartyDice(count.value);
+		animationValues.value = rollPartyDice(count.value);
+		values.value = [];
+		round.value++;
+		stage.value = 'rolling';
+		deadline = Date.now() + 850;
+		if (soundEnabled.value) {
+			try {
+				prepareAudio();
+				stopAudio();
+				rollAudio?.play();
+			} catch (exception) {
+				audioError();
+			}
+		}
+		animationTimer = setInterval(() => {
+			if (Date.now() >= deadline) finishRoll(true);else animationValues.value = rollPartyDice(count.value);
+		}, 90);
+		settleTimer = setTimeout(() => {
+			finishRoll(true);
+		}, 850);
+	};
+	const toggleCover = () => {
+		if (stage.value == 'idle' || stage.value == 'rolling') return;
+		stage.value = stage.value == 'revealed' ? 'covered' : 'revealed';
+	};
+	const changeSound = (event: UniSwitchChangeEvent) => {
+		soundEnabled.value = event.detail.value;
+		audioMessage.value = '';
+		if (!soundEnabled.value) stopAudio();
+		try {
+			setStorageSync(STORAGE_DICE_SOUND_KEY, soundEnabled.value ? '1' : '0');
+		} catch (exception) {
+			audioMessage.value = '音效设置暂未保存，本次开关仍然生效';
+		}
+	};
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('party-dice').catch(() => toast('保存使用记录失败'));
+		try {
+			const preference: any = getStorageSync(STORAGE_DICE_SOUND_KEY, '1');
+			soundEnabled.value = preference != '0';
+		} catch (exception) {
+			audioMessage.value = '音效设置读取失败，仍可使用当前开关';
+		}
+	});
+	onShow(() => {
+		visible = true;
+	});
+	onHide(() => {
+		visible = false;
+		finishRoll(false);
+		stopAudio();
+		if (stage.value == 'revealed') stage.value = 'covered';
+	});
+	onUnload(() => {
+		visible = false;
+		finishRoll(false);
+		disposed = true;
+		stopTimers();
+		stopAudio();
+		rollAudio?.destroy();
+		landAudio?.destroy();
+		rollAudio = null;
+		landAudio = null;
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/practical-tools.scss';
+	.dice-settings {
+		.count-options {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+			.count-option {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				width: 14.6%;
+				min-height: 70rpx;
+				border-radius: 16rpx;
+				background-color: #f5f8fc;
+				&.is-selected {
+					background-color: #2e91c6;
+					.count-label {
+						color: #ffffff;
+					}
+				}
+				&.is-disabled {
+					opacity: 0.55;
+				}
+				.count-label {
+					font-size: 22rpx;
+					line-height: 38rpx;
+					color: #8795a1;
+				}
+			}
+		}
+	}
+
+	.dice-board {
+		margin: 0 32rpx 30rpx;
+		padding: 28rpx 24rpx;
+		border-radius: 32rpx;
+		background-color: #e8f6ff;
+		.board-heading {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			padding: 0 8rpx;
+		}
+		.dice-grid {
+			display: flex;
+			flex-direction: row;
+			flex-wrap: wrap;
+			justify-content: center;
+			min-height: 340rpx;
+			align-content: center;
+			margin-top: 18rpx;
+		}
+		.board-caption {
+			display: block;
+			margin-top: 22rpx;
+			font-size: 24rpx;
+			line-height: 40rpx;
+			text-align: center;
+			color: #278dca;
+		}
+	}
+
+	.total-card {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		.total-values {
+			display: flex;
+			flex-direction: column;
+			.total-number {
+				font-size: 50rpx;
+				font-weight: 500;
+				line-height: 70rpx;
+				color: #278dca;
+			}
+		}
+		.cover-button {
+			padding: 16rpx 28rpx;
+			border-radius: 20rpx;
+			background-color: #e8f6ff;
+			&.is-disabled {
+				opacity: 0.5;
+			}
+		}
+	}
+
+	.audio-card {
+		flex-direction: row;
+		align-items: center;
+		.tool-note {
+			margin-top: 2rpx;
+		}
+	}
+</style>

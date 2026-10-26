@@ -1,0 +1,19 @@
+// 每一颗骰子独立抽样；普通聚会用途，不依赖网络或设备摇一摇权限。
+export const rollPartyDice = (count : number) : number[] => {
+	if (!Number.isInteger(count) || count < 1 || count > 6) throw new Error('请选择 1 至 6 颗骰子')
+	const values : number[] = []
+	for (let index = 0; index < count; index++) values.push(Math.floor(Math.random() * 6) + 1)
+	return values
+}
+
+export const dicePips = (value : number) : number[] => {
+	switch (value) {
+		case 1: return [4]
+		case 2: return [0, 8]
+		case 3: return [0, 4, 8]
+		case 4: return [0, 2, 6, 8]
+		case 5: return [0, 2, 4, 6, 8]
+		case 6: return [0, 2, 3, 5, 6, 8]
+	}
+	return []
+}
