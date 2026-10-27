@@ -37,157 +37,157 @@ const tools : Tool[] = [
 	{
 		id: 'date', title: '日期差计算', shortTitle: '日期计算', summary: '计算天数间隔',
 		description: '计算两个日期之间的天数', keywords: '日期计算 时间 天数 日历 date',
-		icon: 'calendar', iconText: '', color: '#25b2a3', background: '#e5f8f2'
+		icon: 'calendar', iconText: '📅', color: '#25b2a3', background: '#e5f8f2'
 	},
 	{
 		id: 'time', title: '时间计算', shortTitle: '时间计算', summary: '时间加减换算',
 		description: '计算时间加减与时间单位换算', keywords: '时间 加减 换算 clock time',
-		icon: '', iconText: '◷', color: '#00b99f', background: '#e5f9f3'
+		icon: '', iconText: '⏰', color: '#00b99f', background: '#e5f9f3'
 	},
 	{
 		id: 'unit', title: '单位换算', shortTitle: '单位换算', summary: '长度/重量/温度等',
 		description: '长度、重量、温度等常用单位换算', keywords: '单位 长度 重量 温度 换算',
-		icon: 'loop', iconText: '', color: '#ed6179', background: '#fff0f3'
+		icon: 'loop', iconText: '🔄', color: '#ed6179', background: '#fff0f3'
 	},
 	{
 		id: 'retirement', title: '退休年龄计算', shortTitle: '退休年龄', summary: '法定退休年月测算',
 		description: '按渐进式延迟退休规则测算法定退休年月', keywords: '退休 年龄 延迟退休 职工 政策',
-		icon: 'calendar', iconText: '', color: '#278dca', background: '#e8f6ff'
+		icon: 'calendar', iconText: '👴', color: '#278dca', background: '#e8f6ff'
 	},
 	{
 		id: 'age', title: '年龄·属相·星座', shortTitle: '年龄属相', summary: '周岁与生日印记',
 		description: '计算周岁年龄，查看生肖属相与星座', keywords: '年龄 周岁 生日 生肖 属相 星座 公历 农历',
-		icon: 'person', iconText: '', color: '#278dca', background: '#e8f6ff'
+		icon: 'person', iconText: '♈️', color: '#278dca', background: '#e8f6ff'
 	},
 	{
 		id: 'lunar-date', title: '农历日期选择', shortTitle: '农历日期', summary: '公农历与闰月转换',
 		description: '公历农历相互转换，支持农历闰月选择', keywords: '农历 阴历 阳历 公历 闰月 日期 生日 日历',
-		icon: 'calendar', iconText: '', color: '#278dca', background: '#e8f6ff'
+		icon: 'calendar', iconText: '🌙', color: '#278dca', background: '#e8f6ff'
 	},
 	{
 		id: 'kinship', title: '亲戚称呼计算', shortTitle: '亲戚称呼', summary: '关系链称谓查询',
 		description: '一步步选择亲属关系，计算常见普通话称呼', keywords: '亲戚 亲属 称呼 辈分 关系 计算',
-		icon: 'staff', iconText: '', color: '#278dca', background: '#e8f6ff'
+		icon: 'staff', iconText: '👥', color: '#278dca', background: '#e8f6ff'
 	},
 	{
 		id: 'random-decision', title: '随机决定', shortTitle: '随机决定', summary: '把纠结交给随机',
 		description: '编辑候选项，等概率抽选并保存常用主题', keywords: '随机 决定 选择 抽签 吃什么 选项',
-		icon: 'loop', iconText: '', color: '#278dca', background: '#e8f6ff'
+		icon: 'loop', iconText: '🎯', color: '#278dca', background: '#e8f6ff'
 	},
 	{
 		id: 'packing-list', title: '行李清单', shortTitle: '行李清单', summary: '出行物品逐项勾选',
 		description: '按模板整理行李，新增物品并记录打包进度', keywords: '行李 清单 出行 旅行 打包 物品 短途 出差',
-		icon: 'list', iconText: '', color: '#278dca', background: '#e8f6ff'
+		icon: 'list', iconText: '🧳', color: '#278dca', background: '#e8f6ff'
 	},
 	{
 		id: 'account', title: '生活记账', shortTitle: '生活记账', summary: '日常收支记录',
 		description: '记录日常收入与支出', keywords: '生活 记账 收入 支出',
-		icon: 'compose', iconText: '', color: '#8c6cff', background: '#f3edff'
+		icon: 'compose', iconText: '💰', color: '#8c6cff', background: '#f3edff'
 	},
 	{
 		id: 'fitness', title: '健身记录', shortTitle: '健身记录', summary: '记录训练数据',
 		description: '记录训练动作、组数及时长，查看每周训练统计', keywords: '健身 训练 组数 时长 运动 动作',
-		icon: 'heart', iconText: '', color: '#c65399', background: '#fceff7'
+		icon: 'heart', iconText: '💪', color: '#c65399', background: '#fceff7'
 	},
 	{
 		id: 'pet', title: '宠物管理', shortTitle: '宠物管理', summary: '记录宠物信息',
 		description: '管理宠物档案，记录体重、疫苗和驱虫日期', keywords: '宠物 管理 体重 疫苗 驱虫 提醒',
-		icon: '', iconText: '', color: '#9462e9', background: '#f2eeff'
+		icon: '', iconText: '🐈‍⬛', color: '#9462e9', background: '#f2eeff'
 	},
 	{
-		id: 'pomodoro', title: '番茄专注', shortTitle: '番茄专注', summary: '留一段完整的专注时间',
-		description: '专注与长短休息计时，记录完成轮数和累计时长', keywords: '番茄 专注 计时 休息 学习 工作',
-		icon: '', iconText: '专', color: '#278dca', background: '#e8f6ff'
+		id: 'pomodoro', title: '拾序专注', shortTitle: '拾序专注', summary: '留一段完整的专注时间',
+		description: '专注与长短休息计时，记录完成轮数和累计时长', keywords: '拾序 专注 计时 休息 学习 工作',
+		icon: '', iconText: '🍅', color: '#278dca', background: '#e8f6ff'
 	},
 	{
 		id: 'breathing', title: '呼吸放松', shortTitle: '呼吸放松', summary: '跟随圆环放慢呼吸',
 		description: '选择练习时长，跟随吸气与呼气节奏放松', keywords: '呼吸 放松 节奏 练习 声音',
-		icon: '', iconText: '息', color: '#55a88f', background: '#e8f5ef'
+		icon: '', iconText: '🌿', color: '#55a88f', background: '#e8f5ef'
 	},
 	{
 		id: 'image-pdf', title: '图片转 PDF', shortTitle: '图片转 PDF', summary: '多图合并生成',
 		description: '多图合并生成 PDF 文件', keywords: '图片 照片 PDF 合并',
-		icon: 'compose', iconText: '', color: '#9462e9', background: '#f2eeff'
+		icon: 'compose', iconText: '📄', color: '#9462e9', background: '#f2eeff'
 	},
 	{
 		id: 'image', title: '图片压缩', shortTitle: '图片压缩', summary: '减小图片大小',
 		description: '支持多种格式，一键压缩图片大小', keywords: '图片 照片 压缩 image',
-		icon: 'image', iconText: '', color: '#168fea', background: '#eaf6ff'
+		icon: 'image', iconText: '🖼️', color: '#168fea', background: '#eaf6ff'
 	},
 	{
 		id: 'pdf-merge', title: 'PDF 合并', shortTitle: 'PDF 合并', summary: '多个 PDF 合并',
 		description: '合并多个 PDF 文件', keywords: 'PDF 文件 文档 合并',
-		icon: 'list', iconText: '', color: '#ff8800', background: '#fff5e9'
+		icon: 'list', iconText: '📚', color: '#ff8800', background: '#fff5e9'
 	},
 	{
 		id: 'pdf-split', title: 'PDF 拆分', shortTitle: 'PDF 拆分', summary: '按页拆分文件',
 		description: '按页拆分 PDF 文件', keywords: 'PDF 文件 文档 拆分',
-		icon: 'loop', iconText: '', color: '#8c6cff', background: '#f3eeff'
+		icon: 'loop', iconText: '✂️', color: '#8c6cff', background: '#f3eeff'
 	},
 	{
 		id: 'text', title: '文本整理', shortTitle: '文本整理', summary: '清理格式与换行',
 		description: '清理文本格式与换行', keywords: '文本 文字 格式 换行 整理',
-		icon: 'compose', iconText: '', color: '#25b2a3', background: '#e5f8f2'
+		icon: 'compose', iconText: '📝', color: '#25b2a3', background: '#e5f8f2'
 	},
 	{
 		id: 'image-format', title: '图片转格式', shortTitle: '图片转格式', summary: 'JPG/PNG/WebP',
 		description: '转换 JPG、PNG、WebP 图片格式', keywords: '图片 格式 转换 JPG PNG WebP',
-		icon: 'image', iconText: '', color: '#8c6cff', background: '#f2eeff'
+		icon: 'image', iconText: '🔄', color: '#8c6cff', background: '#f2eeff'
 	},
 	{
 		id: 'batch', title: '批量处理', shortTitle: '批量处理', summary: '批量转换与压缩',
 		description: '批量转换和压缩图片', keywords: '图片 批量 转换 压缩',
-		icon: 'staff', iconText: '', color: '#ff8800', background: '#fff4e7'
+		icon: 'staff', iconText: '📦', color: '#ff8800', background: '#fff4e7'
 	},
 	{
 		id: 'ocr', title: 'OCR 文字识别', shortTitle: '文字识别', summary: '提取图片中的文字',
 		description: '识别并提取图片中的文字', keywords: 'OCR 图片 文字 识别 提取',
-		icon: 'scan', iconText: '', color: '#00b99f', background: '#e5f9f3'
+		icon: 'scan', iconText: '🔍', color: '#00b99f', background: '#e5f9f3'
 	},
 	{
 		id: 'json', title: 'JSON 格式化', shortTitle: 'JSON 工具', summary: '美化与校验',
 		description: '美化、压缩与校验 JSON 数据', keywords: 'JSON 格式化 开发 美化 校验',
-		icon: '', iconText: '{ }', color: '#168fea', background: '#eaf6ff'
+		icon: '', iconText: '🗂️', color: '#168fea', background: '#eaf6ff'
 	},
 	{
 		id: 'code', title: '代码格式化', shortTitle: '代码格式化', summary: '多语言代码格式化',
 		description: '整理 JavaScript、HTML、CSS 代码缩进与排版', keywords: '开发 代码 格式化 code JavaScript JS HTML CSS',
-		icon: '', iconText: '{ }', color: '#00b99f', background: '#e6faf5'
+		icon: '', iconText: '💻', color: '#00b99f', background: '#e6faf5'
 	},
 	{
 		id: 'radix', title: '进制换算', shortTitle: '进制换算', summary: '二/八/十/十六进制',
 		description: '二、八、十、十六进制整数互转，支持大整数', keywords: '进制 换算 转换 二进制 八进制 十进制 十六进制 BIN OCT DEC HEX',
-		icon: 'loop', iconText: '', color: '#278dca', background: '#e8f6ff'
+		icon: 'loop', iconText: '🔢', color: '#278dca', background: '#e8f6ff'
 	},
 	{
 		id: 'deposit', title: '存款利息', shortTitle: '利息计算', summary: '计算收益金额',
 		description: '支持多种存款方式的利息计算', keywords: '存款 利息 财务 计算 收益',
-		icon: 'wallet', iconText: '', color: '#f19b25', background: '#fff5e8'
+		icon: 'wallet', iconText: '🏦', color: '#f19b25', background: '#fff5e8'
 	},
 	{
 		id: 'mortgage', title: '房贷计算', shortTitle: '房贷计算', summary: '月供与还款明细',
 		description: '商业贷、公积金与组合贷月供和利息计算', keywords: '房贷 商业贷款 公积金 组合贷 等额本息 等额本金 月供 利息',
-		icon: 'home', iconText: '', color: '#278dca', background: '#e8f6ff'
+		icon: 'home', iconText: '🏠', color: '#278dca', background: '#e8f6ff'
 	},
 	{
 		id: 'car-loan', title: '车贷计算', shortTitle: '车贷计算', summary: '首付与月供测算',
 		description: '计算购车首付、贷款金额、月供与累计利息', keywords: '车贷 车辆 首付 贷款 月供 利息 汽车',
-		icon: 'wallet', iconText: '', color: '#278dca', background: '#e8f6ff'
+		icon: 'wallet', iconText: '🚗', color: '#278dca', background: '#e8f6ff'
 	},
 	{
 		id: '2048', title: '数字 2048', shortTitle: '数字 2048', summary: '滑动合并，挑战高分',
 		description: '合并相同数字，挑战 2048 和自己的最高分', keywords: '2048 数字 合并 休闲 游戏 益智',
-		icon: '', iconText: '数', color: '#318fc2', background: '#e8f6ff'
+		icon: '', iconText: '🧮', color: '#318fc2', background: '#e8f6ff'
 	},
 	{
 		id: 'klotski', title: '华容道', shortTitle: '华容道', summary: '经典横刀立马',
 		description: '移动棋子，让曹操从下方出口离开', keywords: '华容道 横刀立马 曹操 休闲 游戏 益智 klotski',
-		icon: '', iconText: '华', color: '#318fc2', background: '#e8f6ff'
+		icon: '', iconText: '🧩', color: '#318fc2', background: '#e8f6ff'
 	},
 	{
 		id: 'party-dice', title: '聚会摇骰子', shortTitle: '聚会骰子', summary: '摇一摇，开盅看点数',
 		description: '1 至 6 颗骰子独立随机，支持盖盅、开盅与音效', keywords: '聚会 骰子 摇骰 点数 开盅 盖盅 随机 游戏',
-		icon: '', iconText: '骰', color: '#318fc2', background: '#e8f6ff'
+		icon: '', iconText: '🎲', color: '#318fc2', background: '#e8f6ff'
 	}
 ]
 

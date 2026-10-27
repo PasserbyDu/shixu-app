@@ -31,6 +31,14 @@
 				"navigationStyle": "custom",
 				"backgroundColor": "#F3F9FD"
 			}
+		},
+		{
+			"path": "pages/search/index",
+			"style": {
+				"navigationBarTitleText": "工具搜索",
+				"navigationStyle": "custom",
+				"backgroundColor": "#F5F8FC"
+			}
 		}
 	],
 	"subPackages": [

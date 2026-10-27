@@ -1,0 +1,99 @@
+import { Tool, ToolCategory, getAllTools, getToolCategories } from '@/config/tools';
+import { STORAGE_TOOL_SEARCH_HISTORY_KEY } from '@/config/constants';
+import { getStorage, setStorage } from '@/utils/storage';
+import { toast } from '@/utils/toast';
+export type ToolSearchResult = {
+	tool: Tool;
+	category: string;
+	score: number;
+	order: number;
+};
+
+// data
+export const SEARCH_QUERY_LIMIT = 60;
+const HISTORY_LIMIT = 10;
+let historyQueue: Promise<boolean> = Promise.resolve(true);
+
+// methods
+export const cleanSearchQuery = (value: string): string => value.trim().replace(/\s+/g, ' ');
+
+// 所有词都需命中；名称优先，其次关键词、摘要、描述及分类。分数相同时保留目录顺序。
+export const searchTools = (value: string): ToolSearchResult[] => {
+	const query = cleanSearchQuery(value).toLowerCase();
+	if (query.length == 0 || query.length > SEARCH_QUERY_LIMIT) return [];
+	const terms = query.split(' ');
+	const categories = getToolCategories();
+	const results: ToolSearchResult[] = [];
+	getAllTools().forEach((tool: Tool, order: number) => {
+		const category = categories.filter((item: ToolCategory): boolean => item.toolIds.includes(tool.id)).map((item: ToolCategory): string => item.title).join(' / ');
+		const title = tool.title.toLowerCase();
+		const shortTitle = tool.shortTitle.toLowerCase();
+		let score = 0;
+		let matches = true;
+		terms.forEach((term: string) => {
+			if (title == term || shortTitle == term) score += 120;
+			else if (title.startsWith(term) || shortTitle.startsWith(term)) score += 90;
+			else if (title.includes(term) || shortTitle.includes(term)) score += 70;
+			else if ((tool.keywords + ' ' + tool.id).toLowerCase().includes(term)) score += 45;
+			else if (tool.summary.toLowerCase().includes(term)) score += 35;
+			else if (tool.description.toLowerCase().includes(term)) score += 25;
+			else if (category.toLowerCase().includes(term)) score += 15;
+			else matches = false;
+		});
+		if (!matches) return;
+		if (title == query || shortTitle == query) score += 300;
+		else if (title.includes(query) || shortTitle.includes(query)) score += 120;
+		results.push({
+			tool,
+			category: category.length > 0 ? category : '其他工具',
+			score,
+			order
+		});
+	});
+	return results.sort((a: ToolSearchResult, b: ToolSearchResult): number => a.score == b.score ? a.order - b.order : b.score - a.score);
+};
+const readHistory = async (): Promise<string[]> => {
+	const saved: any = await getStorage(STORAGE_TOOL_SEARCH_HISTORY_KEY, '');
+	if (typeof saved != 'string') throw new Error('搜索记录格式不正确');
+	if ((saved as string).length == 0) return [];
+	const fields = (saved as string).split('|');
+	if (fields.length < 2 || fields[0] != '1' || fields.length > HISTORY_LIMIT + 1) throw new Error('搜索记录版本或数量无效');
+	if (fields.length == 2 && fields[1].length == 0) return [];
+	const result: string[] = [];
+	fields.slice(1).forEach((entry: string) => {
+		const query = cleanSearchQuery(decodeURIComponent(entry));
+		if (query.length == 0 || query.length > SEARCH_QUERY_LIMIT) throw new Error('搜索词长度无效');
+		if (result.some((item: string): boolean => item.toLowerCase() == query.toLowerCase())) return;
+		result.push(query);
+	});
+	return result;
+};
+export const getSearchHistory = async (): Promise<string[]> => {
+	await historyQueue;
+	return await readHistory();
+};
+export const rememberSearchQuery = (value: string): Promise<string[]> => {
+	const task = historyQueue.then(async (): Promise<string[]> => {
+		const query = cleanSearchQuery(value);
+		if (query.length == 0 || query.length > SEARCH_QUERY_LIMIT) throw new Error('搜索词需为1至60字');
+		const previous = await readHistory();
+		const history = [query].concat(previous.filter((item: string): boolean => item.toLowerCase() != query.toLowerCase())).slice(0, HISTORY_LIMIT);
+		await setStorage(STORAGE_TOOL_SEARCH_HISTORY_KEY, '1|' + history.map((item: string): string => encodeURIComponent(item)).join('|'));
+		return history;
+	});
+	historyQueue = task.then((): boolean => true).catch((): boolean => false);
+	return task;
+};
+export const clearSearchHistory = (): Promise<void> => {
+	const task = historyQueue.then(async () => {
+		await setStorage(STORAGE_TOOL_SEARCH_HISTORY_KEY, '1|');
+	});
+	historyQueue = task.then((): boolean => true).catch((): boolean => false);
+	return task;
+};
+export const openToolSearch = () => {
+	uni.navigateTo({
+		url: '/pages/search/index',
+		fail: () => toast('打开搜索失败，请重试')
+	});
+};

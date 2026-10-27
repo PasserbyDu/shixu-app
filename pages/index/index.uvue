@@ -15,19 +15,9 @@
 					</view>
 					<text class="mt-[30rpx] text-[40rpx] font-bold text-[#0d3052] leading-[52rpx]">今天也有好方法</text>
 					<text class="mt-[8rpx] text-[23rpx] text-[#587d9d] leading-[32rpx]">从一个顺手的工具，开始有序的生活</text>
-					<view class="search-box">
+					<view class="search-box" @click="openToolSearch">
 						<UniIcons type="search" size="44rpx" color="#587d9d" />
-						<input
-							v-model="keyword"
-							class="search-input"
-							placeholder="搜索图片压缩、日期计算、JSON..."
-							placeholder-style="color: #8b9db4;"
-							confirm-type="search"
-							@confirm="confirmSearch"
-						/>
-						<view v-if="keyword.length > 0" class="flex flex-row items-center" @click="clearSearch">
-							<UniIcons type="clear" size="32rpx" color="#8b9db4" />
-						</view>
+						<text class="search-placeholder">搜索图片压缩、日期计算、JSON...</text>
 					</view>
 				</view>
 			</view>
@@ -41,17 +31,18 @@
 					<UniIcons type="right" size="24rpx" color="#1888db" />
 				</view>
 			</view>
-			<view v-if="filteredTools.length > 0" class="tool-grid">
-				<view v-for="tool in filteredTools" :key="tool.id" class="tool-card" @click="openTool(tool)">
+			<view v-if="tools.length > 0" class="tool-grid">
+				<view v-for="tool in tools" :key="tool.id" class="tool-card" @click="openTool(tool)">
 					<view class="tool-icon">
 						<text v-if="tool.iconText.length > 0" class="text-[50rpx] leading-[60rpx]" :style="'color: ' + tool.color + ';'">{{ tool.iconText }}</text>
 						<UniIcons v-else-if="tool.icon.length > 0" :type="tool.icon" size="58rpx" :color="tool.color" />
 					</view>
-					<text class="mt-[14rpx] text-[24rpx] font-medium text-[#123352] leading-[34rpx]">{{ tool.title }}</text>
-					<text class="mt-[10rpx] text-[20rpx] text-[#8196ad] leading-[30rpx]">{{ tool.summary }}</text>
+					<text class="mt-[14rpx] text-[24rpx] font-medium text-center text-[#123352] leading-[34rpx]">{{ tool.title }}</text>
+					<text class="mt-[10rpx] text-[20rpx] text-center text-[#8196ad] leading-[30rpx]">{{ tool.summary }}</text>
+					<text class="mt-[8rpx] text-[20rpx] text-center text-[#1888db] leading-[30rpx]">使用 {{ getUsageCount(tool.id) }} 次</text>
 				</view>
 			</view>
-			<empty-state v-else image="" description="没有找到相关工具" />
+			<empty-state v-else image="" description="使用工具后会在这里显示常用工具" />
 		</view>
 
 		<view class="home-panel category-panel">
@@ -68,7 +59,7 @@
 					:key="category.id"
 					class="category-card"
 					:style="'background-color: ' + category.background + ';'"
-					@click="openCategories"
+					@click="openToolCategory(category.id)"
 				>
 					<view class="category-icon">
 						<text v-if="category.id == 'development'" class="text-[38rpx] text-[#0096f7]">{ }</text>
@@ -122,61 +113,54 @@
 
 <script setup lang="uts">
 	import { computed, ref } from 'vue'
-	import { Tool, HOME_TOOL_IDS, getToolCategories, getToolsByIds } from '@/config/tools'
+	import { Tool, getToolCategories } from '@/config/tools'
 	import {
 		ToolUsage,
+		FrequentToolUsage,
 		clearToolHistory,
 		formatUsageTime,
 		getRecentToolUsages,
+		getFrequentToolUsages,
 		removeToolUsage
 	} from '@/utils/tool-usage'
 	import { getNavBarInfo } from '@/utils/system'
 	import { toast } from '@/utils/toast'
+	import { openToolSearch } from '@/utils/tool-search'
 	import { navigateToTool } from '@/utils/tool-navigation'
+	import { openToolCategory } from '@/utils/category-navigation'
 
 	// data
 	const isHeaderFixed = ref(false)
 	const heroImageUrl = ref('https://i.postimg.cc/tTMT1z8W/P01-home-hero.png')
-	const keyword = ref('')
 	const activeRecentId = ref('')
 	const navBarInfo = getNavBarInfo()
-	const tools = getToolsByIds(HOME_TOOL_IDS)
+	const frequentUsages = ref<FrequentToolUsage[]>([])
 	const categories = getToolCategories()
 	const recentUsages = ref<ToolUsage[]>([])
 	const recentTools = ref<Tool[]>([])
 
 	// computed
+	const tools = computed(() : Tool[] => frequentUsages.value.slice(0, 4).map((item : FrequentToolUsage) : Tool => item.tool))
 	const heroStyle = computed(() : string => {
 		return 'padding-top: ' + (navBarInfo.statusBarHeightRpx + 14) + 'rpx;'
 	})
-	const filteredTools = computed(() : Tool[] => {
-		const query = keyword.value.trim().toLowerCase()
-		if (query.length == 0) return tools
-		return tools.filter((tool : Tool) : boolean => {
-			return (tool.title + tool.keywords).toLowerCase().includes(query)
-		})
-	})
 
 	// methods
+	const getUsageCount = (id : string) : number => {
+		return frequentUsages.value.find((item : FrequentToolUsage) : boolean => item.tool.id == id)?.count ?? 0
+	}
 	const getRecentTime = (id : string) : string => {
 		const usage = recentUsages.value.find((item : ToolUsage) : boolean => item.tool.id == id)
 		return usage == null ? '' : formatUsageTime(usage.usedAt)
 	}
 	const openCategories = () => {
-		uni.switchTab({ url: '/pages/category/index' })
+		openToolCategory('all')
 	}
 	const openTool = (tool : Tool) => {
 		navigateToTool(tool)
 	}
 	const showNotifications = () => {
 		toast('暂无新消息')
-	}
-	const confirmSearch = () => {
-		uni.hideKeyboard()
-		if (filteredTools.value.length == 0) return toast('没有找到相关工具')
-	}
-	const clearSearch = () => {
-		keyword.value = ''
 	}
 	const clearHistory = async () => {
 		if (recentTools.value.length == 0) return toast('暂无使用记录')
@@ -199,19 +183,20 @@
 	const removeRecent = async (id : string) => {
 		try {
 			await removeToolUsage(id)
+			recentUsages.value = (await getRecentToolUsages()).slice(0, 5)
+			recentTools.value = recentUsages.value.map((item : ToolUsage) : Tool => item.tool)
 		} catch (error) {
 			toast('移除记录失败，请重试')
 			return
 		}
-		recentTools.value = recentTools.value.filter((tool : Tool) : boolean => tool.id != id)
-		recentUsages.value = recentUsages.value.filter((item : ToolUsage) : boolean => item.tool.id != id)
 		activeRecentId.value = ''
 	}
 
 	// lifecycle
 	onShow(async () => {
 		try {
-			recentUsages.value = await getRecentToolUsages()
+			frequentUsages.value = await getFrequentToolUsages()
+			recentUsages.value = (await getRecentToolUsages()).slice(0, 5)
 			recentTools.value = recentUsages.value.map((item : ToolUsage) : Tool => item.tool)
 			activeRecentId.value = ''
 		} catch (error) {
@@ -275,12 +260,12 @@
 				border-radius: 46rpx;
 				background-color: $uni-bg-color;
 
-				.search-input {
+				.search-placeholder {
 					flex: 1;
-					height: 80rpx;
 					margin-left: 16rpx;
 					font-size: 23rpx;
-					color: #183756;
+					line-height: 36rpx;
+					color: #8b9db4;
 				}
 			}
 		}
@@ -316,12 +301,13 @@
 		.tool-grid {
 			display: flex;
 			flex-direction: row;
-			justify-content: space-between;
+			justify-content: flex-start;
 
 			.tool-card {
 				box-sizing: border-box;
 				align-items: center;
-				width: 159rpx;
+				width: 24%;
+				margin-right: 1%;
 				min-height: 216rpx;
 				padding: 24rpx 10rpx;
 				border-radius: 17rpx;

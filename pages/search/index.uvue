@@ -1,0 +1,461 @@
+<template>
+	<view class="search-page">
+		<page-header
+			:fixed="isHeaderFixed"
+			title="工具搜索"
+			titleColor="#233d50"
+			titleFontSize="30rpx"
+			titleFontWeight="500"
+			iconColor="#233d50"
+			headerClass="page-header-calculator-bg"
+		>
+			<view class="search-toolbar">
+				<view class="search-field">
+					<UniIcons type="search" size="34rpx" color="#8795a1" />
+					<input
+						v-model="keyword"
+						class="keyword-input"
+						:focus="focused"
+						:maxlength="-1"
+						placeholder="搜索工具名称、功能或关键词"
+						placeholder-style="color: #8795a1;"
+						confirm-type="search"
+						@input="changeKeyword"
+						@confirm="submitSearch"
+						@focus="focused = true"
+						@blur="focused = false"
+					/>
+					<view v-if="keyword.length > 0" class="clear-input" @click="resetSearch">
+						<UniIcons type="closeempty" size="32rpx" color="#8795a1" />
+					</view>
+				</view>
+				<view class="search-action" @click="submitSearch">
+					<text class="text-[28rpx] leading-[44rpx] font-medium text-[#278dca]">搜索</text>
+				</view>
+			</view>
+		</page-header>
+		<view class="search-body">
+			<view v-if="query.length == 0" class="initial-state">
+				<scroll-view class="history-scroll" scroll-y="true">
+					<view class="history-panel">
+						<view class="history-heading">
+							<text class="text-[30rpx] leading-[46rpx] font-medium text-[#233d50]">最近搜索</text>
+							<text v-if="history.length > 0 || historyError.length > 0" class="clear-history" @click="clearHistory">清空</text>
+						</view>
+						<view v-if="history.length > 0" class="history-tags">
+							<view v-for="term in history" :key="term" class="history-tag" @click="useHistory(term)">
+								<text class="text-[26rpx] leading-[40rpx] break-all text-[#233d50]">{{ term }}</text>
+							</view>
+						</view>
+						<view v-else-if="historyReady" class="history-empty">
+							<empty-state image="" description="暂无搜索记录" />
+						</view>
+						<text v-if="historyError.length > 0" class="history-error">{{ historyError }}</text>
+					</view>
+				</scroll-view>
+				<text class="initial-hint">输入关键词，快速找到需要的工具</text>
+			</view>
+			<scroll-view v-else-if="results.length > 0" class="result-scroll" scroll-y="true" :scroll-top="resultScrollTop">
+				<view class="result-heading">
+					<text class="text-[26rpx] leading-[42rpx] font-medium text-[#233d50]">找到 {{ results.length }} 个相关工具</text>
+					<text class="text-[22rpx] leading-[36rpx] text-[#8795a1]">按相关度排序</text>
+				</view>
+				<text v-if="historyError.length > 0" class="result-history-error">{{ historyError }}</text>
+				<view v-for="result in results" :key="result.tool.id" class="result-card" @click="openResult(result)">
+					<view class="result-icon" :style="'background-color: ' + result.tool.background + ';'">
+						<text
+							v-if="result.tool.iconText.length > 0"
+							class="text-[42rpx] leading-[60rpx]"
+							:style="'color: ' + result.tool.color + ';'"
+						>{{ result.tool.iconText }}</text>
+						<UniIcons
+							v-else-if="result.tool.icon.length > 0"
+							:type="result.tool.icon"
+							size="46rpx"
+							:color="result.tool.color"
+						/>
+						<text v-else class="text-[36rpx] leading-[54rpx] text-[#278dca]">{{ result.tool.title.slice(0, 1) }}</text>
+					</view>
+					<view class="result-copy">
+						<text class="result-title">{{ result.tool.title }}</text>
+						<text class="result-description">{{ result.tool.description }}</text>
+						<text class="result-category">{{ result.category }}{{ getToolPath(result.tool.id).length == 0 ? ' · 待接入' : '' }}</text>
+					</view>
+					<UniIcons type="right" size="28rpx" color="#8795a1" />
+				</view>
+				<text class="results-end">已显示全部 {{ results.length }} 个结果</text>
+				<view class="bottom-space" />
+			</scroll-view>
+			<view v-else class="no-results">
+				<text v-if="historyError.length > 0" class="mx-[4rpx] mt-[16rpx] text-[22rpx] leading-[36rpx] text-[#be5555]">{{ historyError }}</text>
+				<empty-state image="" description="">
+					<view class="empty-symbol">
+						<UniIcons type="search" size="118rpx" color="#7aaac6" />
+					</view>
+					<text class="empty-title">{{ queryError.length > 0 ? '搜索内容过长' : '没有找到相关工具' }}</text>
+					<text class="empty-description">{{ queryError.length > 0 ? queryError : '换个关键词，或缩短搜索内容试试' }}</text>
+					<view class="reset-button" @click="resetSearch">
+						<text class="text-[28rpx] leading-[44rpx] text-white">清空并重试</text>
+					</view>
+				</empty-state>
+				<view class="empty-bottom-space" />
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { computed, nextTick, ref } from 'vue';
+	import { getToolPath } from '@/config/tools';
+	import {
+		SEARCH_QUERY_LIMIT,
+		ToolSearchResult,
+		cleanSearchQuery,
+		searchTools,
+		getSearchHistory,
+		rememberSearchQuery,
+		clearSearchHistory
+	} from '@/utils/tool-search';
+	import { navigateToTool } from '@/utils/tool-navigation';
+	import { toast } from '@/utils/toast';
+	// data
+	const isHeaderFixed = ref(false);
+	const keyword = ref('');
+	const focused = ref(false);
+	const history = ref<string[]>([]);
+	const historyReady = ref(false);
+	const historyError = ref('');
+	const resultScrollTop = ref(0);
+	let historyRevision = 0;
+	let disposed = false;
+	// computed
+	const query = computed((): string => cleanSearchQuery(keyword.value));
+	const queryError = computed((): string => query.value.length > SEARCH_QUERY_LIMIT ? '搜索内容最多60字，请缩短后重试' : '');
+	const results = computed((): ToolSearchResult[] => searchTools(query.value));
+	// methods
+	const resetResultScroll = () => {
+		resultScrollTop.value = 1;
+		nextTick(() => {
+			if (!disposed) resultScrollTop.value = 0;
+		});
+	};
+	const focusInput = () => {
+		focused.value = false;
+		nextTick(() => {
+			if (!disposed) focused.value = true;
+		});
+	};
+	const changeKeyword = () => {
+		resetResultScroll();
+	};
+	const saveQuery = async (value: string) => {
+		const revision = ++historyRevision;
+		try {
+			const saved = await rememberSearchQuery(value);
+			if (!disposed && revision == historyRevision) {
+				history.value = saved;
+				historyError.value = '';
+			}
+		} catch (exception) {
+			if (!disposed && revision == historyRevision) historyError.value = '搜索记录未保存，可继续搜索；如旧记录损坏，可清空后重试';
+		}
+	};
+	const submitSearch = () => {
+		if (query.value.length == 0) return focusInput();
+		if (queryError.value.length > 0) return toast(queryError.value);
+		uni.hideKeyboard();
+		focused.value = false;
+		resetResultScroll();
+		saveQuery(query.value);
+	};
+	const resetSearch = () => {
+		keyword.value = '';
+		resetResultScroll();
+		focusInput();
+	};
+	const useHistory = (value: string) => {
+		keyword.value = value;
+		submitSearch();
+	};
+	const openResult = (result: ToolSearchResult) => {
+		uni.hideKeyboard();
+		focused.value = false;
+		saveQuery(query.value);
+		navigateToTool(result.tool);
+	};
+	const clearHistory = async () => {
+		const revision = ++historyRevision;
+		try {
+			await clearSearchHistory();
+			if (!disposed && revision == historyRevision) {
+				history.value = [];
+				historyError.value = '';
+			}
+		} catch (exception) {
+			if (!disposed && revision == historyRevision) historyError.value = '清空搜索记录失败，请重试';
+		}
+	};
+	// lifecycle
+	onLoad(async () => {
+		const revision = ++historyRevision;
+		try {
+			const saved = await getSearchHistory();
+			if (!disposed && revision == historyRevision) history.value = saved;
+		} catch (exception) {
+			if (!disposed && revision == historyRevision) historyError.value = '最近搜索读取失败，可继续搜索或清空记录后重试';
+		}
+		if (!disposed) historyReady.value = true;
+	});
+	onReady(() => {
+		focusInput();
+	});
+	onHide(() => {
+		focused.value = false;
+	});
+	onUnload(() => {
+		disposed = true;
+		historyRevision++;
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/uni.scss';
+	.search-page {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		height: 100%;
+		background-color: #f5f8fc;
+	}
+
+	.search-toolbar {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		padding: 24rpx 32rpx 52rpx;
+		.search-field {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			flex: 1;
+			min-width: 0;
+			height: 86rpx;
+			padding-left: 24rpx;
+			border-radius: 44rpx;
+			background-color: $uni-bg-color;
+			.keyword-input {
+				flex: 1;
+				min-width: 0;
+				height: 82rpx;
+				margin-left: 12rpx;
+				font-size: 26rpx;
+				color: #233d50;
+			}
+			.clear-input {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				width: 64rpx;
+				height: 82rpx;
+				flex-shrink: 0;
+			}
+		}
+		.search-action {
+			display: flex;
+			flex-direction: row;
+			justify-content: center;
+			align-items: center;
+			flex-shrink: 0;
+			width: 94rpx;
+			min-height: 86rpx;
+			margin-left: 8rpx;
+		}
+	}
+
+	.search-body {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		min-height: 0;
+		.initial-state {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			min-height: 0;
+			.history-scroll {
+				flex: 1;
+				min-height: 0;
+				.history-panel {
+					padding: 26rpx 32rpx;
+					.history-heading {
+						display: flex;
+						flex-direction: row;
+						align-items: center;
+						justify-content: space-between;
+						.clear-history {
+							padding: 10rpx 0 10rpx 28rpx;
+							font-size: 24rpx;
+							line-height: 40rpx;
+							color: #8795a1;
+						}
+					}
+					.history-tags {
+						display: flex;
+						flex-direction: row;
+						flex-wrap: wrap;
+						margin-top: 12rpx;
+						.history-tag {
+							box-sizing: border-box;
+							max-width: 100%;
+							margin: 12rpx 16rpx 0 0;
+							padding: 12rpx 26rpx;
+							border-radius: 30rpx;
+							background-color: #edf4fb;
+						}
+					}
+					.history-empty {
+						display: flex;
+						flex-direction: column;
+						min-height: 130rpx;
+					}
+					.history-error {
+						display: block;
+						margin-top: 24rpx;
+						font-size: 22rpx;
+						line-height: 36rpx;
+						color: #be5555;
+					}
+				}
+			}
+			.initial-hint {
+				margin: 26rpx 32rpx 164rpx;
+				font-size: 22rpx;
+				line-height: 36rpx;
+				text-align: center;
+				color: #8795a1;
+			}
+		}
+		.result-scroll {
+			flex: 1;
+			min-height: 0;
+			.result-heading {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: space-between;
+				padding: 20rpx 36rpx;
+			}
+			.result-history-error {
+				display: block;
+				margin: 0 36rpx 20rpx;
+				font-size: 22rpx;
+				line-height: 36rpx;
+				color: #be5555;
+			}
+			.result-card {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				margin: 0 32rpx 16rpx;
+				padding: 24rpx;
+				border-radius: 30rpx;
+				background-color: $uni-bg-color;
+				.result-icon {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					justify-content: center;
+					flex-shrink: 0;
+					width: 96rpx;
+					height: 96rpx;
+					border-radius: 24rpx;
+				}
+				.result-copy {
+					flex: 1;
+					min-width: 0;
+					margin: 0 16rpx 0 24rpx;
+					.result-title {
+						display: block;
+						font-size: 30rpx;
+						font-weight: 500;
+						line-height: 46rpx;
+						color: #233d50;
+					}
+					.result-description {
+						display: block;
+						margin-top: 8rpx;
+						font-size: 24rpx;
+						line-height: 38rpx;
+						color: #8795a1;
+					}
+					.result-category {
+						display: block;
+						margin-top: 8rpx;
+						font-size: 22rpx;
+						line-height: 36rpx;
+						color: #278dca;
+					}
+				}
+			}
+			.results-end {
+				display: block;
+				margin: 30rpx 32rpx;
+				font-size: 22rpx;
+				line-height: 36rpx;
+				text-align: center;
+				color: #8795a1;
+			}
+			.bottom-space {
+				height: 40rpx;
+			}
+		}
+		.no-results {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			padding: 0 32rpx;
+			.empty-bottom-space {
+				flex: 0.5;
+			}
+			.empty-symbol {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				width: 224rpx;
+				height: 224rpx;
+				border-radius: 112rpx;
+				background-color: #e9f3fa;
+			}
+			.empty-title {
+				margin-top: 42rpx;
+				font-size: 32rpx;
+				font-weight: 500;
+				line-height: 50rpx;
+				text-align: center;
+				color: #233d50;
+			}
+			.empty-description {
+				margin-top: 18rpx;
+				font-size: 24rpx;
+				line-height: 40rpx;
+				text-align: center;
+				color: #8795a1;
+			}
+			.reset-button {
+				box-sizing: border-box;
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				min-width: 300rpx;
+				min-height: 86rpx;
+				margin-top: 44rpx;
+				padding: 0 24rpx;
+				border-radius: 44rpx;
+				background-color: #278dca;
+			}
+		}
+	}
+</style>

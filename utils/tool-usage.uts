@@ -1,5 +1,9 @@
 import { Tool, getTool } from '@/config/tools'
-import { RECENT_HISTORY_CLEARED_KEY, RECENT_TOOL_USAGE_KEY } from '@/config/toolbox'
+import {
+	RECENT_HISTORY_CLEARED_KEY,
+	RECENT_TOOL_USAGE_KEY
+} from '@/config/toolbox'
+import { TOOL_USAGE_COUNTS_KEY } from '@/config/constants'
 import { getStorage, getStorageSync, removeStorageSync, setStorage, setStorageSync } from '@/utils/storage'
 
 export type ToolUsage = {
@@ -7,8 +11,27 @@ export type ToolUsage = {
 	usedAt : number
 }
 
+export type FrequentToolUsage = {
+	tool : Tool
+	count : number
+	usedAt : number
+}
+
+// data
+// 完整历史供收藏页使用，首页单独限制为5条。
+const RECENT_LIMIT = 20
+let usageQueue : Promise<void> = Promise.resolve()
+
+// methods
+// 进入工具、清空和移除共用串行队列，避免并发读写丢失次数或恢复已清除的历史。
+const enqueueUsage = (operation : () => Promise<void>) : Promise<void> => {
+	const task = usageQueue.then(operation)
+	usageQueue = task.catch(() => {})
+	return task
+}
+
 // 使用字符串保存 ID 和时间戳，避免多端存储反序列化后的对象类型差异。
-export const getRecentToolUsages = async () : Promise<ToolUsage[]> => {
+const readRecentUsages = async () : Promise<ToolUsage[]> => {
 	const result : ToolUsage[] = []
 	if (getStorageSync(RECENT_HISTORY_CLEARED_KEY, '') == '1') return result
 	const saved : any = await getStorage(RECENT_TOOL_USAGE_KEY, '')
@@ -20,11 +43,44 @@ export const getRecentToolUsages = async () : Promise<ToolUsage[]> => {
 		const tool = getTool(parts[0])
 		const usedAt = Number(parts[1])
 		if (tool == null || !Number.isFinite(usedAt) || usedAt <= 0) return
-		if (result.some((item : ToolUsage) : boolean => item.tool.id == tool.id)) return
-		if (result.length >= 20) return
+		if (result.length >= RECENT_LIMIT || result.some((item : ToolUsage) : boolean => item.tool.id == tool.id)) return
 		result.push({ tool, usedAt })
 	})
 	return result
+}
+
+export const getRecentToolUsages = async () : Promise<ToolUsage[]> => {
+	await usageQueue
+	return await readRecentUsages()
+}
+
+const readUsageCounts = async () : Promise<FrequentToolUsage[]> => {
+	const saved : any = await getStorage(TOOL_USAGE_COUNTS_KEY, '')
+	const result : FrequentToolUsage[] = []
+	if (typeof saved != 'string' || (saved as string).length == 0) return result
+	const entries = (saved as string).split(',')
+	entries.forEach((entry : string) => {
+		const parts = entry.split('@')
+		if (parts.length != 3) return
+		const tool = getTool(parts[0])
+		const count = Number(parts[1])
+		const usedAt = Number(parts[2])
+		if (tool == null || !Number.isInteger(count) || count <= 0 || count > 9007199254740991) return
+		if (!Number.isFinite(usedAt) || usedAt <= 0) return
+		if (result.some((item : FrequentToolUsage) : boolean => item.tool.id == tool.id)) return
+		result.push({ tool, count, usedAt })
+	})
+	return result
+}
+
+export const getFrequentToolUsages = async () : Promise<FrequentToolUsage[]> => {
+	await usageQueue
+	const usages = await readUsageCounts()
+	return usages.sort((a : FrequentToolUsage, b : FrequentToolUsage) : number => {
+		if (a.count != b.count) return b.count - a.count
+		if (a.usedAt != b.usedAt) return b.usedAt - a.usedAt
+		return a.tool.id < b.tool.id ? -1 : a.tool.id > b.tool.id ? 1 : 0
+	})
 }
 
 const saveUsages = async (usages : ToolUsage[]) => {
@@ -32,28 +88,34 @@ const saveUsages = async (usages : ToolUsage[]) => {
 	await setStorage(RECENT_TOOL_USAGE_KEY, value)
 }
 
-export const recordToolUsage = async (id : string) => {
+export const recordToolUsage = (id : string) : Promise<void> => enqueueUsage(async () => {
 	const tool = getTool(id)
 	if (tool == null) return
-	const recent = await getRecentToolUsages()
-	const usages : ToolUsage[] = [{ tool, usedAt: Date.now() }]
+	const recent = await readRecentUsages()
+	const counts = await readUsageCounts()
+	const usedAt = Date.now()
+	const previous = counts.find((item : FrequentToolUsage) : boolean => item.tool.id == tool.id)
+	if (previous == null) counts.push({ tool, count: 1, usedAt })
+	else { previous.count = Math.min(previous.count + 1, 9007199254740991); previous.usedAt = usedAt }
+	await setStorage(TOOL_USAGE_COUNTS_KEY, counts.map((item : FrequentToolUsage) : string => item.tool.id + '@' + item.count + '@' + item.usedAt).join(','))
+	const usages : ToolUsage[] = [{ tool, usedAt }]
 	recent.forEach((item : ToolUsage) => {
-		if (item.tool.id == tool.id || usages.length >= 20) return
+		if (item.tool.id == tool.id || usages.length >= RECENT_LIMIT) return
 		usages.push(item)
 	})
 	await saveUsages(usages)
 	removeStorageSync(RECENT_HISTORY_CLEARED_KEY)
-}
+})
 
-export const removeToolUsage = async (id : string) => {
-	const recent = await getRecentToolUsages()
+export const removeToolUsage = (id : string) : Promise<void> => enqueueUsage(async () => {
+	const recent = await readRecentUsages()
 	await saveUsages(recent.filter((item : ToolUsage) : boolean => item.tool.id != id))
-}
+})
 
-export const clearToolHistory = async () => {
+export const clearToolHistory = () : Promise<void> => enqueueUsage(async () => {
 	await setStorage(RECENT_TOOL_USAGE_KEY, '')
 	setStorageSync(RECENT_HISTORY_CLEARED_KEY, '1')
-}
+})
 
 export const formatUsageTime = (usedAt : number) : string => {
 	const minutes = Math.floor(Math.max(0, Date.now() - usedAt) / 60000)

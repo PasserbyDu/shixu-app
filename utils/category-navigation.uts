@@ -1,0 +1,25 @@
+import { ToolCategory, getToolCategories } from '@/config/tools'
+import { toast } from '@/utils/toast'
+
+// data
+let requestedCategory = ''
+
+// methods
+// switchTab 不传查询参数，使用一次性请求兼容已缓存的分类 tab。
+export const openToolCategory = (id : string = 'all') => {
+	if (id != 'all' && !getToolCategories().some((category : ToolCategory) : boolean => category.id == id)) return
+	requestedCategory = id
+	uni.switchTab({
+		url: '/pages/category/index',
+		fail: () => {
+			if (requestedCategory == id) requestedCategory = ''
+			toast('打开分类失败，请重试')
+		}
+	})
+}
+
+export const consumeRequestedCategory = () : string => {
+	const id = requestedCategory
+	requestedCategory = ''
+	return id
+}

@@ -7,29 +7,19 @@
 				<view class="hero-content">
 					<text class="text-[50rpx] font-bold text-[#092a4b] leading-[64rpx]">全部工具</text>
 					<text class="mt-[10rpx] text-[23rpx] text-[#6c87a6] leading-[32rpx]">{{ totalToolCount }} 个实用工具，满足工作与生活所需</text>
-					<view class="search-box">
+					<view class="search-box" @click="openToolSearch">
 						<UniIcons type="search" size="44rpx" color="#6987a6" />
-						<input
-							v-model="keyword"
-							class="search-input"
-							placeholder="搜索工具名称、功能或关键词..."
-							placeholder-style="color: #8ba0b6;"
-							confirm-type="search"
-							@input="resetContentScroll"
-							@confirm="confirmSearch"
-						/>
-						<view v-if="keyword.length > 0" class="flex flex-row items-center" @click="clearSearch">
-							<UniIcons type="clear" size="32rpx" color="#8ba0b6" />
-						</view>
+						<text class="search-placeholder">搜索工具名称、功能或关键词...</text>
 					</view>
 				</view>
 			</view>
 		</page-header>
 
-		<scroll-view class="category-filter" scroll-x="true" :show-scrollbar="false">
+		<scroll-view class="category-filter" scroll-x="true" :show-scrollbar="false" :scroll-into-view="filterScrollTarget">
 			<view class="filter-list">
 				<view
 					v-for="filter in filters"
+					:id="'category-filter-' + filter.id"
 					:key="filter.id"
 					class="filter-item"
 					:class="{ 'is-active': selectedCategory == filter.id }"
@@ -90,8 +80,9 @@
 		getToolGroups
 	} from '@/config/tools'
 	import { getNavBarInfo } from '@/utils/system'
-	import { toast } from '@/utils/toast'
+	import { openToolSearch } from '@/utils/tool-search'
 	import { navigateToTool } from '@/utils/tool-navigation'
+	import { consumeRequestedCategory } from '@/utils/category-navigation'
 
 	// data
 	type CategoryFilter = {
@@ -100,8 +91,8 @@
 	}
 	const isHeaderFixed = ref(false)
 	const heroImageUrl = ref('https://i.postimg.cc/k4p4VyLQ/P02-categories-hero.png')
-	const keyword = ref('')
 	const selectedCategory = ref('all')
+	const filterScrollTarget = ref('')
 	const contentScrollTop = ref(0)
 	const navBarInfo = getNavBarInfo()
 	const filters : CategoryFilter[] = [{ id: 'all', title: '全部' }]
@@ -110,33 +101,13 @@
 	})
 	const groups = getToolGroups()
 	const totalToolCount = getAllTools().length
+	const emptyDescription = '该分类工具待添加'
 
 	// computed
 	const heroStyle = computed(() : string => {
 		return 'padding-top: ' + (navBarInfo.statusBarHeightRpx + 20) + 'rpx;'
 	})
-	const visibleGroups = computed(() : ToolGroup[] => {
-		const query = keyword.value.trim().toLowerCase()
-		const result : ToolGroup[] = []
-		groups.forEach((group : ToolGroup) => {
-			if (selectedCategory.value != 'all' && selectedCategory.value != group.id) return
-			const matches = group.tools.filter((tool : Tool) : boolean => {
-				return (group.title + tool.title + tool.description + tool.keywords).toLowerCase().includes(query)
-			})
-			if (matches.length == 0) return
-			result.push({
-				id: group.id,
-				title: group.title,
-				icon: group.icon,
-				count: query.length > 0 ? matches.length : group.count,
-				tools: matches
-			})
-		})
-		return result
-	})
-	const emptyDescription = computed(() : string => {
-		return keyword.value.trim().length > 0 ? '没有找到相关工具，换个关键词试试' : '该分类工具待添加'
-	})
+	const visibleGroups = computed(() : ToolGroup[] => groups.filter((group : ToolGroup) : boolean => selectedCategory.value == 'all' || selectedCategory.value == group.id))
 
 	// methods
 	const resetContentScroll = () => {
@@ -148,19 +119,20 @@
 	}
 	const selectCategory = (id : string) => {
 		selectedCategory.value = id
+		filterScrollTarget.value = ''
+		nextTick(() => { filterScrollTarget.value = 'category-filter-' + id })
 		resetContentScroll()
-	}
-	const clearSearch = () => {
-		keyword.value = ''
-		resetContentScroll()
-	}
-	const confirmSearch = () => {
-		uni.hideKeyboard()
-		if (visibleGroups.value.length == 0) return toast('没有找到相关工具')
 	}
 	const openTool = (tool : Tool) => {
 		navigateToTool(tool)
 	}
+
+	// lifecycle
+	onShow(() => {
+		const requested = consumeRequestedCategory()
+		if (requested.length == 0 || !filters.some((filter : CategoryFilter) : boolean => filter.id == requested)) return
+		selectCategory(requested)
+	})
 </script>
 
 <style scoped lang="scss">
@@ -203,13 +175,13 @@
 				border-radius: 42rpx;
 				background-color: $uni-bg-color;
 
-				.search-input {
+				.search-placeholder {
 					flex: 1;
 					min-width: 0;
-					height: 77rpx;
 					margin-left: 18rpx;
 					font-size: 23rpx;
-					color: #143254;
+					line-height: 36rpx;
+					color: #8ba0b6;
 				}
 			}
 		}
