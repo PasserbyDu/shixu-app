@@ -160,6 +160,10 @@
 </template>
 
 <script setup lang="uts">
+	// #ifdef MP-WEIXIN
+	import { onLoad as onSharePageLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+	import { createPageShare, createTimelineShare, showPageShareMenu } from '@/utils/page-share.uts';
+	// #endif
 	import { computed, nextTick, ref } from 'vue';
 	import { formatCalendarDate } from '@/utils/calculators';
 	import {
@@ -436,6 +440,14 @@
 	onUnload(() => {
 		archive.dispose();
 	});
+
+	// 当前页面分享：只分享工具入口，不携带输入或本机数据。
+	// #ifdef MP-WEIXIN
+	const pageShare = createPageShare("宠物管理", "/subPackages/life/pets");
+	onSharePageLoad(() => showPageShareMenu());
+	onShareAppMessage(() => pageShare);
+	onShareTimeline(() => createTimelineShare(pageShare));
+	// #endif
 </script>
 
 <style scoped lang="scss">

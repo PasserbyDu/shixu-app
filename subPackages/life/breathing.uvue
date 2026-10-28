@@ -46,6 +46,10 @@
 </template>
 
 <script setup lang="uts">
+	// #ifdef MP-WEIXIN
+	import { onLoad as onSharePageLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+	import { createPageShare, createTimelineShare, showPageShareMenu } from '@/utils/page-share.uts';
+	// #endif
 	import { computed, ref } from 'vue';
 	import { timerClock } from '@/subPackages/life/utils/focus-timer.uts';
 	import { useToolChime } from '@/subPackages/life/utils/use-tool-chime.uts';
@@ -181,6 +185,14 @@
 		stopTimer();
 		chime.destroy();
 	});
+
+	// 当前页面分享：只分享工具入口，不携带输入或本机数据。
+	// #ifdef MP-WEIXIN
+	const pageShare = createPageShare("呼吸放松", "/subPackages/life/breathing");
+	onSharePageLoad(() => showPageShareMenu());
+	onShareAppMessage(() => pageShare);
+	onShareTimeline(() => createTimelineShare(pageShare));
+	// #endif
 </script>
 
 <style scoped lang="scss">

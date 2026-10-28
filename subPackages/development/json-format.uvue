@@ -51,6 +51,10 @@
 </template>
 
 <script setup lang="uts">
+	// #ifdef MP-WEIXIN
+	import { onLoad as onSharePageLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+	import { createPageShare, createTimelineShare, showPageShareMenu } from '@/utils/page-share.uts';
+	// #endif
 	import { ref } from 'vue';
 	import SourceEditor from '@/subPackages/development/components/source-editor/source-editor.uvue';
 	import FormatResult from '@/subPackages/development/components/format-result/format-result.uvue';
@@ -103,6 +107,14 @@
 	onUnload(() => {
 		dispose();
 	});
+
+	// 当前页面分享：只分享工具入口，不携带输入或本机数据。
+	// #ifdef MP-WEIXIN
+	const pageShare = createPageShare("JSON 格式化", "/subPackages/development/json-format");
+	onSharePageLoad(() => showPageShareMenu());
+	onShareAppMessage(() => pageShare);
+	onShareTimeline(() => createTimelineShare(pageShare));
+	// #endif
 </script>
 
 <style scoped lang="scss">

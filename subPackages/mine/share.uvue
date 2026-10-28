@@ -39,8 +39,11 @@
 </template>
 
 <script setup lang="uts">
+	// #ifdef MP-WEIXIN
+	import { onLoad as onSharePageLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+	import { createPageShare, createTimelineShare, showPageShareMenu } from '@/utils/page-share.uts';
+	// #endif
 	import { ref } from 'vue'
-	import { MINI_PROGRAM_SHARE_PATH, MINI_PROGRAM_SHARE_TITLE } from '@/config/share'
 	import { toast } from '@/utils/toast'
 
 	// data
@@ -58,14 +61,12 @@
 		// #endif
 	}
 
-	// lifecycle
+	// 当前页面分享：只分享工具入口，不携带输入或本机数据。
 	// #ifdef MP-WEIXIN
-	onShareAppMessage(() => {
-		return {
-			title: MINI_PROGRAM_SHARE_TITLE,
-			path: MINI_PROGRAM_SHARE_PATH
-		}
-	})
+	const pageShare = createPageShare("分享给朋友", "/subPackages/mine/share");
+	onSharePageLoad(() => showPageShareMenu());
+	onShareAppMessage((event) => event.from == 'button' ? createPageShare('首页', '/pages/index/index') : pageShare);
+	onShareTimeline(() => createTimelineShare(pageShare));
 	// #endif
 </script>
 

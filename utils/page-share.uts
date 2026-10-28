@@ -1,0 +1,23 @@
+import { MINI_PROGRAM_SHARE_PATH, MINI_PROGRAM_SHARE_TITLE } from '@/config/share.uts'
+
+export type PageShareData = { title: string, path: string }
+export type TimelineShareData = { title: string, query: string }
+
+// 每页显式注册分享生命周期，以便小程序编译器发现分享入口。
+// 路径由注册页常量提供，不读取当前 URL、查询参数、输入或存档。
+export const createPageShare = (title: string, path: string): PageShareData => ({
+	title: path == MINI_PROGRAM_SHARE_PATH ? MINI_PROGRAM_SHARE_TITLE : title + ' · 拾序有方',
+	path
+})
+
+// 朋友圈默认进入当前页面，不支持指定其他 path；主动清空查询参数。
+export const createTimelineShare = (page: PageShareData): TimelineShareData => ({
+	title: page.title,
+	query: ''
+})
+
+export const showPageShareMenu = () => {
+	// #ifdef MP-WEIXIN
+	uni.showShareMenu({ menus: ['shareAppMessage', 'shareTimeline'] })
+	// #endif
+}

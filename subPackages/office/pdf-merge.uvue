@@ -51,6 +51,10 @@
 </template>
 
 <script setup lang="uts">
+	// #ifdef MP-WEIXIN
+	import { onLoad as onSharePageLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+	import { createPageShare, createTimelineShare, showPageShareMenu } from '@/utils/page-share.uts';
+	// #endif
 	import { ref } from 'vue'
 	import SortableFiles from '@/subPackages/office/components/sortable-files/sortable-files.uvue'
 	import DocumentResult from '@/subPackages/office/components/document-result/document-result.uvue'
@@ -62,6 +66,14 @@
 	const supported = supportsLocalPdf()
 	const platformNote = pdfPlatformNote()
 	const { files, output, busy, errorText, totalPages, selectFiles, reorderFiles, removeFile, run, setExporting } = usePdfWorkspace('pdf-merge')
+
+	// 当前页面分享：只分享工具入口，不携带输入或本机数据。
+	// #ifdef MP-WEIXIN
+	const pageShare = createPageShare("PDF 合并", "/subPackages/office/pdf-merge");
+	onSharePageLoad(() => showPageShareMenu());
+	onShareAppMessage(() => pageShare);
+	onShareTimeline(() => createTimelineShare(pageShare));
+	// #endif
 </script>
 
 <style scoped lang="scss">

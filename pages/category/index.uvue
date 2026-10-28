@@ -71,6 +71,10 @@
 </template>
 
 <script setup lang="uts">
+	// #ifdef MP-WEIXIN
+	import { onLoad as onSharePageLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+	import { createPageShare, createTimelineShare, showPageShareMenu } from '@/utils/page-share.uts';
+	// #endif
 	import { computed, nextTick, ref } from 'vue'
 	import {
 		Tool,
@@ -134,6 +138,14 @@
 		if (requested.length == 0 || !filters.some((filter : CategoryFilter) : boolean => filter.id == requested)) return
 		selectCategory(requested)
 	})
+
+	// 当前页面分享：只分享工具入口，不携带输入或本机数据。
+	// #ifdef MP-WEIXIN
+	const pageShare = createPageShare("分类", "/pages/category/index");
+	onSharePageLoad(() => showPageShareMenu());
+	onShareAppMessage(() => pageShare);
+	onShareTimeline(() => createTimelineShare(pageShare));
+	// #endif
 </script>
 
 <style scoped lang="scss">

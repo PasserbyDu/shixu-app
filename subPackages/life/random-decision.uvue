@@ -56,6 +56,10 @@
 </template>
 
 <script setup lang="uts">
+	// #ifdef MP-WEIXIN
+	import { onLoad as onSharePageLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+	import { createPageShare, createTimelineShare, showPageShareMenu } from '@/utils/page-share.uts';
+	// #endif
 	import { ref } from 'vue';
 	import { DecisionOption, chooseDecision, decodeDecision, encodeDecision, validateDecision } from '@/subPackages/life/utils/random-decision.uts';
 	import { decisionStore } from '@/subPackages/life/utils/everyday-storage.uts';
@@ -191,6 +195,14 @@
 		disposed = true;
 		cancelPendingSave();
 	});
+
+	// 当前页面分享：只分享工具入口，不携带输入或本机数据。
+	// #ifdef MP-WEIXIN
+	const pageShare = createPageShare("随机决定", "/subPackages/life/random-decision");
+	onSharePageLoad(() => showPageShareMenu());
+	onShareAppMessage(() => pageShare);
+	onShareTimeline(() => createTimelineShare(pageShare));
+	// #endif
 </script>
 
 <style scoped lang="scss">

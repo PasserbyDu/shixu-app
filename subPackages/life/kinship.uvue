@@ -44,6 +44,10 @@
 </template>
 
 <script setup lang="uts">
+	// #ifdef MP-WEIXIN
+	import { onLoad as onSharePageLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+	import { createPageShare, createTimelineShare, showPageShareMenu } from '@/utils/page-share.uts';
+	// #endif
 	import { computed, ref } from 'vue';
 	import { onLoad } from '@dcloudio/uni-app';
 	import { recordToolUsage } from '@/utils/tool-usage.uts';
@@ -117,6 +121,14 @@
 	onLoad(() => {
 		recordToolUsage('kinship');
 	});
+
+	// 当前页面分享：只分享工具入口，不携带输入或本机数据。
+	// #ifdef MP-WEIXIN
+	const pageShare = createPageShare("亲戚称呼计算", "/subPackages/life/kinship");
+	onSharePageLoad(() => showPageShareMenu());
+	onShareAppMessage(() => pageShare);
+	onShareTimeline(() => createTimelineShare(pageShare));
+	// #endif
 </script>
 
 <style scoped lang="scss">

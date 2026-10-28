@@ -67,6 +67,10 @@
 </template>
 
 <script setup lang="uts">
+	// #ifdef MP-WEIXIN
+	import { onLoad as onSharePageLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+	import { createPageShare, createTimelineShare, showPageShareMenu } from '@/utils/page-share.uts';
+	// #endif
 	import { ref } from 'vue'
 	import SortableFiles from '@/subPackages/office/components/sortable-files/sortable-files.uvue'
 	import DocumentResult from '@/subPackages/office/components/document-result/document-result.uvue'
@@ -97,6 +101,14 @@
 	const generate = () => {
 		run('images', papers[paperIndex.value], directions[directionIndex.value])
 	}
+
+	// 当前页面分享：只分享工具入口，不携带输入或本机数据。
+	// #ifdef MP-WEIXIN
+	const pageShare = createPageShare("图片转 PDF", "/subPackages/office/image-pdf");
+	onSharePageLoad(() => showPageShareMenu());
+	onShareAppMessage(() => pageShare);
+	onShareTimeline(() => createTimelineShare(pageShare));
+	// #endif
 </script>
 
 <style scoped lang="scss">

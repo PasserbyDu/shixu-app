@@ -2,10 +2,22 @@
 	<loan-calculator kind="mortgage" />
 </template>
 <script setup lang="uts">
+	// #ifdef MP-WEIXIN
+	import { onLoad as onSharePageLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+	import { createPageShare, createTimelineShare, showPageShareMenu } from '@/utils/page-share.uts';
+	// #endif
 	import LoanCalculator from '@/subPackages/finance/components/loan-calculator/loan-calculator.uvue';
 	import { onLoad } from '@dcloudio/uni-app';
 	import { recordToolUsage } from '@/utils/tool-usage.uts';
 	onLoad(() => {
 		recordToolUsage('mortgage');
 	});
+
+	// 当前页面分享：只分享工具入口，不携带输入或本机数据。
+	// #ifdef MP-WEIXIN
+	const pageShare = createPageShare("房贷计算", "/subPackages/finance/mortgage");
+	onSharePageLoad(() => showPageShareMenu());
+	onShareAppMessage(() => pageShare);
+	onShareTimeline(() => createTimelineShare(pageShare));
+	// #endif
 </script>

@@ -172,6 +172,10 @@
 </template>
 
 <script setup lang="uts">
+	// #ifdef MP-WEIXIN
+	import { onLoad as onSharePageLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+	import { createPageShare, createTimelineShare, showPageShareMenu } from '@/utils/page-share.uts';
+	// #endif
 	import { computed, ref, shallowRef } from 'vue';
 	import { LocalMediaFile, localOperationError } from '@/utils/local-media';
 	import { chooseFormatImage, readFormatImageInfo } from '@/subPackages/image/utils/image-format.uts';
@@ -432,6 +436,14 @@
 		currentColor.value = null;
 		detailColor.value = null;
 	});
+
+	// 当前页面分享：只分享工具入口，不携带输入或本机数据。
+	// #ifdef MP-WEIXIN
+	const pageShare = createPageShare("图片取色", "/subPackages/image/color-picker");
+	onSharePageLoad(() => showPageShareMenu());
+	onShareAppMessage(() => pageShare);
+	onShareTimeline(() => createTimelineShare(pageShare));
+	// #endif
 </script>
 
 <style scoped lang="scss">
