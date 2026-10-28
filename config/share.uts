@@ -1,0 +1,2 @@
+export const MINI_PROGRAM_SHARE_PATH = '/pages/index/index'
+export const MINI_PROGRAM_SHARE_TITLE = '拾序有方 · 常用小工具，随手用起来'

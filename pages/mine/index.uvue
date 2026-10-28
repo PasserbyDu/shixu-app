@@ -63,18 +63,17 @@
 						</view>
 						<UniIcons type="right" size="26rpx" color="#91a6bc" />
 					</view>
+					<!-- #ifdef MP-WEIXIN -->
+					<button
+						v-if="item.id == 'feedback'"
+						class="contact-trigger"
+						open-type="contact"
+						session-from="mine-feedback"
+						hover-class="none"
+						@error="contactError"
+					/>
+					<!-- #endif -->
 				</view>
-			</view>
-			<view v-if="group.id == 'more' && showAbout" class="about-details">
-				<view class="flex flex-row items-center justify-between">
-					<text class="text-[27rpx] font-medium text-[#163554]">关于拾序有方</text>
-					<view @click="closeAbout">
-						<UniIcons type="closeempty" size="32rpx" color="#8299b1" />
-					</view>
-				</view>
-				<text class="mt-[18rpx] text-[23rpx] text-[#66819e]">{{ APP_NAME }} · v{{ APP_VERSION }}</text>
-				<text class="mt-[12rpx] text-[23rpx] text-[#66819e]">{{ APP_SLOGAN }}</text>
-				<text class="mt-[18rpx] text-[23rpx] text-[#66819e]">从首页或分类找到工具，在收藏页管理常用工具。</text>
 			</view>
 		</view>
 		<view class="h-[24rpx]" />
@@ -84,7 +83,6 @@
 <script setup lang="uts">
 	import { computed, ref } from 'vue'
 	import { Tool, MINE_TOOL_IDS, getToolsByIds } from '@/config/tools'
-	import { APP_NAME, APP_SLOGAN, APP_VERSION } from '@/config/app'
 	import { FAVORITES_VIEW_KEY } from '@/config/toolbox'
 	import { removeStorageSync, setStorageSync } from '@/utils/storage'
 	import { getNavBarInfo } from '@/utils/system'
@@ -108,7 +106,6 @@
 	const isHeaderFixed = ref(false)
 	const heroImageUrl = 'https://i.postimg.cc/63m37hFf/P05-profile-hero.png'
 	const navBarInfo = getNavBarInfo()
-	const showAbout = ref(false)
 	const quickTools = getToolsByIds(MINE_TOOL_IDS)
 	const menuGroups : MenuGroup[] = [
 		{
@@ -122,7 +119,7 @@
 		{
 			id: 'more', title: '更多',
 			items: [
-				{ id: 'feedback', title: '意见反馈', description: '告诉我们你的建议', icon: 'chat', color: '#25b2a3' },
+				{ id: 'feedback', title: '意见反馈', description: '联系客服，反馈问题与建议', icon: 'chat', color: '#25b2a3' },
 				{ id: 'share', title: '分享给朋友', description: '一起使用拾序有方', icon: 'redo', color: '#168fea' },
 				{ id: 'about', title: '关于拾序有方', description: '版本说明与使用帮助', icon: 'info', color: '#8299b1' }
 			]
@@ -167,19 +164,13 @@
 		}
 	}
 	const shareApp = () => {
-		uni.setClipboardData({
-			data: '拾序有方，' + APP_SLOGAN + '。常用小工具，随手用起来。',
-			showToast: false,
-			success: () => {
-				toast('分享文案已复制，可以粘贴给朋友')
-			},
-			fail: () => {
-				toast('复制失败，请重试')
-			}
+		uni.navigateTo({
+			url: '/subPackages/mine/share',
+			fail: () => toast('打开分享页面失败，请重试')
 		})
 	}
-	const closeAbout = () => {
-		showAbout.value = false
+	const contactError = () => {
+		toast('客服暂时无法打开，请稍后重试')
 	}
 	const handleMenu = (id : string) => {
 		switch (id) {
@@ -191,13 +182,22 @@
 				clearRecords()
 				break
 			case 'feedback':
-				toast('意见反馈功能待接入')
+				// 微信端由行内原生 contact 按钮打开后台配置的客服会话。
+				// #ifndef MP-WEIXIN
+				uni.navigateTo({
+					url: '/subPackages/mine/feedback',
+					fail: () => toast('打开意见反馈失败，请重试')
+				})
+				// #endif
 				break
 			case 'share':
 				shareApp()
 				break
 			case 'about':
-				showAbout.value = !showAbout.value
+				uni.navigateTo({
+					url: '/subPackages/mine/about',
+					fail: () => toast('打开关于页面失败，请重试')
+				})
 				break
 		}
 	}
@@ -325,10 +325,23 @@
 			background-color: $uni-bg-color;
 
 			.menu-row {
+				position: relative;
 				display: flex;
 				flex-direction: row;
 				align-items: center;
 				min-height: 124rpx;
+
+				.contact-trigger {
+					position: absolute;
+					left: 0;
+					top: 0;
+					width: 100%;
+					height: 100%;
+					margin: 0;
+					padding: 0;
+					border: 0;
+					opacity: 0;
+				}
 
 				.menu-icon {
 					flex-shrink: 0;
@@ -358,11 +371,5 @@
 			}
 		}
 
-		.about-details {
-			margin-top: 20rpx;
-			padding: 28rpx;
-			border-radius: 24rpx;
-			background-color: $uni-bg-color;
-		}
 	}
 </style>

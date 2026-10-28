@@ -40,7 +40,7 @@
 				<text class="stat-value">{{ Math.floor(state.totalMs / 60000) }} 分钟</text>
 			</view>
 		</view>
-		<view class="tool-card wellness-form settings-card">
+		<view class="tool-card settings-card">
 			<view class="settings-entry" @click="toggleSettings">
 				<view class="flex-1">
 					<text class="text-[28rpx] leading-[44rpx] font-medium text-[#233d50]">时长设置</text>
@@ -49,22 +49,42 @@
 				</view>
 				<UniIcons type="right" size="28rpx" color="#8795a1" />
 			</view>
-			<view v-if="settingsOpen">
-				<view v-for="(label, index) in modes" :key="label" class="form-field">
-					<text class="form-label">{{ label }}时长（分钟）</text>
-					<input v-model="settingsDraft[index]" class="form-input" type="number" :maxlength="-1" />
-				</view>
-				<text v-if="settingsError.length > 0" class="form-error">{{ settingsError }}</text>
-				<view class="form-actions">
-					<text class="form-cancel" @click="settingsOpen = false">取消</text>
-					<text class="form-submit" @click="saveSettings">保存并重置本轮</text>
-				</view>
-			</view>
 		</view>
 		<text v-if="storageError.length > 0" class="tool-footnote">{{ storageError }}</text>
 		<text v-if="storageError.length > 0" class="archive-retry" @click="persist(true)">重新保存当前计时与统计</text>
 		<text v-if="audioError.length > 0" class="tool-footnote">{{ audioError }}</text>
 		<text class="tool-footnote">离开页面后按截止时间继续计时，返回时校正；当前阶段结束后等待你开启下一阶段，不自动连跑。累计专注包含已实际经过的专注时间。后台不保证声音或系统通知。</text>
+		<template #popup>
+			<uni-popup ref="settingsPopup" @close="resetSettings">
+				<view class="tool-popup-card">
+					<view class="tool-popup-heading">
+						<text class="tool-popup-title">时长设置</text>
+						<view class="popup-close-button" @click="closeSettings">
+							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+						</view>
+					</view>
+					<scroll-view class="tool-popup-scroll" scroll-y="true">
+						<view class="tool-popup-body">
+							<view class="wellness-form">
+								<view v-for="(label, index) in modes" :key="label" class="form-field">
+									<text class="form-label">{{ label }}时长（分钟）</text>
+									<input v-model="settingsDraft[index]" class="form-input" type="number" :maxlength="-1" />
+								</view>
+								<text v-if="settingsError.length > 0" class="form-error">{{ settingsError }}</text>
+								<view class="tool-popup-actions">
+									<view class="tool-popup-button is-cancel" @click="closeSettings">
+										<text class="tool-popup-button-text">取消</text>
+									</view>
+									<view class="tool-popup-button" @click="saveSettings">
+										<text class="tool-popup-button-text">保存并重置本轮</text>
+									</view>
+								</view>
+							</view>
+						</view>
+					</scroll-view>
+				</view>
+			</uni-popup>
+		</template>
 	</tool-page>
 </template>
 
@@ -88,6 +108,8 @@
 	import { recordToolUsage } from '@/utils/tool-usage';
 	import { toast } from '@/utils/toast';
 	// data
+	type PopupRef = { open: () => void, close: () => void };
+	const settingsPopup = ref<PopupRef | null>(null);
 	const archive = useSavedArchive(pomodoroStore);
 	const {
 		ready,
@@ -102,7 +124,6 @@
 	const taskError = ref('');
 	const modes = ['专注', '短休息', '长休息'];
 	const today = ref(formatCalendarDate(new Date()));
-	const settingsOpen = ref(false);
 	const settingsDraft = ref<string[]>(['25', '5', '15']);
 	const settingsError = ref('');
 	let timer = -1;
@@ -119,6 +140,14 @@
 		return '开始' + modes[state.value.mode];
 	});
 	// methods
+	const resetSettings = () => {
+		uni.hideKeyboard();
+		settingsDraft.value = state.value.config.map((value: number): string => value.toString());
+		settingsError.value = '';
+	};
+	const closeSettings = () => {
+		if (settingsPopup.value != null) settingsPopup.value!.close();
+	};
 	const stopTimer = () => {
 		if (timer >= 0) clearInterval(timer);
 		timer = -1;
@@ -152,7 +181,7 @@
 		} else {
 			if (taskDraft.value.length > 80) return toast('任务名称最多80字');
 			startFocus(state.value, Date.now());
-			settingsOpen.value = false;
+			closeSettings();
 			runTimer();
 		}
 		persist();
@@ -161,7 +190,7 @@
 		if (!ready.value || mode == state.value.mode) return;
 		if (state.value.phase == 1) return toast('请先暂停再切换阶段');
 		resetFocus(state.value, mode);
-		settingsOpen.value = false;
+		closeSettings();
 		persist();
 	};
 	const resetCurrent = () => {
@@ -174,7 +203,7 @@
 		if (state.value.phase == 1) return toast('请先暂停再修改时长');
 		settingsDraft.value = state.value.config.map((value: number): string => value.toString());
 		settingsError.value = '';
-		settingsOpen.value = !settingsOpen.value;
+		if (settingsPopup.value != null) settingsPopup.value!.open();
 	};
 	const saveSettings = () => {
 		if (!ready.value || state.value.phase == 1) return toast('请先暂停再修改时长');
@@ -182,7 +211,7 @@
 			const config = [archiveInteger(settingsDraft.value[0], 1, 180), archiveInteger(settingsDraft.value[1], 1, 60), archiveInteger(settingsDraft.value[2], 1, 120)];
 			state.value.config = config;
 			resetFocus(state.value, state.value.mode);
-			settingsOpen.value = false;
+			closeSettings();
 			persist();
 		} catch (exception) {
 			settingsError.value = (exception as Error).message;
@@ -240,6 +269,7 @@
 </script>
 
 <style scoped lang="scss">
+	@import '@/styles/tool-popup.scss';
 	@import '@/styles/wellness-tools.scss';
 	.focus-card {
 		align-items: center;

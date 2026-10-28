@@ -1,10 +1,12 @@
 import App from './App.uvue'
 import UniIcons from '@/uni_modules/uni-icons/components/uni-icons/uni-icons.uvue'
+import UniPopup from '@/uni_modules/uni-popup/components/uni-popup/uni-popup.uvue'
 
 import { createSSRApp } from 'vue'
 export const createApp = () => {
 	const app = createSSRApp(App)
 	app.component('UniIcons', UniIcons)
+	app.component('uni-popup', UniPopup)
 	return {
 		app
 	}

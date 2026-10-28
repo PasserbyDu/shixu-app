@@ -1,6 +1,12 @@
 <template>
 	<scroll-view class="calculator-page" scroll-y="true">
-		<page-header :fixed="isHeaderFixed" title="日期差计算" titleColor="#1d394b" headerClass="page-header-calculator-bg" />
+		<page-header
+			:fixed="isHeaderFixed"
+			title="日期差计算"
+			titleColor="#333333"
+			titleFontWeight="700"
+			headerClass="page-header-calculator-bg"
+		/>
 		<view class="calculator-intro">
 			<text class="intro-title">日期差计算</text>
 			<text class="intro-description">把每一段时光，算得清清楚楚</text>

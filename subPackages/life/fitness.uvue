@@ -1,5 +1,5 @@
 <template>
-	<tool-page title="健身记录" subtitle="记录每一次训练，让进步有迹可循" :scrollIntoView="scrollTarget">
+	<tool-page title="健身记录" subtitle="记录每一次训练，让进步有迹可循">
 		<view class="tool-card overview-card">
 			<view class="overview-heading">
 				<text class="text-[30rpx] leading-[46rpx] text-[#233d50]">本周概览</text>
@@ -55,77 +55,112 @@
 		<view v-if="lastDeleted != null" class="secondary-action" @click="undoDelete">
 			<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">撤销删除“{{ lastDeleted!.action }}”</text>
 		</view>
-		<view class="library-link" @click="libraryOpen = !libraryOpen">
+		<view class="library-link" @click="openLibrary">
 			<UniIcons type="flag" size="30rpx" color="#278dca" />
 			<text class="flex-1 ml-[16rpx] text-[26rpx] leading-[42rpx] text-[#278dca]">动作库</text>
-			<text class="text-[22rpx] leading-[38rpx] text-[#8795a1]">{{ libraryOpen ? '收起' : '查看常用动作' }} ›</text>
-		</view>
-		<view v-if="libraryOpen" class="tool-card action-library">
-			<view v-for="(category, categoryIndex) in categories" :key="category.title" class="action-group">
-				<text class="text-[26rpx] leading-[42rpx] text-[#233d50]">{{ category.title }}</text>
-				<view class="action-options">
-					<view
-						v-for="name in category.actions"
-						:key="name"
-						class="action-option"
-						@click="newRecord(categoryIndex, name)"
-					>
-						<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">{{ name }}</text>
-					</view>
-				</view>
-			</view>
+			<text class="text-[22rpx] leading-[38rpx] text-[#8795a1]">查看常用动作 ›</text>
 		</view>
 		<view class="tool-primary" @click="newRecord(0, '')">
 			<UniIcons type="plusempty" size="30rpx" color="#ffffff" />
 			<text class="primary-text ml-[10rpx]">记录训练</text>
 		</view>
-		<view v-if="formOpen" id="fitness-form" class="tool-card wellness-form">
-			<text class="card-title">{{ editingId > 0 ? '编辑训练' : '记录训练' }}</text>
-			<view class="form-field">
-				<text class="form-label">训练日期</text>
-				<picker mode="date" :value="formDate" start="1900-01-01" :end="today" @change="changeDate">
-					<view class="tool-field">
-						<text class="field-value">{{ formDate }}</text>
-						<UniIcons type="bottom" size="26rpx" color="#278dca" />
-					</view>
-				</picker>
-			</view>
-			<view class="form-field">
-				<text class="form-label">训练分类</text>
-				<picker :range="categoryLabels" :value="formCategory" @change="changeCategory">
-					<view class="tool-field">
-						<text class="field-value">{{ categoryLabels[formCategory] }}</text>
-						<UniIcons type="bottom" size="26rpx" color="#278dca" />
-					</view>
-				</picker>
-			</view>
-			<view class="form-field">
-				<text class="form-label">动作名称</text>
-				<input v-model="formAction" class="form-input" :maxlength="-1" placeholder="填写动作，或从动作库选择" />
-			</view>
-			<view class="form-field">
-				<text class="form-label">组数（有氧可填 0）</text>
-				<input v-model="formSets" class="form-input" type="number" :maxlength="-1" />
-			</view>
-			<view class="form-field">
-				<text class="form-label">训练时长（分钟）</text>
-				<input v-model="formMinutes" class="form-input" type="number" :maxlength="-1" />
-			</view>
-			<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
-			<view class="form-actions">
-				<text v-if="editingId > 0" class="form-delete" @click="deleteRecord">删除记录</text>
-				<text class="form-cancel" @click="formOpen = false">取消</text>
-				<text class="form-submit" @click="saveRecord">保存训练</text>
-			</view>
-		</view>
 		<text v-if="storageError.length > 0" class="tool-footnote">{{ storageError }}</text>
 		<text v-if="storageError.length > 0" class="archive-retry" @click="persist(true)">重新保存当前记录</text>
 		<text class="tool-footnote">记录仅保存在本机，最多200条；每条记录计1次训练，概览按本周实际记录统计。</text>
+		<template #popup>
+			<uni-popup ref="formPopup" @close="resetForm">
+				<view class="tool-popup-card">
+					<view class="tool-popup-heading">
+						<text class="tool-popup-title">{{ editingId > 0 ? '编辑训练' : '记录训练' }}</text>
+						<view class="popup-close-button" @click="closeForm">
+							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+						</view>
+					</view>
+					<scroll-view class="tool-popup-scroll" scroll-y="true">
+						<view class="tool-popup-body">
+							<view class="wellness-form">
+								<view class="form-field">
+									<text class="form-label">训练日期</text>
+									<picker mode="date" :value="formDate" start="1900-01-01" :end="today" @change="changeDate">
+										<view class="tool-field">
+											<text class="field-value">{{ formDate }}</text>
+											<UniIcons type="bottom" size="26rpx" color="#278dca" />
+										</view>
+									</picker>
+								</view>
+								<view class="form-field">
+									<text class="form-label">训练分类</text>
+									<picker :range="categoryLabels" :value="formCategory" @change="changeCategory">
+										<view class="tool-field">
+											<text class="field-value">{{ categoryLabels[formCategory] }}</text>
+											<UniIcons type="bottom" size="26rpx" color="#278dca" />
+										</view>
+									</picker>
+								</view>
+								<view class="form-field">
+									<text class="form-label">动作名称</text>
+									<input v-model="formAction" class="form-input" :maxlength="-1" placeholder="填写动作，或从动作库选择" />
+								</view>
+								<view class="form-field">
+									<text class="form-label">组数（有氧可填 0）</text>
+									<input v-model="formSets" class="form-input" type="number" :maxlength="-1" />
+								</view>
+								<view class="form-field">
+									<text class="form-label">训练时长（分钟）</text>
+									<input v-model="formMinutes" class="form-input" type="number" :maxlength="-1" />
+								</view>
+								<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
+								<view class="tool-popup-actions">
+									<view v-if="editingId > 0" class="tool-popup-button is-delete" @click="deleteRecord">
+										<text class="tool-popup-button-text">删除记录</text>
+									</view>
+									<view class="tool-popup-button is-cancel" @click="closeForm">
+										<text class="tool-popup-button-text">取消</text>
+									</view>
+									<view class="tool-popup-button" @click="saveRecord">
+										<text class="tool-popup-button-text">保存训练</text>
+									</view>
+								</view>
+							</view>
+						</view>
+					</scroll-view>
+				</view>
+			</uni-popup>
+			<uni-popup ref="libraryPopup">
+				<view class="tool-popup-card">
+					<view class="tool-popup-heading">
+						<text class="tool-popup-title">动作库</text>
+						<view class="popup-close-button" @click="closeLibrary">
+							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+						</view>
+					</view>
+					<scroll-view class="tool-popup-scroll" scroll-y="true">
+						<view class="tool-popup-body">
+							<view class="action-library">
+								<view v-for="(category, categoryIndex) in categories" :key="category.title" class="action-group">
+									<text class="text-[26rpx] leading-[42rpx] text-[#233d50]">{{ category.title }}</text>
+									<view class="action-options">
+										<view
+											v-for="name in category.actions"
+											:key="name"
+											class="action-option"
+											@click="newRecord(categoryIndex, name)"
+										>
+											<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">{{ name }}</text>
+										</view>
+									</view>
+								</view>
+							</view>
+						</view>
+					</scroll-view>
+				</view>
+			</uni-popup>
+		</template>
 	</tool-page>
 </template>
 
 <script setup lang="uts">
-	import { computed, nextTick, ref } from 'vue';
+	import { computed, ref } from 'vue';
 	import { formatCalendarDate } from '@/utils/calculators';
 	import {
 	TRAINING_CATEGORIES,
@@ -142,6 +177,9 @@
 	import { recordToolUsage } from '@/utils/tool-usage';
 	import { toast } from '@/utils/toast';
 	// data
+	type PopupRef = { open: () => void, close: () => void };
+	const formPopup = ref<PopupRef | null>(null);
+	const libraryPopup = ref<PopupRef | null>(null);
 	type Stat = {
 		label: string;
 		value: number;
@@ -159,8 +197,6 @@
 	const records = ref<Training[]>([]);
 	const selectedDate = ref('');
 	const showAll = ref(false);
-	const libraryOpen = ref(false);
-	const formOpen = ref(false);
 	const editingId = ref(0);
 	const formDate = ref(today.value);
 	const formCategory = ref(0);
@@ -168,7 +204,6 @@
 	const formSets = ref('4');
 	const formMinutes = ref('30');
 	const formError = ref('');
-	const scrollTarget = ref('');
 	const lastDeleted = ref<Training | null>(null);
 	// computed
 	const week = computed((): string[] => currentWeek(today.value));
@@ -194,11 +229,21 @@
 	const persist = (explicit: boolean = false) => {
 		archive.save(encodeTraining(records.value), explicit);
 	};
-	const jump = () => {
-		scrollTarget.value = '';
-		nextTick(() => {
-			scrollTarget.value = 'fitness-form';
-		});
+	const resetForm = () => {
+		uni.hideKeyboard();
+		editingId.value = 0;
+		formAction.value = '';
+		formError.value = '';
+	};
+	const closeForm = () => {
+		if (formPopup.value != null) formPopup.value!.close();
+	};
+	const closeLibrary = () => {
+		if (libraryPopup.value != null) libraryPopup.value!.close();
+	};
+	const openLibrary = () => {
+		if (!ready.value) return;
+		if (libraryPopup.value != null) libraryPopup.value!.open();
 	};
 	const hasTraining = (date: string): boolean => records.value.some((record: Training): boolean => record.date == date);
 	const selectDay = (date: string) => {
@@ -219,10 +264,11 @@
 		formSets.value = category == 5 ? '0' : '4';
 		formMinutes.value = '30';
 		formError.value = '';
-		formOpen.value = true;
-		jump();
+		if (libraryPopup.value != null) libraryPopup.value!.close();
+		if (formPopup.value != null) formPopup.value!.open();
 	};
 	const editRecord = (record: Training) => {
+		if (!ready.value) return;
 		editingId.value = record.id;
 		formDate.value = record.date;
 		formCategory.value = record.category;
@@ -230,8 +276,8 @@
 		formSets.value = record.sets.toString();
 		formMinutes.value = record.minutes.toString();
 		formError.value = '';
-		formOpen.value = true;
-		jump();
+		if (libraryPopup.value != null) libraryPopup.value!.close();
+		if (formPopup.value != null) formPopup.value!.open();
 	};
 	const changeDate = (event: UniPickerChangeEvent) => {
 		formDate.value = (event.detail.value as string).replace(/\//g, '-');
@@ -256,7 +302,7 @@
 				records.value.push(record);
 			} else records.value = records.value.map((entry: Training): Training => entry.id == editingId.value ? record : entry);
 			selectedDate.value = '';
-			formOpen.value = false;
+			closeForm();
 			uni.hideKeyboard();
 			persist();
 		} catch (exception) {
@@ -268,7 +314,7 @@
 		if (record == null) return;
 		lastDeleted.value = record;
 		records.value = records.value.filter((entry: Training): boolean => entry.id != editingId.value);
-		formOpen.value = false;
+		closeForm();
 		persist();
 	};
 	const undoDelete = () => {
@@ -293,6 +339,7 @@
 </script>
 
 <style scoped lang="scss">
+	@import '@/styles/tool-popup.scss';
 	@import '@/styles/wellness-tools.scss';
 	.overview-card {
 		.overview-heading {

@@ -9,64 +9,80 @@
 			<text class="corresponding-date">对应公历　{{ committed.replace('-', '年').replace('-', '月') }}日</text>
 			<text class="tool-note">点击日期可重新选择</text>
 		</view>
-		<view v-if="editing" class="tool-card date-editor">
-			<view class="editor-heading">
-				<view class="editor-action" @click="cancel">
-					<text class="text-[26rpx] leading-[42rpx] text-[#8795a1]">取消</text>
-				</view>
-				<text class="editor-title">选择出生日期</text>
-				<view class="editor-action" @click="confirm">
-					<text class="text-[26rpx] leading-[42rpx] text-[#278dca]">完成</text>
-				</view>
-			</view>
-			<view class="tool-tabs">
-				<view
-					v-for="item in modes"
-					:key="item.id"
-					:class="['tab-button', mode == item.id ? 'is-active' : '']"
-					@click="changeMode(item.id)"
-				>
-					<text class="tab-label">{{ item.label }}</text>
-				</view>
-			</view>
-			<picker-view
-				class="date-wheels"
-				:value="wheelValue"
-				:immediate-change="true"
-				indicator-style="height: 88rpx;"
-				@change="changeDate"
-			>
-				<picker-view-column>
-					<view v-for="value in years" :key="value" class="wheel-item">
-						<text :class="['wheel-label', year == value ? 'is-current' : '']">{{ value }}年</text>
-					</view>
-				</picker-view-column>
-				<picker-view-column>
-					<view v-for="value in months" :key="value" class="wheel-item">
-						<text :class="['wheel-label', month == value ? 'is-current' : '']">{{ mode == 'lunar' ? LUNAR_MONTH_NAMES[value - 1] : value + '月' }}</text>
-					</view>
-				</picker-view-column>
-				<picker-view-column>
-					<view v-for="value in days" :key="value" class="wheel-item">
-						<text :class="['wheel-label', day == value ? 'is-current' : '']">{{ mode == 'lunar' ? lunarDayName(value) : value + '日' }}</text>
-					</view>
-				</picker-view-column>
-			</picker-view>
-			<view v-if="mode == 'lunar'" class="leap-row">
-				<text class="text-[26rpx] leading-[42rpx] text-[#233d50]">闰月</text>
-				<switch :checked="leap" :disabled="!canLeap" color="#278dca" @change="changeLeap" />
-				<text class="leap-description">{{ canLeap ? '本年有闰' + LUNAR_MONTH_NAMES[month - 1] : '本年无闰' + LUNAR_MONTH_NAMES[month - 1] }}</text>
-			</view>
-			<text class="tool-note">{{ mode == 'lunar' ? '仅在所选年份存在对应闰月时可选；无效日自动调整为当月最后一天。' : '切换公农历会保留同一天，完成后应用所选日期。' }}</text>
-			<text class="tool-note">支持公历1900-01-31至2100-12-31</text>
-		</view>
 		<text v-if="error.length > 0" class="tool-error">{{ error }}</text>
+		<template #popup>
+			<uni-popup ref="datePopup" @close="cancel">
+				<view class="tool-popup-card">
+					<view class="tool-popup-heading">
+						<text class="tool-popup-title">选择出生日期</text>
+						<view class="popup-close-button" @click="cancel">
+							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+						</view>
+					</view>
+					<scroll-view class="tool-popup-scroll" scroll-y="true">
+						<view class="tool-popup-body">
+							<view class="date-editor">
+								<view class="tool-tabs">
+									<view
+										v-for="item in modes"
+										:key="item.id"
+										:class="['tab-button', mode == item.id ? 'is-active' : '']"
+										@click="changeMode(item.id)"
+									>
+										<text class="tab-label">{{ item.label }}</text>
+									</view>
+								</view>
+								<picker-view
+									class="date-wheels"
+									:value="wheelValue"
+									:immediate-change="true"
+									indicator-style="height: 88rpx;"
+									@change="changeDate"
+								>
+									<picker-view-column>
+										<view v-for="value in years" :key="value" class="wheel-item">
+											<text :class="['wheel-label', year == value ? 'is-current' : '']">{{ value }}年</text>
+										</view>
+									</picker-view-column>
+									<picker-view-column>
+										<view v-for="value in months" :key="value" class="wheel-item">
+											<text :class="['wheel-label', month == value ? 'is-current' : '']">{{ mode == 'lunar' ? LUNAR_MONTH_NAMES[value - 1] : value + '月' }}</text>
+										</view>
+									</picker-view-column>
+									<picker-view-column>
+										<view v-for="value in days" :key="value" class="wheel-item">
+											<text :class="['wheel-label', day == value ? 'is-current' : '']">{{ mode == 'lunar' ? lunarDayName(value) : value + '日' }}</text>
+										</view>
+									</picker-view-column>
+								</picker-view>
+								<view v-if="mode == 'lunar'" class="leap-row">
+									<text class="text-[26rpx] leading-[42rpx] text-[#233d50]">闰月</text>
+									<switch :checked="leap" :disabled="!canLeap" color="#278dca" @change="changeLeap" />
+									<text class="leap-description">{{ canLeap ? '本年有闰' + LUNAR_MONTH_NAMES[month - 1] : '本年无闰' + LUNAR_MONTH_NAMES[month - 1] }}</text>
+								</view>
+								<text class="tool-note">{{ mode == 'lunar' ? '仅在所选年份存在对应闰月时可选；无效日自动调整为当月最后一天。' : '切换公农历会保留同一天，完成后应用所选日期。' }}</text>
+								<text class="tool-note">支持公历1900-01-31至2100-12-31</text>
+								<text v-if="error.length > 0" class="tool-error">{{ error }}</text>
+								<view class="tool-popup-actions">
+									<view class="tool-popup-button is-cancel" @click="cancel">
+										<text class="tool-popup-button-text">取消</text>
+									</view>
+									<view class="tool-popup-button" @click="confirm">
+										<text class="tool-popup-button-text">完成</text>
+									</view>
+								</view>
+							</view>
+						</view>
+					</scroll-view>
+				</view>
+			</uni-popup>
+		</template>
 	</tool-page>
 </template>
 
 <script setup lang="uts">
 	import { computed, ref } from 'vue';
-	import { onLoad, onUnload } from '@dcloudio/uni-app';
+	import { onLoad, onReady, onUnload } from '@dcloudio/uni-app';
 	import { daysInMonth, parseCalendarDate } from '@/utils/calculators.uts';
 	import { recordToolUsage } from '@/utils/tool-usage.uts';
 	import {
@@ -85,6 +101,8 @@
 		readBirthSelection
 	} from '@/subPackages/life/utils/birth-selection.uts';
 	// data
+	type PopupRef = { open: () => void, close: () => void };
+	const datePopup = ref<PopupRef | null>(null);
 	type CalendarMode = {
 		id: string;
 		label: string;
@@ -106,7 +124,7 @@
 	const month = ref(5);
 	const day = ref(14);
 	const leap = ref(false);
-	const editing = ref(true);
+	const editing = ref(false);
 	const error = ref('');
 	let token = '';
 	let didConfirm = false;
@@ -155,6 +173,7 @@
 		setDraft(committed.value);
 		error.value = '';
 		editing.value = true;
+		if (datePopup.value != null) datePopup.value!.open();
 	};
 	const changeMode = (value: string) => {
 		if (mode.value == value) return;
@@ -184,6 +203,7 @@
 		if (!editing.value) return;
 		error.value = '';
 		editing.value = false;
+		if (datePopup.value != null) datePopup.value!.close();
 		setDraft(committed.value);
 		if (token.length > 0) uni.navigateBack();
 	};
@@ -194,6 +214,7 @@
 			committedMode.value = mode.value;
 			error.value = '';
 			editing.value = false;
+			if (datePopup.value != null) datePopup.value!.close();
 			if (token.length > 0) {
 				confirmBirthSelection(token, committed.value, mode.value);
 				didConfirm = true;
@@ -220,12 +241,16 @@
 		setDraft(committed.value);
 		if (token.length == 0) recordToolUsage('lunar-date');
 	});
+	onReady(() => {
+		openEditor();
+	});
 	onUnload(() => {
 		if (!didConfirm) clearBirthSelection(token);
 	});
 </script>
 
 <style scoped lang="scss">
+	@import '@/styles/tool-popup.scss';
 	@import '@/styles/practical-tools.scss';
 	.date-preview {
 		margin-bottom: 66rpx;
@@ -253,30 +278,6 @@
 	}
 
 	.date-editor {
-		margin: 0;
-		padding: 26rpx 32rpx 50rpx;
-		border-radius: 34rpx 34rpx 0 0;
-		.editor-heading {
-			display: flex;
-			flex-direction: row;
-			align-items: center;
-			margin-bottom: 28rpx;
-			.editor-action {
-				display: flex;
-				flex-direction: row;
-				align-items: center;
-				justify-content: center;
-				min-width: 80rpx;
-				min-height: 70rpx;
-			}
-			.editor-title {
-				flex: 1;
-				font-size: 30rpx;
-				line-height: 46rpx;
-				text-align: center;
-				color: #233d50;
-			}
-		}
 		.date-wheels {
 			height: 320rpx;
 			margin: 24rpx 0;

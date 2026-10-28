@@ -1,0 +1,221 @@
+<template>
+	<scroll-view class="share-page" scroll-y="true">
+		<page-header
+			:fixed="isHeaderFixed"
+			title="分享给朋友"
+			titleColor="#333333"
+			titleFontSize="30rpx"
+			titleFontWeight="500"
+			iconColor="#233d50"
+			headerClass="page-header-calculator-bg"
+		/>
+		<view class="share-intro">
+			<text class="intro-title">好用的工具，一起分享</text>
+			<text class="intro-description">把日常的便利，分享给身边的朋友</text>
+		</view>
+		<view class="share-brand">
+			<image class="brand-logo" :src="logoUrl" mode="aspectFit" />
+			<text class="brand-title">拾序有方</text>
+			<text class="brand-slogan">万事有方，生活有序</text>
+			<view class="brand-description">
+				<text class="description-text">生活计算、办公整理、图片处理</text>
+				<text class="description-text">常用小工具，随手用起来</text>
+			</view>
+		</view>
+		<view class="share-options">
+			<text class="options-title">分享给微信好友或群聊</text>
+			<text class="options-description">{{ friendHint }}</text>
+			<view class="friend-action btn-gradient-bg" @click="shareToWechat">
+				<text class="action-label">分享给朋友</text>
+				<!-- #ifdef MP-WEIXIN -->
+				<button class="native-share-trigger" open-type="share" hover-class="none" />
+				<!-- #endif -->
+			</view>
+			<text class="options-note">好友打开分享卡片，即可进入拾序有方首页</text>
+		</view>
+		<text class="share-thanks">谢谢你，把好用分享给更多人</text>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { ref } from 'vue'
+	import { MINI_PROGRAM_SHARE_PATH, MINI_PROGRAM_SHARE_TITLE } from '@/config/share'
+	import { toast } from '@/utils/toast'
+
+	// data
+	const isHeaderFixed = ref(false)
+	const logoUrl = 'https://i.postimg.cc/15Lq7y7P/shixuyoufang.png'
+	const friendHint = ref('请在微信中打开拾序有方小程序，再分享给好友或群聊。')
+	// #ifdef MP-WEIXIN
+	friendHint.value = '点击下方按钮，在微信面板中选择好友或群聊，发送小程序卡片。'
+	// #endif
+
+	// methods
+	const shareToWechat = () => {
+		// #ifndef MP-WEIXIN
+		toast('请在微信中打开拾序有方小程序后分享')
+		// #endif
+	}
+
+	// lifecycle
+	// #ifdef MP-WEIXIN
+	onShareAppMessage(() => {
+		return {
+			title: MINI_PROGRAM_SHARE_TITLE,
+			path: MINI_PROGRAM_SHARE_PATH
+		}
+	})
+	// #endif
+</script>
+
+<style scoped lang="scss">
+	@import "@/uni.scss";
+
+	.share-page {
+		flex: 1;
+		width: 100%;
+		background-color: #f5f8fc;
+	}
+
+	.share-intro {
+		display: flex;
+		flex-direction: column;
+		padding: 32rpx 38rpx;
+		background: linear-gradient(180deg, #eaf5fc 0%, #f5f8fc 100%);
+
+		.intro-title {
+			font-size: 36rpx;
+			line-height: 54rpx;
+			font-weight: 500;
+			color: #233d50;
+		}
+
+		.intro-description {
+			margin-top: 12rpx;
+			font-size: 24rpx;
+			line-height: 40rpx;
+			color: $text-color-grey;
+		}
+	}
+
+	.share-brand {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		margin: 0 32rpx;
+		padding: 44rpx 32rpx 32rpx;
+		border-radius: 28rpx;
+		background-color: $uni-bg-color;
+
+		.brand-logo {
+			flex-shrink: 0;
+			width: 144rpx;
+			height: 144rpx;
+			border-radius: 32rpx;
+		}
+
+		.brand-title {
+			margin-top: 24rpx;
+			font-size: 34rpx;
+			line-height: 50rpx;
+			font-weight: 500;
+			text-align: center;
+			color: #233d50;
+		}
+
+		.brand-slogan {
+			margin-top: 12rpx;
+			font-size: 24rpx;
+			line-height: 40rpx;
+			text-align: center;
+			color: $text-color-grey;
+		}
+
+		.brand-description {
+			display: flex;
+			flex-direction: column;
+			align-self: stretch;
+			margin-top: 28rpx;
+			padding-top: 24rpx;
+			border-top: 2rpx solid #eff3f7;
+
+			.description-text {
+				font-size: 24rpx;
+				line-height: 42rpx;
+				text-align: center;
+				color: $text-color;
+			}
+		}
+	}
+
+	.share-options {
+		display: flex;
+		flex-direction: column;
+		margin: 28rpx 32rpx 0;
+		padding: 32rpx;
+		border-radius: 28rpx;
+		background-color: $uni-bg-color;
+
+		.options-title {
+			font-size: 28rpx;
+			line-height: 44rpx;
+			font-weight: 500;
+			color: #233d50;
+		}
+
+		.options-description {
+			margin-top: 16rpx;
+			font-size: 24rpx;
+			line-height: 40rpx;
+			color: $text-color-grey;
+		}
+
+		.friend-action {
+			position: relative;
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: center;
+			width: 100%;
+			height: 96rpx;
+			margin-top: 28rpx;
+			border-radius: 24rpx;
+			overflow: hidden;
+
+			.action-label {
+				font-size: 28rpx;
+				line-height: 44rpx;
+				font-weight: 500;
+				color: $uni-text-color-inverse;
+			}
+
+			.native-share-trigger {
+				position: absolute;
+				left: 0;
+				top: 0;
+				width: 100%;
+				height: 100%;
+				margin: 0;
+				padding: 0;
+				border: 0;
+				opacity: 0;
+			}
+		}
+
+		.options-note {
+			margin-top: 20rpx;
+			font-size: 22rpx;
+			line-height: 36rpx;
+			text-align: center;
+			color: $text-color-grey;
+		}
+	}
+
+	.share-thanks {
+		margin: 32rpx 40rpx 56rpx;
+		font-size: 22rpx;
+		line-height: 38rpx;
+		text-align: center;
+		color: $text-color-grey;
+	}
+</style>

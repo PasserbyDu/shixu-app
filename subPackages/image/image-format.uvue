@@ -1,0 +1,444 @@
+<template>
+	<view class="image-format-page">
+		<scroll-view class="document-page" scroll-y="true">
+			<page-header
+				:fixed="isHeaderFixed"
+				title="图片转格式"
+				titleColor="#333333"
+				titleFontSize="30rpx"
+				titleFontWeight="700"
+				headerClass="page-header-calculator-bg"
+			/>
+			<view class="document-intro">
+				<text class="document-heading">图片转格式</text>
+				<text class="document-description">轻松转换常用图片格式，满足不同使用需求</text>
+			</view>
+			<view class="local-processing-banner">
+				<UniIcons type="checkmarkempty" size="36rpx" color="#277ab8" />
+				<text class="banner-label">图片在本地处理，无需上传原图</text>
+			</view>
+			<view class="document-card">
+				<view class="card-heading">
+					<text class="card-title">选择图片</text>
+					<text class="card-caption">已选择 {{ source == null ? 0 : 1 }} 张</text>
+				</view>
+				<view v-if="source != null && sourceInfo != null" class="selected-image">
+					<image class="source-thumbnail" :src="source!.path" mode="aspectFill" @click="previewSource" />
+					<view class="source-information">
+						<text class="source-name">{{ source!.name }}</text>
+						<text class="source-details">{{ sourceInfo!.type.toUpperCase() }} · {{ formatFileSize(source!.size) }} · {{ sourceInfo!.width }} × {{ sourceInfo!.height }}</text>
+						<view class="reselect-entry" @click="chooseImage">
+							<text class="text-[26rpx] leading-[42rpx] text-[#277ab8]">重新选择</text>
+							<UniIcons type="plusempty" size="34rpx" color="#277ab8" />
+						</view>
+					</view>
+				</view>
+				<view v-else class="document-empty" @click="chooseImage">
+					<UniIcons type="image" size="56rpx" color="#277ab8" />
+					<text class="empty-label">{{ choosing ? '正在读取图片…' : '点击选择 JPG、PNG 或 WebP 图片' }}</text>
+				</view>
+			</view>
+			<view class="document-card">
+				<view class="card-heading">
+					<text class="card-title">目标格式</text>
+				</view>
+				<view class="format-options">
+					<view
+						v-for="option in formats"
+						:key="option.id"
+						:class="['format-option', targetFormat == option.id ? 'is-selected' : '', !supportsImageFormat(option.id) ? 'is-unavailable' : '']"
+						@click="selectFormat(option.id)"
+					>
+						<view v-if="targetFormat == option.id" class="format-check">
+							<UniIcons type="checkmarkempty" size="28rpx" color="#277ab8" />
+						</view>
+						<text class="format-title">{{ option.title }}</text>
+						<text class="format-note">{{ supportsImageFormat(option.id) ? option.note : '当前端暂不支持' }}</text>
+					</view>
+				</view>
+				<view class="size-switch">
+					<text class="text-[28rpx] leading-[44rpx] text-[#243746]">保持原图尺寸</text>
+					<switch :checked="keepOriginal" :disabled="locked" color="#277fba" @change="changeKeepOriginal" />
+				</view>
+				<view v-if="!keepOriginal" class="resize-settings">
+					<text class="text-[24rpx] leading-[38rpx] text-[#708291]">最长边上限（等比缩小）</text>
+					<picker :range="edgeLabels" :value="edgeIndex" :disabled="locked" @change="changeEdge">
+						<view class="resize-picker">
+							<text class="text-[28rpx] leading-[44rpx] text-[#277ab8]">{{ edgeLabels[edgeIndex] }}</text>
+							<UniIcons type="bottom" size="28rpx" color="#277ab8" />
+						</view>
+					</picker>
+				</view>
+				<text v-if="sourceInfo != null" class="document-help">{{ dimensionDescription }}</text>
+				<text v-if="targetFormat == 'jpg'" class="document-help">JPG 不支持透明，透明区域将填充白色。</text>
+				<text v-if="!supportsImageFormat('webp')" class="document-help">当前平台支持导出 JPG、PNG；WebP 暂不可用。</text>
+			</view>
+			<text v-if="errorText.length > 0" class="document-error">{{ errorText }}</text>
+			<view
+				:class="['document-primary-button', locked || !canvasReady || source == null ? 'is-disabled' : '']"
+				@click="convert"
+			>
+				<text class="primary-label">{{ converting ? '正在转换，请稍候…' : '转换为 ' + targetFormat.toUpperCase() }}</text>
+			</view>
+			<view v-if="result != null" class="document-card">
+				<view class="card-heading">
+					<view class="flex flex-row items-center">
+						<UniIcons type="checkmarkempty" size="36rpx" color="#38a38c" />
+						<text class="card-title ml-[16rpx]">转换完成</text>
+					</view>
+					<text class="result-format">{{ sourceInfo == null ? '' : sourceInfo!.type.toUpperCase() }} → {{ result!.format.toUpperCase() }}</text>
+				</view>
+				<text class="text-[26rpx] leading-[42rpx] break-all text-[#243746]">{{ resultName }}</text>
+				<text class="document-help">{{ formatFileSize(result!.size) }} · {{ result!.width }} × {{ result!.height }}{{ keepOriginal ? ' · 原图尺寸' : '' }}</text>
+				<view class="document-outline-button mt-[24rpx]" @click="saveImage">
+					<UniIcons type="download" size="36rpx" color="#277ab8" />
+					<text class="outline-label">{{ saving ? '正在保存…' : saveLabel }}</text>
+				</view>
+			</view>
+			<text class="document-footnote">{{ platformNote }}单张不超过20 MB，仅处理静态画面、不保留动画。转换后体积可能变大；原图保持不变。</text>
+		</scroll-view>
+		<!-- 画布独立于滚动内容，保持挂载并位于可视区域；实际位图尺寸由编码逻辑设置。 -->
+		<canvas id="image-format-canvas" canvas-id="image-format-canvas" type="2d" class="conversion-canvas" />
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue';
+	import { LocalMediaFile, formatFileSize, localOperationError, saveLocalImage } from '@/utils/local-media';
+	import { ConvertedImage, FormatImageInfo, chooseFormatImage, convertedFileName, formatImageDimensions, readFormatImageInfo, supportsImageFormat, useImageFormatCanvas } from '@/subPackages/image/utils/image-format.uts';
+	import { recordToolUsage } from '@/utils/tool-usage';
+	import { toast } from '@/utils/toast';
+	type FormatOption = {
+		id: string;
+		title: string;
+		note: string;
+	};
+	// data
+	const isHeaderFixed = ref(false);
+	const source = ref<LocalMediaFile | null>(null);
+	const sourceInfo = ref<FormatImageInfo | null>(null);
+	const targetFormat = ref('png');
+	const keepOriginal = ref(true);
+	const edgeIndex = ref(4);
+	const edges = [480, 720, 1080, 1600, 2048, 2560, 3072, 4096];
+	const edgeLabels = edges.map((edge: number): string => edge + ' 像素');
+	const formats: FormatOption[] = [{
+		id: 'jpg',
+		title: 'JPG',
+		note: '通用 · 体积更小'
+	}, {
+		id: 'png',
+		title: 'PNG',
+		note: '无损 · 支持透明'
+	}, {
+		id: 'webp',
+		title: 'WebP',
+		note: '高效 · 支持透明'
+	}];
+	const choosing = ref(false);
+	const converting = ref(false);
+	const saving = ref(false);
+	const canvasReady = ref(false);
+	const errorText = ref('');
+	const result = ref<ConvertedImage | null>(null);
+	const engine = useImageFormatCanvas('image-format-canvas');
+	let disposed = false;
+	let saveLabel = '保存图片';
+	let platformNote = '保存能力以当前系统及相册权限为准。';
+	// #ifdef WEB
+	saveLabel = '打开预览后保存';
+	platformNote = '网页端可在结果预览中长按或使用图片菜单保存。';
+	// #endif
+	// computed
+	const locked = computed((): boolean => choosing.value || converting.value || saving.value);
+	const resultName = computed((): string => source.value == null || result.value == null ? '' : convertedFileName(source.value!.name, result.value!.format));
+	const dimensionDescription = computed((): string => {
+		if (sourceInfo.value == null) return '';
+		try {
+			const dimensions = formatImageDimensions(sourceInfo.value!.width, sourceInfo.value!.height, keepOriginal.value, edges[edgeIndex.value]);
+			return '输出尺寸：' + dimensions[0] + ' × ' + dimensions[1] + ' 像素';
+		} catch (exception) {
+			return (exception as Error).message;
+		}
+	});
+	// methods
+	const invalidateResult = () => {
+		if (result.value != null) engine.discard(result.value!.path);
+		result.value = null;
+		errorText.value = '';
+	};
+	const reportError = (exception: any) => {
+		if (disposed) return;
+		errorText.value = localOperationError(exception);
+		if (errorText.value.length > 0) toast(errorText.value);
+	};
+	const chooseImage = async () => {
+		if (locked.value) return;
+		choosing.value = true;
+		errorText.value = '';
+		try {
+			const files = await chooseFormatImage();
+			if (disposed || files.length == 0) return;
+			const file = files[0];
+			if (!Number.isFinite(file.size) || file.size <= 0 || file.size > 20 * 1024 * 1024) throw new Error('请选择不超过20 MB的有效图片');
+			const info = await readFormatImageInfo(file.path);
+			// Web 部分浏览器的 getImageInfo 不返回类型，改用选择器提供的文件扩展名。
+			// #ifdef WEB
+			if (info.type.length == 0) {
+				const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+				info.type = extension == 'jpeg' ? 'jpg' : extension;
+			}
+			// #endif
+			if (!['jpg', 'png', 'webp'].includes(info.type)) throw new Error('请选择 JPG、PNG 或 WebP 图片');
+			if (info.width * info.height > 50000000) throw new Error('图片像素过大，请选择不超过5000万像素的图片');
+			if (disposed) return;
+			invalidateResult();
+			source.value = file;
+			sourceInfo.value = info;
+		} catch (exception) {
+			reportError(exception);
+		} finally {
+			if (!disposed) choosing.value = false;
+		}
+	};
+	const selectFormat = (format: string) => {
+		if (locked.value || targetFormat.value == format) return;
+		if (!supportsImageFormat(format)) return toast('当前平台不能导出 WebP，请选择 JPG 或 PNG');
+		targetFormat.value = format;
+		invalidateResult();
+	};
+	const changeKeepOriginal = (event: UniSwitchChangeEvent) => {
+		if (locked.value) return;
+		keepOriginal.value = event.detail.value;
+		invalidateResult();
+	};
+	const changeEdge = (event: UniPickerChangeEvent) => {
+		if (locked.value) return;
+		const index = Number(event.detail.value);
+		if (!Number.isInteger(index) || index < 0 || index >= edges.length || index == edgeIndex.value) return;
+		edgeIndex.value = index;
+		invalidateResult();
+	};
+	const convert = async () => {
+		if (locked.value) return;
+		if (!canvasReady.value) return toast('画布准备中，请稍后重试');
+		if (source.value == null || sourceInfo.value == null) return toast('请先选择图片');
+		converting.value = true;
+		invalidateResult();
+		try {
+			formatImageDimensions(sourceInfo.value!.width, sourceInfo.value!.height, keepOriginal.value, edges[edgeIndex.value]);
+			const converted = await engine.convert(source.value!.path, targetFormat.value, keepOriginal.value, edges[edgeIndex.value]);
+			if (disposed) {
+				engine.discard(converted.path);
+				return;
+			}
+			result.value = converted;
+		} catch (exception) {
+			reportError(exception);
+		} finally {
+			if (!disposed) converting.value = false;
+		}
+	};
+	const previewSource = () => {
+		if (source.value == null || locked.value) return;
+		uni.previewImage({
+			urls: [source.value!.path],
+			current: source.value!.path
+		});
+	};
+	const saveImage = async () => {
+		if (locked.value || result.value == null) return;
+		const path = result.value!.path;
+		// #ifdef WEB
+		uni.previewImage({
+			urls: [path],
+			current: path
+		});
+		toast('请在预览中长按图片或使用图片菜单保存');
+		return;
+		// #endif
+		// #ifndef WEB
+		saving.value = true;
+		errorText.value = '';
+		try {
+			await saveLocalImage(path);
+			if (!disposed) toast('图片已保存到相册');
+		} catch (exception) {
+			reportError(exception);
+		} finally {
+			if (disposed) engine.dispose();else saving.value = false;
+		}
+		// #endif
+	};
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('image-format').catch(() => toast('保存使用记录失败'));
+	});
+	onReady(() => {
+		canvasReady.value = true;
+	});
+	onUnload(() => {
+		disposed = true;
+		if (!saving.value) engine.dispose();
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/styles/document-tools.scss';
+	.image-format-page {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		width: 100%;
+	}
+
+	.local-processing-banner {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		margin: 0 38rpx 28rpx;
+		padding: 20rpx 24rpx;
+		border-radius: 20rpx;
+		background-color: #e8f4fd;
+		.banner-label {
+			flex: 1;
+			margin-left: 16rpx;
+			font-size: 24rpx;
+			line-height: 38rpx;
+			color: #277ab8;
+		}
+	}
+
+	.document-card {
+		.selected-image {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			.source-thumbnail {
+				flex-shrink: 0;
+				width: 120rpx;
+				height: 120rpx;
+				border-radius: 24rpx;
+				background-color: #e8f4fd;
+			}
+			.source-information {
+				flex: 1;
+				min-width: 0;
+				margin-left: 28rpx;
+				.source-name {
+					display: block;
+					font-size: 30rpx;
+					line-height: 46rpx;
+					word-break: break-all;
+					color: #243746;
+				}
+				.source-details {
+					display: block;
+					margin-top: 12rpx;
+					font-size: 22rpx;
+					line-height: 36rpx;
+					color: #708291;
+				}
+				.reselect-entry {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					justify-content: space-between;
+					min-height: 68rpx;
+					margin-top: 14rpx;
+				}
+			}
+		}
+		.format-options {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+			.format-option {
+				position: relative;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				box-sizing: border-box;
+				width: 31.5%;
+				min-height: 120rpx;
+				padding: 12rpx 8rpx;
+				border: 2rpx solid #e1e7ef;
+				border-radius: 22rpx;
+				background-color: #f6f8fa;
+				&.is-selected {
+					border-color: #277ab8;
+					background-color: #eaf5ff;
+					.format-title {
+						font-weight: 500;
+						color: #277ab8;
+					}
+					.format-note {
+						color: #277ab8;
+					}
+				}
+				&.is-unavailable {
+					opacity: 0.5;
+				}
+				.format-check {
+					position: absolute;
+					right: 10rpx;
+					top: 10rpx;
+				}
+				.format-title {
+					font-size: 30rpx;
+					line-height: 46rpx;
+					color: #243746;
+				}
+				.format-note {
+					margin-top: 14rpx;
+					font-size: 20rpx;
+					line-height: 34rpx;
+					text-align: center;
+					color: #708291;
+				}
+			}
+		}
+		.size-switch {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			margin-top: 28rpx;
+			padding-top: 24rpx;
+			border-top: 1rpx solid #e7eef5;
+		}
+		.resize-settings {
+			margin-top: 20rpx;
+			.resize-picker {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: space-between;
+				margin-top: 14rpx;
+				padding: 16rpx 22rpx;
+				border-radius: 18rpx;
+				background-color: #f5f9fc;
+			}
+		}
+		.result-format {
+			flex-shrink: 0;
+			margin-left: 12rpx;
+			padding: 8rpx 14rpx;
+			border-radius: 24rpx;
+			background-color: #eaf7f1;
+			font-size: 20rpx;
+			line-height: 32rpx;
+			color: #38a38c;
+		}
+	}
+
+	.conversion-canvas {
+		position: fixed;
+		left: 0;
+		top: 0;
+		z-index: 100;
+		width: 2rpx;
+		height: 2rpx;
+	}
+</style>

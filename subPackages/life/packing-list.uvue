@@ -53,29 +53,7 @@
 		<view v-if="lastRemoved != null" class="undo-row" @click="undoRemove">
 			<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">已移除“{{ lastRemoved!.item.name }}”，点击撤销</text>
 		</view>
-		<view v-if="adding" class="tool-card add-item-card">
-			<text class="card-title">添加物品</text>
-			<input v-model="itemName" class="item-name-input" :maxlength="-1" placeholder="物品名称（最多40字）" />
-			<view class="tool-row">
-				<text class="row-label">所属分类</text>
-				<picker class="row-control" :range="groupLabels" :value="itemGroup" @change="changeGroup">
-					<view class="tool-field">
-						<text class="field-value">{{ groupLabels[itemGroup] }}</text>
-						<UniIcons type="bottom" size="26rpx" color="#278dca" />
-					</view>
-				</picker>
-			</view>
-			<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
-			<view class="form-actions">
-				<view class="form-cancel" @click="adding = false">
-					<text class="text-[26rpx] leading-[42rpx] text-[#8795a1]">取消</text>
-				</view>
-				<view class="form-save" @click="addItem">
-					<text class="text-[26rpx] leading-[42rpx] text-white">添加到清单</text>
-				</view>
-			</view>
-		</view>
-		<view v-if="!adding" class="tool-primary" @click="openAdd">
+		<view class="tool-primary" @click="openAdd">
 			<UniIcons type="plusempty" size="30rpx" color="#ffffff" />
 			<text class="primary-text ml-[10rpx]">{{ ready ? '添加物品' : '正在读取清单…' }}</text>
 		</view>
@@ -83,6 +61,43 @@
 		<view v-if="storageFailed" class="retry-save" @click="retrySave">
 			<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">重新保存当前清单</text>
 		</view>
+		<template #popup>
+			<uni-popup ref="addPopup" @close="resetAdd">
+				<view class="tool-popup-card">
+					<view class="tool-popup-heading">
+						<text class="tool-popup-title">添加物品</text>
+						<view class="popup-close-button" @click="closeAdd">
+							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+						</view>
+					</view>
+					<scroll-view class="tool-popup-scroll" scroll-y="true">
+						<view class="tool-popup-body">
+							<view class="add-item-card">
+								<input v-model="itemName" class="item-name-input" :maxlength="-1" placeholder="物品名称（最多40字）" />
+								<view class="tool-row">
+									<text class="row-label">所属分类</text>
+									<picker class="row-control" :range="groupLabels" :value="itemGroup" @change="changeGroup">
+										<view class="tool-field">
+											<text class="field-value">{{ groupLabels[itemGroup] }}</text>
+											<UniIcons type="bottom" size="26rpx" color="#278dca" />
+										</view>
+									</picker>
+								</view>
+								<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
+								<view class="tool-popup-actions">
+									<view class="tool-popup-button is-cancel" @click="closeAdd">
+										<text class="tool-popup-button-text">取消</text>
+									</view>
+									<view class="tool-popup-button" @click="addItem">
+										<text class="tool-popup-button-text">添加到清单</text>
+									</view>
+								</view>
+							</view>
+						</view>
+					</scroll-view>
+				</view>
+			</uni-popup>
+		</template>
 	</tool-page>
 </template>
 
@@ -93,6 +108,8 @@
 	import { recordToolUsage } from '@/utils/tool-usage';
 	import { toast } from '@/utils/toast';
 	// data
+	type PopupRef = { open: () => void, close: () => void };
+	const addPopup = ref<PopupRef | null>(null);
 	type RemovedItem = {
 		item: PackingItem;
 		index: number;
@@ -105,7 +122,6 @@
 	const expanded = ref<number[]>([0, 1]);
 	const ready = ref(false);
 	const managing = ref(false);
-	const adding = ref(false);
 	const itemName = ref('');
 	const itemGroup = ref(0);
 	const formError = ref('');
@@ -121,6 +137,15 @@
 	const percentage = computed((): number => currentItems.value.length == 0 ? 0 : Math.round(packedCount.value / currentItems.value.length * 100));
 	const nonEmptyGroups = computed((): PackingGroup[] => PACKING_GROUPS.filter((group: PackingGroup): boolean => currentItems.value.some((item: PackingItem): boolean => item.group == group.id)));
 	// methods
+	const resetAdd = () => {
+		uni.hideKeyboard();
+		itemName.value = '';
+		itemGroup.value = 0;
+		formError.value = '';
+	};
+	const closeAdd = () => {
+		if (addPopup.value != null) addPopup.value!.close();
+	};
 	const groupCount = (id: number): number => currentItems.value.filter((item: PackingItem): boolean => item.group == id).length;
 	const shownItems = (id: number): PackingItem[] => {
 		const items = currentItems.value.filter((item: PackingItem): boolean => item.group == id);
@@ -160,7 +185,7 @@
 		if (!ready.value || !Number.isInteger(index) || index < 0 || index >= templates.length) return;
 		active.value = index;
 		expanded.value = [0, 1];
-		adding.value = false;
+		closeAdd();
 		lastRemoved.value = null;
 		persist();
 	};
@@ -170,7 +195,7 @@
 		itemName.value = '';
 		itemGroup.value = 0;
 		formError.value = '';
-		adding.value = true;
+		if (addPopup.value != null) addPopup.value!.open();
 	};
 	const changeGroup = (event: UniPickerChangeEvent) => {
 		itemGroup.value = Number(event.detail.value);
@@ -206,7 +231,7 @@
 			packed: false
 		});
 		if (!expanded.value.includes(itemGroup.value)) expanded.value.push(itemGroup.value);
-		adding.value = false;
+		closeAdd();
 		uni.hideKeyboard();
 		persist();
 	};
@@ -253,6 +278,7 @@
 </script>
 
 <style scoped lang="scss">
+	@import '@/styles/tool-popup.scss';
 	@import '@/styles/practical-tools.scss';
 	.packing-summary {
 		.summary-title {
@@ -369,21 +395,6 @@
 			font-size: 24rpx;
 			line-height: 38rpx;
 			color: #be5555;
-		}
-		.form-actions {
-			display: flex;
-			flex-direction: row;
-			align-items: center;
-			justify-content: flex-end;
-			margin-top: 24rpx;
-			.form-cancel {
-				padding: 16rpx 30rpx;
-			}
-			.form-save {
-				padding: 16rpx 30rpx;
-				border-radius: 18rpx;
-				background-color: #2e91c6;
-			}
 		}
 	}
 

@@ -1,6 +1,12 @@
 <template>
 	<scroll-view class="calculator-page" scroll-y="true">
-		<page-header :fixed="isHeaderFixed" title="单位换算" titleColor="#1d394b" headerClass="page-header-calculator-bg" />
+		<page-header
+			:fixed="isHeaderFixed"
+			title="单位换算"
+			titleColor="#333333"
+			titleFontWeight="700"
+			headerClass="page-header-calculator-bg"
+		/>
 		<view class="calculator-intro">
 			<text class="intro-title">单位换算</text>
 			<text class="intro-description">常用单位，随手一换就明白</text>

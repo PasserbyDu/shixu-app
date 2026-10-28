@@ -79,11 +79,11 @@ const tools : Tool[] = [
 		description: '按模板整理行李，新增物品并记录打包进度', keywords: '行李 清单 出行 旅行 打包 物品 短途 出差',
 		icon: 'list', iconText: '🧳', color: '#278dca', background: '#e8f6ff'
 	},
-	{
-		id: 'account', title: '生活记账', shortTitle: '生活记账', summary: '日常收支记录',
-		description: '记录日常收入与支出', keywords: '生活 记账 收入 支出',
-		icon: 'compose', iconText: '💰', color: '#8c6cff', background: '#f3edff'
-	},
+	// {
+	// 	id: 'account', title: '生活记账', shortTitle: '生活记账', summary: '日常收支记录',
+	// 	description: '记录日常收入与支出', keywords: '生活 记账 收入 支出',
+	// 	icon: 'compose', iconText: '💰', color: '#8c6cff', background: '#f3edff'
+	// },
 	{
 		id: 'fitness', title: '健身记录', shortTitle: '健身记录', summary: '记录训练数据',
 		description: '记录训练动作、组数及时长，查看每周训练统计', keywords: '健身 训练 组数 时长 运动 动作',
@@ -134,16 +134,16 @@ const tools : Tool[] = [
 		description: '转换 JPG、PNG、WebP 图片格式', keywords: '图片 格式 转换 JPG PNG WebP',
 		icon: 'image', iconText: '🔄', color: '#8c6cff', background: '#f2eeff'
 	},
-	{
-		id: 'batch', title: '批量处理', shortTitle: '批量处理', summary: '批量转换与压缩',
-		description: '批量转换和压缩图片', keywords: '图片 批量 转换 压缩',
-		icon: 'staff', iconText: '📦', color: '#ff8800', background: '#fff4e7'
-	},
-	{
-		id: 'ocr', title: 'OCR 文字识别', shortTitle: '文字识别', summary: '提取图片中的文字',
-		description: '识别并提取图片中的文字', keywords: 'OCR 图片 文字 识别 提取',
-		icon: 'scan', iconText: '🔍', color: '#00b99f', background: '#e5f9f3'
-	},
+	// {
+	// 	id: 'batch', title: '批量处理', shortTitle: '批量处理', summary: '批量转换与压缩',
+	// 	description: '批量转换和压缩图片', keywords: '图片 批量 转换 压缩',
+	// 	icon: 'staff', iconText: '📦', color: '#ff8800', background: '#fff4e7'
+	// },
+	// {
+	// 	id: 'ocr', title: 'OCR 文字识别', shortTitle: '文字识别', summary: '提取图片中的文字',
+	// 	description: '识别并提取图片中的文字', keywords: 'OCR 图片 文字 识别 提取',
+	// 	icon: 'scan', iconText: '🔍', color: '#00b99f', background: '#e5f9f3'
+	// },
 	{
 		id: 'json', title: 'JSON 格式化', shortTitle: 'JSON 工具', summary: '美化与校验',
 		description: '美化、压缩与校验 JSON 数据', keywords: 'JSON 格式化 开发 美化 校验',
@@ -292,6 +292,8 @@ export const getToolPath = (id : string) : string => {
 			return '/subPackages/office/text-cleaner'
 		case 'image':
 			return '/subPackages/image/image-compress'
+		case 'image-format':
+			return '/subPackages/image/image-format'
 		case '2048':
 			return '/subPackages/games/number-2048'
 		case 'klotski':

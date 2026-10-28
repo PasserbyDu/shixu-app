@@ -3,9 +3,9 @@
 		<page-header
 			:fixed="isHeaderFixed"
 			title="工具搜索"
-			titleColor="#233d50"
+			titleColor="#333333"
 			titleFontSize="30rpx"
-			titleFontWeight="500"
+			titleFontWeight="700"
 			iconColor="#233d50"
 			headerClass="page-header-calculator-bg"
 		>

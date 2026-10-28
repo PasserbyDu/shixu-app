@@ -3,9 +3,9 @@
 		<page-header
 			:fixed="isHeaderFixed"
 			title="数字 2048"
-			titleColor="#243b4d"
+			titleColor="#333333"
 			titleFontSize="30rpx"
-			titleFontWeight="500"
+			titleFontWeight="700"
 			headerClass="page-header-calculator-bg"
 		/>
 		<view class="game-intro">

@@ -3,9 +3,9 @@
 		<page-header
 			:fixed="isHeaderFixed"
 			title="图片转 PDF"
-			titleColor="#243746"
+			titleColor="#333333"
 			titleFontSize="30rpx"
-			titleFontWeight="400"
+			titleFontWeight="700"
 			headerClass="page-header-calculator-bg"
 		/>
 		<view class="document-intro">

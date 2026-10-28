@@ -1,5 +1,5 @@
 <template>
-	<tool-page title="宠物管理" subtitle="记下体重、疫苗和驱虫时间，照顾好每个日常" :scrollIntoView="scrollTarget">
+	<tool-page title="宠物管理" subtitle="记下体重、疫苗和驱虫时间，照顾好每个日常">
 		<view class="wellness-heading">
 			<text class="heading-text">我的宠物 · {{ pets.length }} 只</text>
 			<text class="heading-action" @click="managing = !managing">{{ managing ? '完成' : '管理' }}</text>
@@ -54,146 +54,189 @@
 			<text class="primary-text ml-[12rpx]">添加宠物</text>
 		</view>
 		<view class="tool-card reminder-settings">
-			<view class="reminder-entry" @click="settingsOpen = !settingsOpen">
+			<view class="reminder-entry" @click="openSettings">
 				<UniIcons type="notification" size="30rpx" color="#278dca" />
 				<text class="flex-1 ml-[16rpx] text-[26rpx] leading-[42rpx] text-[#233d50]">提醒设置</text>
 				<text class="text-[22rpx] leading-[36rpx] text-[#8795a1]">管理记录提醒 ›</text>
 			</view>
-			<view v-if="settingsOpen">
-				<view class="settings-switch">
-					<text class="text-[26rpx] leading-[42rpx] text-[#233d50]">应用内日期提示</text>
-					<switch :checked="reminders" :disabled="!ready" color="#278dca" @change="changeReminders" />
-				</view>
-				<text class="tool-note">只在打开此页时提示日期，不会在后台推送。日期按你填写的记录显示，不自动推算疫苗或驱虫周期。</text>
-			</view>
-		</view>
-		<view v-if="panel == 'profile'" id="pet-profile-form" class="tool-card wellness-form">
-			<text class="card-title">{{ editingPetId > 0 ? '编辑宠物' : '添加宠物' }}</text>
-			<view class="form-field">
-				<text class="form-label">宠物名字</text>
-				<input v-model="petName" class="form-input" :maxlength="-1" placeholder="最多30字" />
-			</view>
-			<view class="form-field">
-				<text class="form-label">品种（选填）</text>
-				<input v-model="breed" class="form-input" :maxlength="-1" placeholder="最多40字" />
-			</view>
-			<view class="form-field">
-				<text class="form-label">生日（选填）</text>
-				<picker
-					mode="date"
-					:value="birthday.length > 0 ? birthday : today"
-					start="1900-01-01"
-					:end="today"
-					@change="changeBirthday"
-				>
-					<view class="tool-field">
-						<text class="field-value">{{ birthday.length > 0 ? birthday : '选择生日' }}</text>
-						<UniIcons type="bottom" size="26rpx" color="#278dca" />
-					</view>
-				</picker>
-				<text v-if="birthday.length > 0" class="tool-note" @click="birthday = ''">清除生日</text>
-			</view>
-			<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
-			<view class="form-actions">
-				<text class="form-cancel" @click="panel = ''">取消</text>
-				<text class="form-submit" @click="savePet">保存宠物</text>
-			</view>
-		</view>
-		<view v-if="selectedPet != null && panel == 'weight'" id="pet-weight-form" class="tool-card wellness-form">
-			<text class="card-title">{{ selectedPet!.name }} · 体重记录</text>
-			<view class="form-field">
-				<text class="form-label">记录日期</text>
-				<picker mode="date" :value="weightDate" start="1900-01-01" :end="today" @change="changeWeightDate">
-					<view class="tool-field">
-						<text class="field-value">{{ weightDate }}</text>
-						<UniIcons type="bottom" size="26rpx" color="#278dca" />
-					</view>
-				</picker>
-			</view>
-			<view class="form-field">
-				<text class="form-label">体重（kg，最多3位小数）</text>
-				<input v-model="weightValue" class="form-input" type="digit" :maxlength="-1" placeholder="输入体重" />
-			</view>
-			<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
-			<view class="form-actions">
-				<text v-if="editingWeightId > 0" class="form-delete" @click="deleteWeight">删除记录</text>
-				<text class="form-cancel" @click="panel = ''">关闭</text>
-				<text class="form-submit" @click="saveWeight">{{ editingWeightId > 0 ? '保存修改' : '新增记录' }}</text>
-			</view>
-			<text class="tool-note">点击下方历史可修改；同一天可保留多次称重。</text>
-			<scroll-view class="pet-history" scroll-y="true">
-				<empty-state v-if="sortedWeights.length == 0" image="" description="暂无体重记录" />
-				<view v-for="entry in sortedWeights" :key="entry.id" class="history-row" @click="editWeight(entry)">
-					<view class="history-content">
-						<text class="history-title">{{ entry.kg }} kg</text>
-						<text class="history-detail">{{ entry.date }}</text>
-					</view>
-					<UniIcons type="right" size="26rpx" color="#8795a1" />
-				</view>
-			</scroll-view>
-			<text v-if="editingWeightId > 0" class="tool-note" @click="newWeight">继续新增体重</text>
-		</view>
-		<view v-if="selectedPet != null && panel == 'care'" id="pet-care-form" class="tool-card wellness-form">
-			<text class="card-title">{{ selectedPet!.name }} · 疫苗 / 驱虫</text>
-			<view class="form-field">
-				<text class="form-label">记录类型</text>
-				<picker :range="careTypes" :value="careType" @change="changeCareType">
-					<view class="tool-field">
-						<text class="field-value">{{ careTypes[careType] }}</text>
-						<UniIcons type="bottom" size="26rpx" color="#278dca" />
-					</view>
-				</picker>
-			</view>
-			<view class="form-field">
-				<text class="form-label">项目名称</text>
-				<input v-model="careTitle" class="form-input" :maxlength="-1" placeholder="填写项目名称，最多60字" />
-			</view>
-			<view class="form-field">
-				<text class="form-label">本次日期</text>
-				<picker mode="date" :value="careDate" start="1900-01-01" :end="today" @change="changeCareDate">
-					<view class="tool-field">
-						<text class="field-value">{{ careDate }}</text>
-						<UniIcons type="bottom" size="26rpx" color="#278dca" />
-					</view>
-				</picker>
-			</view>
-			<view class="form-field">
-				<text class="form-label">下次日期（选填，自行填写）</text>
-				<picker
-					mode="date"
-					:value="careNext.length > 0 ? careNext : today"
-					start="1900-01-01"
-					end="2100-12-31"
-					@change="changeCareNext"
-				>
-					<view class="tool-field">
-						<text class="field-value">{{ careNext.length > 0 ? careNext : '未设置下次日期' }}</text>
-						<UniIcons type="bottom" size="26rpx" color="#278dca" />
-					</view>
-				</picker>
-				<text v-if="careNext.length > 0" class="tool-note" @click="careNext = ''">不设下次日期</text>
-			</view>
-			<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
-			<view class="form-actions">
-				<text v-if="editingCareId > 0" class="form-delete" @click="deleteCare">删除记录</text>
-				<text class="form-cancel" @click="panel = ''">关闭</text>
-				<text class="form-submit" @click="saveCare">保存记录</text>
-			</view>
-			<scroll-view class="pet-history" scroll-y="true">
-				<empty-state v-if="sortedCare.length == 0" image="" description="暂无疫苗或驱虫记录" />
-				<view v-for="entry in sortedCare" :key="entry.id" class="history-row" @click="editCare(entry)">
-					<view class="history-content">
-						<text class="history-title">{{ careTypes[entry.type] }} · {{ entry.title }}</text>
-						<text class="history-detail">{{ entry.date }}{{ entry.next.length > 0 ? ' · 下次 ' + entry.next : '' }}</text>
-					</view>
-					<UniIcons type="right" size="26rpx" color="#8795a1" />
-				</view>
-			</scroll-view>
-			<text v-if="editingCareId > 0" class="tool-note" @click="newCare">继续新增照护记录</text>
 		</view>
 		<text v-if="storageError.length > 0" class="tool-footnote">{{ storageError }}</text>
 		<text v-if="storageError.length > 0" class="archive-retry" @click="persist(true)">重新保存当前档案</text>
 		<text class="tool-footnote">记录保存在本机，支持10只宠物，每只可保存100条体重及100条照护记录。</text>
+		<template #popup>
+			<uni-popup ref="formPopup" @close="resetPanel">
+				<view class="tool-popup-card">
+					<view class="tool-popup-heading">
+						<text class="tool-popup-title">{{ panelTitle }}</text>
+						<view class="popup-close-button" @click="closePanel">
+							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+						</view>
+					</view>
+					<scroll-view class="tool-popup-scroll" scroll-y="true" :scroll-into-view="recordFormTarget">
+						<view class="tool-popup-body">
+							<view v-if="panel == 'profile'" class="wellness-form">
+								<view class="form-field">
+									<text class="form-label">宠物名字</text>
+									<input v-model="petName" class="form-input" :maxlength="-1" placeholder="最多30字" />
+								</view>
+								<view class="form-field">
+									<text class="form-label">品种（选填）</text>
+									<input v-model="breed" class="form-input" :maxlength="-1" placeholder="最多40字" />
+								</view>
+								<view class="form-field">
+									<text class="form-label">生日（选填）</text>
+									<picker
+										mode="date"
+										:value="birthday.length > 0 ? birthday : today"
+										start="1900-01-01"
+										:end="today"
+										@change="changeBirthday"
+									>
+										<view class="tool-field">
+											<text class="field-value">{{ birthday.length > 0 ? birthday : '选择生日' }}</text>
+											<UniIcons type="bottom" size="26rpx" color="#278dca" />
+										</view>
+									</picker>
+									<text v-if="birthday.length > 0" class="tool-note" @click="birthday = ''">清除生日</text>
+								</view>
+								<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
+								<view class="tool-popup-actions">
+									<view class="tool-popup-button is-cancel" @click="closePanel">
+										<text class="tool-popup-button-text">取消</text>
+									</view>
+									<view class="tool-popup-button" @click="savePet">
+										<text class="tool-popup-button-text">保存宠物</text>
+									</view>
+								</view>
+							</view>
+							<view v-if="selectedPet != null && panel == 'weight'" id="pet-weight-fields" class="wellness-form">
+								<view class="form-field">
+									<text class="form-label">记录日期</text>
+									<picker mode="date" :value="weightDate" start="1900-01-01" :end="today" @change="changeWeightDate">
+										<view class="tool-field">
+											<text class="field-value">{{ weightDate }}</text>
+											<UniIcons type="bottom" size="26rpx" color="#278dca" />
+										</view>
+									</picker>
+								</view>
+								<view class="form-field">
+									<text class="form-label">体重（kg，最多3位小数）</text>
+									<input v-model="weightValue" class="form-input" type="digit" :maxlength="-1" placeholder="输入体重" />
+								</view>
+								<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
+								<view class="tool-popup-actions">
+									<view v-if="editingWeightId > 0" class="tool-popup-button is-delete" @click="deleteWeight">
+										<text class="tool-popup-button-text">删除记录</text>
+									</view>
+									<view class="tool-popup-button is-cancel" @click="closePanel">
+										<text class="tool-popup-button-text">取消</text>
+									</view>
+									<view class="tool-popup-button" @click="saveWeight">
+										<text class="tool-popup-button-text">{{ editingWeightId > 0 ? '保存修改' : '新增记录' }}</text>
+									</view>
+								</view>
+								<text class="tool-note">点击下方历史可修改；同一天可保留多次称重。</text>
+								<view class="pet-history">
+									<empty-state v-if="sortedWeights.length == 0" image="" description="暂无体重记录" />
+									<view v-for="entry in sortedWeights" :key="entry.id" class="history-row" @click="editWeight(entry)">
+										<view class="history-content">
+											<text class="history-title">{{ entry.kg }} kg</text>
+											<text class="history-detail">{{ entry.date }}</text>
+										</view>
+										<UniIcons type="right" size="26rpx" color="#8795a1" />
+									</view>
+								</view>
+								<text v-if="editingWeightId > 0" class="tool-note" @click="newWeight">继续新增体重</text>
+							</view>
+							<view v-if="selectedPet != null && panel == 'care'" id="pet-care-fields" class="wellness-form">
+								<view class="form-field">
+									<text class="form-label">记录类型</text>
+									<picker :range="careTypes" :value="careType" @change="changeCareType">
+										<view class="tool-field">
+											<text class="field-value">{{ careTypes[careType] }}</text>
+											<UniIcons type="bottom" size="26rpx" color="#278dca" />
+										</view>
+									</picker>
+								</view>
+								<view class="form-field">
+									<text class="form-label">项目名称</text>
+									<input v-model="careTitle" class="form-input" :maxlength="-1" placeholder="填写项目名称，最多60字" />
+								</view>
+								<view class="form-field">
+									<text class="form-label">本次日期</text>
+									<picker mode="date" :value="careDate" start="1900-01-01" :end="today" @change="changeCareDate">
+										<view class="tool-field">
+											<text class="field-value">{{ careDate }}</text>
+											<UniIcons type="bottom" size="26rpx" color="#278dca" />
+										</view>
+									</picker>
+								</view>
+								<view class="form-field">
+									<text class="form-label">下次日期（选填，自行填写）</text>
+									<picker
+										mode="date"
+										:value="careNext.length > 0 ? careNext : today"
+										start="1900-01-01"
+										end="2100-12-31"
+										@change="changeCareNext"
+									>
+										<view class="tool-field">
+											<text class="field-value">{{ careNext.length > 0 ? careNext : '未设置下次日期' }}</text>
+											<UniIcons type="bottom" size="26rpx" color="#278dca" />
+										</view>
+									</picker>
+									<text v-if="careNext.length > 0" class="tool-note" @click="careNext = ''">不设下次日期</text>
+								</view>
+								<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
+								<view class="tool-popup-actions">
+									<view v-if="editingCareId > 0" class="tool-popup-button is-delete" @click="deleteCare">
+										<text class="tool-popup-button-text">删除记录</text>
+									</view>
+									<view class="tool-popup-button is-cancel" @click="closePanel">
+										<text class="tool-popup-button-text">取消</text>
+									</view>
+									<view class="tool-popup-button" @click="saveCare">
+										<text class="tool-popup-button-text">保存记录</text>
+									</view>
+								</view>
+								<view class="pet-history">
+									<empty-state v-if="sortedCare.length == 0" image="" description="暂无疫苗或驱虫记录" />
+									<view v-for="entry in sortedCare" :key="entry.id" class="history-row" @click="editCare(entry)">
+										<view class="history-content">
+											<text class="history-title">{{ careTypes[entry.type] }} · {{ entry.title }}</text>
+											<text class="history-detail">{{ entry.date }}{{ entry.next.length > 0 ? ' · 下次 ' + entry.next : '' }}</text>
+										</view>
+										<UniIcons type="right" size="26rpx" color="#8795a1" />
+									</view>
+								</view>
+								<text v-if="editingCareId > 0" class="tool-note" @click="newCare">继续新增照护记录</text>
+							</view>
+						</view>
+					</scroll-view>
+				</view>
+			</uni-popup>
+			<uni-popup ref="settingsPopup">
+				<view class="tool-popup-card">
+					<view class="tool-popup-heading">
+						<text class="tool-popup-title">提醒设置</text>
+						<view class="popup-close-button" @click="closeSettings">
+							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+						</view>
+					</view>
+					<scroll-view class="tool-popup-scroll" scroll-y="true">
+						<view class="tool-popup-body">
+							<view class="reminder-settings">
+								<view class="settings-switch">
+									<text class="text-[26rpx] leading-[42rpx] text-[#233d50]">应用内日期提示</text>
+									<switch :checked="reminders" :disabled="!ready" color="#278dca" @change="changeReminders" />
+								</view>
+								<text class="tool-note">只在打开此页时提示日期，不会在后台推送。日期按你填写的记录显示，不自动推算疫苗或驱虫周期。</text>
+							</view>
+						</view>
+					</scroll-view>
+				</view>
+			</uni-popup>
+		</template>
 	</tool-page>
 </template>
 
@@ -218,6 +261,9 @@
 	import { recordToolUsage } from '@/utils/tool-usage';
 	import { toast } from '@/utils/toast';
 	// data
+	type PopupRef = { open: () => void, close: () => void };
+	const formPopup = ref<PopupRef | null>(null);
+	const settingsPopup = ref<PopupRef | null>(null);
 	const archive = useSavedArchive(petStore);
 	const {
 		ready,
@@ -226,11 +272,10 @@
 	const today = ref(formatCalendarDate(new Date()));
 	const pets = ref<Pet[]>([]);
 	const reminders = ref(true);
-	const settingsOpen = ref(false);
 	const managing = ref(false);
 	const deletedPet = ref<Pet | null>(null);
 	const panel = ref('');
-	const scrollTarget = ref('');
+	const recordFormTarget = ref('');
 	const editingPetId = ref(0);
 	const selectedPetId = ref(0);
 	const petName = ref('');
@@ -248,6 +293,7 @@
 	const editingCareId = ref(0);
 	// computed
 	const selectedPet = computed((): Pet | null => pets.value.find((pet: Pet): boolean => pet.id == selectedPetId.value) ?? null);
+	const panelTitle = computed((): string => panel.value == 'profile' ? (editingPetId.value > 0 ? '编辑宠物' : '添加宠物') : (selectedPet.value == null ? '' : selectedPet.value!.name + ' · ') + (panel.value == 'weight' ? '体重记录' : '疫苗 / 驱虫'));
 	const sortedWeights = computed((): PetWeight[] => selectedPet.value == null ? [] : selectedPet.value!.weights.slice().sort((a: PetWeight, b: PetWeight): number => a.date == b.date ? b.id - a.id : a.date > b.date ? -1 : 1));
 	const sortedCare = computed((): PetCare[] => selectedPet.value == null ? [] : selectedPet.value!.care.slice().sort((a: PetCare, b: PetCare): number => a.date == b.date ? b.id - a.id : a.date > b.date ? -1 : 1));
 	// methods
@@ -258,11 +304,31 @@
 	const persist = (explicit: boolean = false) => {
 		archive.save(encodePets(pets.value, reminders.value), explicit);
 	};
-	const jump = (id: string) => {
-		scrollTarget.value = '';
-		nextTick(() => {
-			scrollTarget.value = id;
-		});
+	const resetPanel = () => {
+		uni.hideKeyboard();
+		recordFormTarget.value = '';
+		panel.value = '';
+		selectedPetId.value = 0;
+		editingPetId.value = 0;
+		editingWeightId.value = 0;
+		editingCareId.value = 0;
+		petName.value = '';
+		breed.value = '';
+		birthday.value = '';
+		weightValue.value = '';
+		careTitle.value = '';
+		careNext.value = '';
+		formError.value = '';
+	};
+	const closePanel = () => {
+		if (formPopup.value != null) formPopup.value!.close();
+	};
+	const closeSettings = () => {
+		if (settingsPopup.value != null) settingsPopup.value!.close();
+		uni.hideKeyboard();
+	};
+	const openSettings = () => {
+		if (settingsPopup.value != null) settingsPopup.value!.open();
 	};
 	const openProfile = (pet: Pet) => {
 		if (!ready.value) return;
@@ -272,7 +338,7 @@
 		birthday.value = pet.birthday;
 		formError.value = '';
 		panel.value = 'profile';
-		jump('pet-profile-form');
+		if (formPopup.value != null) formPopup.value!.open();
 	};
 	const newPet = () => {
 		if (!ready.value) return;
@@ -283,7 +349,7 @@
 		birthday.value = '';
 		formError.value = '';
 		panel.value = 'profile';
-		jump('pet-profile-form');
+		if (formPopup.value != null) formPopup.value!.open();
 	};
 	const savePet = () => {
 		if (!ready.value) return;
@@ -302,7 +368,7 @@
 				if (pets.value.length >= 10) throw new Error('最多添加10只宠物');
 				pets.value.push(pet);
 			} else pets.value = pets.value.map((value: Pet): Pet => value.id == pet.id ? pet : value);
-			panel.value = '';
+			closePanel();
 			uni.hideKeyboard();
 			persist();
 		} catch (exception) {
@@ -312,7 +378,7 @@
 	const deletePet = (pet: Pet) => {
 		deletedPet.value = pet;
 		pets.value = pets.value.filter((value: Pet): boolean => value.id != pet.id);
-		if (panel.value == 'profile' && editingPetId.value == pet.id || (panel.value == 'weight' || panel.value == 'care') && selectedPetId.value == pet.id) panel.value = '';
+		if (panel.value == 'profile' && editingPetId.value == pet.id || (panel.value == 'weight' || panel.value == 'care') && selectedPetId.value == pet.id) closePanel();
 		if (selectedPetId.value == pet.id) selectedPetId.value = 0;
 		if (editingPetId.value == pet.id) editingPetId.value = 0;
 		persist();
@@ -324,24 +390,33 @@
 		persist();
 	};
 	const openRecords = (pet: Pet, mode: string) => {
+		if (!ready.value) return;
 		today.value = formatCalendarDate(new Date());
 		selectedPetId.value = pet.id;
 		panel.value = mode;
 		formError.value = '';
 		if (mode == 'weight') newWeight();else newCare();
-		jump(mode == 'weight' ? 'pet-weight-form' : 'pet-care-form');
+		if (formPopup.value != null) formPopup.value!.open();
+	};
+	const focusRecordForm = () => {
+		recordFormTarget.value = '';
+		nextTick(() => {
+			if (panel.value == 'weight' || panel.value == 'care') recordFormTarget.value = 'pet-' + panel.value + '-fields';
+		});
 	};
 	const newWeight = () => {
 		editingWeightId.value = 0;
 		weightDate.value = today.value;
 		weightValue.value = '';
 		formError.value = '';
+		focusRecordForm();
 	};
 	const editWeight = (record: PetWeight) => {
 		editingWeightId.value = record.id;
 		weightDate.value = record.date;
 		weightValue.value = record.kg.toString();
 		formError.value = '';
+		focusRecordForm();
 	};
 	const saveWeight = () => {
 		if (selectedPet.value == null || !ready.value) return;
@@ -378,6 +453,7 @@
 		careDate.value = today.value;
 		careNext.value = '';
 		formError.value = '';
+		focusRecordForm();
 	};
 	const editCare = (record: PetCare) => {
 		editingCareId.value = record.id;
@@ -386,6 +462,7 @@
 		careDate.value = record.date;
 		careNext.value = record.next;
 		formError.value = '';
+		focusRecordForm();
 	};
 	const saveCare = () => {
 		if (selectedPet.value == null || !ready.value) return;
@@ -453,6 +530,7 @@
 </script>
 
 <style scoped lang="scss">
+	@import '@/styles/tool-popup.scss';
 	@import '@/styles/wellness-tools.scss';
 	.pet-card {
 		&.green-card {
@@ -591,7 +669,6 @@
 
 	.wellness-form {
 		.pet-history {
-			height: 340rpx;
 			margin-top: 24rpx;
 		}
 	}

@@ -1,33 +1,41 @@
 <template>
-	<scroll-view class="practical-page" scroll-y="true" :scroll-into-view="scrollIntoView">
-		<page-header
-			:fixed="isHeaderFixed"
-			:title="title"
-			titleColor="#233d50"
-			titleFontSize="30rpx"
-			titleFontWeight="500"
-			headerClass="page-header-calculator-bg"
-		/>
-		<view class="practical-intro">
-			<text class="intro-heading">{{ title }}</text>
-			<text class="intro-description">{{ subtitle }}</text>
-		</view>
-		<slot />
-		<view class="page-bottom-space" />
-	</scroll-view>
+	<view class="practical-container">
+		<scroll-view class="practical-page" scroll-y="true">
+			<page-header
+				:fixed="isHeaderFixed"
+				:title="title"
+				titleColor="#333333"
+				titleFontSize="30rpx"
+				titleFontWeight="700"
+				headerClass="page-header-calculator-bg"
+			/>
+			<view class="practical-intro">
+				<text class="intro-heading">{{ title }}</text>
+				<text class="intro-description">{{ subtitle }}</text>
+			</view>
+			<slot />
+			<view class="page-bottom-space" />
+		</scroll-view>
+		<slot name="popup" />
+	</view>
 </template>
 
 <script setup lang="uts">
 	import { ref } from 'vue';
-	withDefaults(defineProps<{
+	defineProps<{
 		title: string;
 		subtitle: string;
-		scrollIntoView?: string;
-	}>(), { scrollIntoView: '' });
+	}>();
 	const isHeaderFixed = ref(false);
 </script>
 
 <style scoped lang="scss">
+	.practical-container {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		width: 100%;
+	}
 	.practical-page {
 		flex: 1;
 		width: 100%;

@@ -45,35 +45,6 @@
 		line-height: 38rpx;
 		color: #be5555;
 	}
-	.form-actions {
-		display: flex;
-		flex-direction: row;
-		align-items: center;
-		justify-content: flex-end;
-		margin-top: 24rpx;
-		flex-wrap: wrap;
-		.form-cancel {
-			padding: 16rpx 28rpx;
-			font-size: 26rpx;
-			line-height: 42rpx;
-			color: #8795a1;
-		}
-		.form-submit {
-			padding: 16rpx 28rpx;
-			border-radius: 18rpx;
-			background-color: #278dca;
-			font-size: 26rpx;
-			line-height: 42rpx;
-			color: #ffffff;
-		}
-		.form-delete {
-			margin-right: 18rpx;
-			padding: 16rpx 0;
-			font-size: 24rpx;
-			line-height: 40rpx;
-			color: #be5555;
-		}
-	}
 }
 
 .archive-retry {

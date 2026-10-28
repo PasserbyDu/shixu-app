@@ -1,0 +1,283 @@
+import { LocalMediaFile, chooseLocalImages, localFileSize } from '@/utils/local-media';
+export type FormatImageInfo = {
+	width: number;
+	height: number;
+	type: string;
+};
+export type ConvertedImage = {
+	path: string;
+	size: number;
+	width: number;
+	height: number;
+	format: string;
+};
+
+// data
+const MAX_EDGE = 4096;
+const MAX_PIXELS = 16000000;
+
+// methods
+export const supportsImageFormat = (format: string): boolean => {
+	if (!['jpg', 'png', 'webp'].includes(format)) return false;
+	// #ifdef APP-IOS || MP
+	if (format == 'webp') return false;
+	// #endif
+	return true;
+};
+export const chooseFormatImage = async (): Promise<LocalMediaFile[]> => {
+	// #ifndef WEB
+	return await chooseLocalImages(1);
+	// #endif
+	// #ifdef WEB
+	return await new Promise<LocalMediaFile[]>((resolve, reject) => {
+		uni.chooseImage({
+			count: 1,
+			sizeType: ['original'],
+			sourceType: ['album'],
+			success: result => {
+				const entries = result.tempFiles as any[];
+				if (result.tempFilePaths.length == 0 || entries.length == 0) return resolve([]);
+				const first = entries[0];
+				const size = Number(first.size);
+				if (!Number.isFinite(size) || size <= 0) return reject(new Error('无法读取图片大小，请重新选择'));
+				resolve([{
+					id: Date.now().toString(),
+					name: String(first.name ?? '图片'),
+					path: result.tempFilePaths[0],
+					size,
+					pages: 0
+				}]);
+			},
+			fail: error => reject(new Error(error.errMsg))
+		});
+	});
+	// #endif
+};
+export const readFormatImageInfo = (path: string): Promise<FormatImageInfo> => new Promise<FormatImageInfo>((resolve, reject) => {
+	uni.getImageInfo({
+		src: path,
+		success: info => {
+			const type = (info.type ?? '').toLowerCase();
+			if (!Number.isFinite(info.width) || !Number.isFinite(info.height) || info.width <= 0 || info.height <= 0) return reject(new Error('图片尺寸无效'));
+			resolve({
+				width: info.width,
+				height: info.height,
+				type: type == 'jpeg' ? 'jpg' : type
+			});
+		},
+		fail: () => reject(new Error('无法读取图片，请选择有效的 JPG、PNG 或 WebP 图片'))
+	});
+});
+export const formatImageDimensions = (width: number, height: number, keep: boolean, longEdge: number): number[] => {
+	if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || !Number.isFinite(longEdge) || longEdge < 1) throw new Error('图片尺寸无效');
+	const scale = keep ? 1 : Math.min(1, Math.min(longEdge, MAX_EDGE) / Math.max(width, height), Math.sqrt(MAX_PIXELS / (width * height)));
+	const targetWidth = Math.max(1, Math.floor(width * scale));
+	const targetHeight = Math.max(1, Math.floor(height * scale));
+	if (targetWidth > MAX_EDGE || targetHeight > MAX_EDGE || targetWidth * targetHeight > MAX_PIXELS) throw new Error('输出尺寸过大，请关闭“保持原图尺寸”并缩小最长边（最大4096像素、1600万像素）');
+	return [targetWidth, targetHeight];
+};
+export const convertedFileName = (name: string, format: string): string => {
+	const basename = name.replace(/\.[^\.]+$/, '').trim();
+	return (basename.length > 0 ? basename : '转换图片') + '.' + format;
+};
+export const useImageFormatCanvas = (id: string) => {
+	// data
+	let context: CanvasContext | null = null;
+	let disposed = false;
+	let processing = false;
+	let cancelImageLoad: (() => void) | null = null;
+	let cancelRenderWait: (() => void) | null = null;
+	let serial = 0;
+	const ownedFiles: string[] = [];
+	// methods
+	const discard = (path: string) => {
+		// #ifndef WEB
+		if (!ownedFiles.includes(path)) return;
+		try {
+			uni.getFileSystemManager().unlink({
+				filePath: path,
+				fail: () => {}
+			});
+		} catch (exception) {/* 临时文件由系统后续回收。 */}
+		// #endif
+	};
+	const releaseCanvas = () => {
+		try {
+			if (context != null) {
+				const drawing = context!.getContext('2d');
+				if (drawing != null) {
+					drawing.canvas.width = 1;
+					drawing.canvas.height = 1;
+				}
+			}
+		} catch (exception) {/* 页面销毁后原生画布可能已释放。 */}
+	};
+	const getContext = (): Promise<CanvasContext> => new Promise<CanvasContext>((resolve, reject) => {
+		if (disposed) return reject(new Error('页面已关闭'));
+		if (context != null) return resolve(context!);
+		uni.createCanvasContextAsync({
+			id,
+			success: canvas => {
+				if (disposed) return reject(new Error('页面已关闭'));
+				context = canvas;
+				resolve(canvas);
+			},
+			fail: () => reject(new Error('无法初始化画布，请稍后重试'))
+		});
+	});
+	const loadImage = (canvas: CanvasContext, path: string): Promise<Image> => new Promise<Image>((resolve, reject) => {
+		const image = canvas.createImage();
+		let settled = false;
+		let timeout = -1;
+		const finish = (success: boolean) => {
+			if (settled) return;
+			settled = true;
+			if (timeout >= 0) clearTimeout(timeout);
+			cancelImageLoad = null;
+			if (success && !disposed) resolve(image);
+			else reject(new Error(disposed ? '页面已关闭' : '图片解码失败或超时，请重新选择'));
+		};
+		cancelImageLoad = () => finish(false);
+		image.onload = () => finish(true);
+		image.onerror = () => finish(false);
+		timeout = setTimeout(() => finish(false), 30000);
+		try {
+			image.src = path;
+		} catch (exception) {
+			finish(false);
+		}
+	});
+	// Canvas 的绘制与宿主渲染异步进行，两帧之间给宿主完成一次提交；不能刚 drawImage 就导出。
+	const waitForDrawing = (canvas: CanvasContext): Promise<void> => new Promise<void>((resolve, reject) => {
+		let settled = false;
+		let frame = -1;
+		let timeout = -1;
+		const finish = (success: boolean) => {
+			if (settled) return;
+			settled = true;
+			if (timeout >= 0) clearTimeout(timeout);
+			try { if (frame >= 0) canvas.cancelAnimationFrame(frame); } catch (exception) { /* 页面可能已退出。 */ }
+			cancelRenderWait = null;
+			if (success && !disposed) resolve();
+			else reject(new Error(disposed ? '页面已关闭' : '画布绘制未完成，请保持页面在前台后重试'));
+		};
+		cancelRenderWait = () => finish(false);
+		timeout = setTimeout(() => finish(false), 3000);
+		try {
+			frame = canvas.requestAnimationFrame(() => {
+				if (settled) return;
+				try { frame = canvas.requestAnimationFrame(() => finish(true)); }
+				catch (exception) { finish(false); }
+			});
+		} catch (exception) { finish(false); }
+	});
+	const exportImage = async (drawing: CanvasRenderingContext2D, format: string): Promise<string> => {
+		// 小程序的 CanvasContext 也是新版 Canvas 节点，直接编码位图，避免 canvas-id/组件作用域导出差异。
+		const mime = format == 'jpg' ? 'image/jpeg' : 'image/' + format;
+		let data = '';
+		try { data = drawing.canvas.toDataURL(mime, 0.92); }
+		catch (exception) {
+			const message = exception instanceof Error ? exception.message : String(exception);
+			throw new Error('图片编码失败：' + message);
+		}
+		if (data.length == 0 || data == 'data:,') throw new Error('画布未生成图片数据，请重新选择图片后重试');
+		if (!data.startsWith('data:' + mime + ';base64,')) throw new Error('当前设备不支持导出 ' + format.toUpperCase() + '，请改选其他格式');
+		// #ifdef WEB
+		return data;
+		// #endif
+		// #ifndef WEB
+		let root = uni.env.USER_DATA_PATH;
+		// #ifdef APP
+		root = uni.env.CACHE_PATH;
+		// #endif
+		serial++;
+		const path = root + '/shixu-format-' + Date.now() + '-' + serial + '.' + format;
+		ownedFiles.push(path);
+		try {
+			await new Promise<boolean>((resolve, reject) => {
+				uni.getFileSystemManager().writeFile({
+					filePath: path,
+					data: data.slice(data.indexOf(',') + 1),
+					encoding: 'base64',
+					success: () => resolve(true),
+					fail: (error) => reject(new Error('写入临时图片失败：' + error.errMsg))
+				});
+			});
+		} catch (exception) {
+			discard(path);
+			throw exception;
+		}
+		return path;
+		// #endif
+	};
+	const convert = async (path: string, format: string, keep: boolean, longEdge: number): Promise<ConvertedImage> => {
+		if (disposed || processing) throw new Error('画布暂不可用，请稍后重试');
+		if (!supportsImageFormat(format)) throw new Error('当前平台不支持导出 WebP，请选择 JPG 或 PNG');
+		processing = true;
+		let exported = '';
+		try {
+			const canvas = await getContext();
+			const image = await loadImage(canvas, path);
+			if (disposed) throw new Error('页面已关闭');
+			if (image.width <= 0 || image.height <= 0) throw new Error('无法取得图片尺寸');
+			const dimensions = formatImageDimensions(image.width, image.height, keep, longEdge);
+			const width = dimensions[0],
+				height = dimensions[1];
+			const drawing = canvas.getContext('2d');
+			if (drawing == null) throw new Error('当前设备不支持2D画布');
+			drawing.canvas.width = width;
+			drawing.canvas.height = height;
+			drawing.clearRect(0, 0, width, height);
+			if (format == 'jpg') {
+				drawing.fillStyle = '#ffffff';
+				drawing.fillRect(0, 0, width, height);
+			}
+			drawing.drawImage(image, 0, 0, width, height);
+			await waitForDrawing(canvas);
+			if (disposed) throw new Error('页面已关闭');
+			exported = await exportImage(drawing, format);
+			if (disposed) throw new Error('页面已关闭');
+			const info = await readFormatImageInfo(exported);
+			// #ifndef WEB
+			if (info.type.length == 0) throw new Error('无法确认导出图片格式，请重试');
+			// #endif
+			if (info.type.length > 0 && info.type != format) throw new Error('设备返回的文件格式与目标不一致，请换一种格式重试');
+			if (info.width != width || info.height != height) throw new Error('导出尺寸不正确，请降低尺寸后重试');
+			let size = 0;
+			// #ifdef WEB
+			const base64 = exported.slice(exported.indexOf(',') + 1);
+			size = Math.floor(base64.length * 3 / 4) - (base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0);
+			// #endif
+			// #ifndef WEB
+			size = await localFileSize(exported);
+			// #endif
+			if (size <= 0 || disposed) throw new Error(disposed ? '页面已关闭' : '导出图片为空，请重试');
+			return {
+				path: exported,
+				size,
+				width,
+				height,
+				format
+			};
+		} catch (exception) {
+			if (exported.length > 0) discard(exported);
+			throw exception;
+		} finally {
+			processing = false;
+			releaseCanvas();
+		}
+	};
+	const dispose = () => {
+		disposed = true;
+		cancelImageLoad?.();
+		cancelRenderWait?.();
+		if (!processing) releaseCanvas();
+		ownedFiles.forEach((path: string) => discard(path));
+		context = null;
+	};
+	return {
+		convert,
+		discard,
+		dispose
+	};
+};

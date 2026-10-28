@@ -1,6 +1,12 @@
 <template>
 	<scroll-view class="calculator-page" scroll-y="true">
-		<page-header :fixed="isHeaderFixed" title="时间计算" titleColor="#1d394b" headerClass="page-header-calculator-bg" />
+		<page-header
+			:fixed="isHeaderFixed"
+			title="时间计算"
+			titleColor="#333333"
+			titleFontWeight="700"
+			headerClass="page-header-calculator-bg"
+		/>
 		<view class="calculator-intro">
 			<text class="intro-title">时间计算</text>
 			<text class="intro-description">时分秒的加减，让时间井井有条</text>

@@ -1,0 +1,243 @@
+<template>
+	<scroll-view class="about-page" scroll-y="true">
+		<page-header
+			:fixed="isHeaderFixed"
+			title="关于拾序有方"
+			titleColor="#333333"
+			titleFontSize="30rpx"
+			titleFontWeight="500"
+			iconColor="#233d50"
+			headerClass="page-header-calculator-bg"
+		/>
+		<view class="about-brand">
+			<image class="brand-logo" :src="logoUrl" mode="aspectFit" />
+			<text class="brand-title">拾序有方</text>
+			<text class="brand-slogan">{{ APP_SLOGAN }}</text>
+			<view class="version-badge">
+				<text class="version-text">当前版本 v{{ APP_VERSION }}</text>
+			</view>
+		</view>
+		<view class="local-promise">
+			<text class="promise-label">本地处理 · 数据不上传</text>
+			<text class="promise-title">你的工具数据，留在你的设备里</text>
+			<text class="promise-description">工具中的计算、转换与记录处理在当前设备完成。你输入的内容、选择的图片和文件，以及工具处理结果，不会上传或保存到我们的服务器。</text>
+		</view>
+		<view v-for="section in sections" :key="section.id" class="info-card">
+			<text class="card-title">{{ section.title }}</text>
+			<view v-for="item in section.items" :key="item.title" class="detail-item">
+				<text class="item-title">{{ item.title }}</text>
+				<text class="item-description">{{ item.description }}</text>
+			</view>
+		</view>
+		<text class="about-footer">用轻量的工具，让生活更有序</text>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { ref } from 'vue'
+	import { APP_SLOGAN, APP_VERSION } from '@/config/app'
+
+	// data
+	type AboutItem = {
+		title: string
+		description: string
+	}
+	type AboutSection = {
+		id: string
+		title: string
+		items: AboutItem[]
+	}
+	const isHeaderFixed = ref(false)
+	const logoUrl = 'https://i.postimg.cc/15Lq7y7P/shixuyoufang.png'
+	const sections: AboutSection[] = [
+		{
+			id: 'privacy', title: '数据与隐私说明',
+			items: [
+				{
+					title: '工具处理内容不上传',
+					description: '文本、图片、文档和计算内容由设备本地处理，我们不在服务器留存这些处理内容，也不提供云端备份或跨设备同步。'
+				},
+				{
+					title: '部分记录仅保存在本机',
+					description: '为方便下次使用，收藏、最近使用、使用次数、搜索记录、游戏进度，以及健身、宠物、行李清单等记录会保存在本机缓存中。这些记录不会上传到我们的服务器，不代表退出页面就会删除。'
+				},
+				{
+					title: '临时文件与主动保存的结果',
+					description: '图片、文档处理时可能生成本机临时文件。你主动保存到相册或设备中的结果会留在相应位置，可自行删除；我们不会将这些文件保存到服务器。'
+				},
+				{
+					title: '联网功能的说明',
+					description: '页面中的网络图片需要联网加载。你主动使用微信客服或分享时，发送的消息与分享内容由微信服务处理；请按需提供反馈内容。上述本地处理说明针对工具中的处理数据。'
+				}
+			]
+		},
+		{
+			id: 'version', title: '版本说明 · v' + APP_VERSION,
+			items: [
+				{
+					title: '常用工具，集中整理',
+					description: '提供生活计算、办公整理、图片处理、开发辅助、财务计算与休闲游戏等工具，按分类查找，也可以直接搜索工具名称。'
+				},
+				{
+					title: '更方便地找到常用工具',
+					description: '支持收藏与最近使用记录。首页展示最近使用的5个工具，常用工具根据本机打开次数排序。'
+				}
+			]
+		},
+		{
+			id: 'help', title: '使用帮助',
+			items: [
+				{
+					title: '如何查找与使用工具？',
+					description: '从首页、分类或搜索进入工具，按页面说明输入内容或选择文件。部分功能存在平台与格式限制，请以对应工具页的提示为准。'
+				},
+				{
+					title: '如何管理收藏与使用记录？',
+					description: '在收藏页管理已收藏的工具；“我的 → 清理记录”只清除最近使用历史，不会清除收藏、使用次数、搜索历史或工具内保存的记录。搜索页可单独清空搜索记录。'
+				},
+				{
+					title: '如何清理本机数据？',
+					description: '工具内的记录可通过相应的删除或重置功能管理。清除小程序或应用的本地数据可能导致记录与设置丢失，且无法从我们的服务器恢复；主动保存的相册图片和文档需自行删除。'
+				},
+				{
+					title: '如何保存处理结果？',
+					description: '处理完成后使用工具页提供的保存、导出或复制按钮。相册与文件权限需由你确认授权；不同平台支持的保存方式可能不同。'
+				},
+				{
+					title: '遇到问题或有建议怎么办？',
+					description: '进入“我的 → 意见反馈”，在微信小程序中联系平台客服。说明工具名称、操作步骤与问题现象，可帮助我们了解情况；其他平台可按反馈页指引联系。'
+				}
+			]
+		}
+	]
+</script>
+
+<style scoped lang="scss">
+	@import "@/uni.scss";
+
+	.about-page {
+		flex: 1;
+		width: 100%;
+		background-color: #f5f8fc;
+	}
+
+	.about-brand {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding: 40rpx 32rpx 36rpx;
+		background: linear-gradient(180deg, #eaf5fc 0%, #f5f8fc 100%);
+
+		.brand-logo {
+			width: 136rpx;
+			height: 136rpx;
+			border-radius: 30rpx;
+		}
+
+		.brand-title {
+			margin-top: 24rpx;
+			font-size: 36rpx;
+			line-height: 54rpx;
+			font-weight: 500;
+			color: #233d50;
+		}
+
+		.brand-slogan {
+			margin-top: 10rpx;
+			font-size: 24rpx;
+			line-height: 40rpx;
+			color: $text-color-grey;
+		}
+
+		.version-badge {
+			margin-top: 20rpx;
+			padding: 8rpx 22rpx;
+			border-radius: 24rpx;
+			background-color: #e5effb;
+
+			.version-text {
+				font-size: 22rpx;
+				line-height: 36rpx;
+				color: $primary-deep-blue;
+			}
+		}
+	}
+
+	.local-promise {
+		display: flex;
+		flex-direction: column;
+		margin: 0 32rpx;
+		padding: 32rpx;
+		border: 2rpx solid #ccece3;
+		border-radius: 28rpx;
+		background-color: #edf9f5;
+
+		.promise-label {
+			font-size: 24rpx;
+			line-height: 40rpx;
+			font-weight: 500;
+			color: #21816a;
+		}
+
+		.promise-title {
+			margin-top: 16rpx;
+			font-size: 30rpx;
+			line-height: 48rpx;
+			font-weight: 500;
+			color: #235749;
+		}
+
+		.promise-description {
+			margin-top: 16rpx;
+			font-size: 25rpx;
+			line-height: 44rpx;
+			color: #426b61;
+		}
+	}
+
+	.info-card {
+		display: flex;
+		flex-direction: column;
+		margin: 28rpx 32rpx 0;
+		padding: 32rpx;
+		border-radius: 28rpx;
+		background-color: $uni-bg-color;
+
+		.card-title {
+			font-size: 30rpx;
+			line-height: 46rpx;
+			font-weight: 500;
+			color: #233d50;
+		}
+
+		.detail-item {
+			display: flex;
+			flex-direction: column;
+			margin-top: 28rpx;
+			padding-top: 24rpx;
+			border-top: 2rpx solid #eff3f7;
+
+			.item-title {
+				font-size: 26rpx;
+				line-height: 42rpx;
+				font-weight: 500;
+				color: $text-color;
+			}
+
+			.item-description {
+				margin-top: 12rpx;
+				font-size: 24rpx;
+				line-height: 42rpx;
+				color: $text-color-grey;
+			}
+		}
+	}
+
+	.about-footer {
+		margin: 32rpx 40rpx 56rpx;
+		font-size: 22rpx;
+		line-height: 38rpx;
+		text-align: center;
+		color: $text-color-grey;
+	}
+</style>

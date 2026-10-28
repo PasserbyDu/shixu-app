@@ -43,6 +43,35 @@
 	],
 	"subPackages": [
 		{
+			"root": "subPackages/mine",
+			"pages": [
+				{
+					"path": "about",
+					"style": {
+						"navigationBarTitleText": "关于拾序有方",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
+					"path": "share",
+					"style": {
+						"navigationBarTitleText": "分享给朋友",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
+					"path": "feedback",
+					"style": {
+						"navigationBarTitleText": "意见反馈",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F3F9FD"
+					}
+				}
+			]
+		},
+		{
 			"root": "subPackages/life",
 			"pages": [
 				{
@@ -195,6 +224,14 @@
 					"path": "image-compress",
 					"style": {
 						"navigationBarTitleText": "图片压缩",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F6F8FA"
+					}
+				},
+				{
+					"path": "image-format",
+					"style": {
+						"navigationBarTitleText": "图片转格式",
 						"navigationStyle": "custom",
 						"backgroundColor": "#F6F8FA"
 					}
