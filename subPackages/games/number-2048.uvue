@@ -67,6 +67,7 @@
 			<text class="help-description">棋盘填满且无法合并时，游戏结束。</text>
 		</view>
 		<text v-if="storageFailed" class="storage-message">暂时无法保存本局进度，请检查本地存储空间；仍可继续游戏。</text>
+		<view class="safe-area-bottom" />
 	</scroll-view>
 </template>
 

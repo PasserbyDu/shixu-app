@@ -8,10 +8,6 @@
 					<text class="text-[52rpx] font-bold text-[#092b4c] leading-[64rpx]">拾序有方</text>
 					<view class="flex flex-row items-center justify-between">
 						<text class="text-[23rpx] text-[#6e8eaa] leading-[32rpx]">万 事 有 方 ， 生 活 有 序</text>
-						<view class="notification" @click="showNotifications">
-							<UniIcons type="notification" size="42rpx" color="#123352" />
-							<view class="notification-dot" />
-						</view>
 					</view>
 					<text class="mt-[30rpx] text-[40rpx] font-bold text-[#0d3052] leading-[52rpx]">今天也有好方法</text>
 					<text class="mt-[8rpx] text-[23rpx] text-[#587d9d] leading-[32rpx]">从一个顺手的工具，开始有序的生活</text>
@@ -108,6 +104,7 @@
 			</view>
 			<empty-state v-else image="" description="暂无使用记录" />
 		</view>
+		<view class="safe-area-bottom" />
 	</scroll-view>
 </template>
 
@@ -158,9 +155,6 @@
 	}
 	const openTool = (tool : Tool) => {
 		navigateToTool(tool)
-	}
-	const showNotifications = () => {
-		toast('暂无新消息')
 	}
 	const clearHistory = async () => {
 		if (recentTools.value.length == 0) return toast('暂无使用记录')
@@ -230,23 +224,6 @@
 			position: relative;
 			padding: 0 40rpx;
 
-			.notification {
-				position: relative;
-				align-items: center;
-				justify-content: center;
-				width: 48rpx;
-				height: 32rpx;
-
-				.notification-dot {
-					position: absolute;
-					right: 0;
-					top: 0;
-					width: 11rpx;
-					height: 11rpx;
-					border-radius: 6rpx;
-					background-color: #ff5c53;
-				}
-			}
 
 			.search-box {
 				box-sizing: border-box;

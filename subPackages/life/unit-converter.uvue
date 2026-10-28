@@ -81,6 +81,7 @@
 			<text class="notes-text">温度换算自动处理偏移，不能低于绝对零度。结果最多保留 8 位小数，自动省略末尾的 0。</text>
 			<text class="notes-text">极小的非零结果显示为“≈ 0”，复制时保留原始数值。时间单位按固定时长换算，不包含月份和年份。</text>
 		</view>
+		<view class="safe-area-bottom" />
 	</scroll-view>
 </template>
 

@@ -76,7 +76,7 @@
 				</view>
 			</view>
 		</view>
-		<view class="h-[24rpx]" />
+		<view class="safe-area-bottom-pad" />
 	</scroll-view>
 </template>
 

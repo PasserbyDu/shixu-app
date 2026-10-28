@@ -65,6 +65,7 @@
 			<view v-else class="empty-content">
 				<empty-state image="" :description="emptyDescription" />
 			</view>
+			<view class="safe-area-bottom" />
 		</scroll-view>
 	</view>
 </template>

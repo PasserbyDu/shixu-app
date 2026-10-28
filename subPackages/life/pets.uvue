@@ -34,10 +34,6 @@
 				<text class="weight-value">{{ latestWeight(pet) == null ? '未记录' : latestWeight(pet)!.kg + ' kg' }}</text>
 				<text class="text-[22rpx] leading-[36rpx] text-[#8795a1]">{{ latestWeight(pet) == null ? '' : latestWeight(pet)!.date.slice(5).replace('-', '/') + ' 记录' }}</text>
 			</view>
-			<view v-if="reminders" class="reminder-badge">
-				<UniIcons type="calendar" size="28rpx" color="#278dca" />
-				<text class="reminder-label">{{ petReminder(pet, today) }}</text>
-			</view>
 			<view class="pet-actions">
 				<view class="pet-action" @click="openRecords(pet, 'weight')">
 					<text class="text-[26rpx] leading-[42rpx] text-[#278dca]">体重记录</text>
@@ -52,13 +48,6 @@
 		<view class="tool-primary" @click="newPet">
 			<UniIcons type="plusempty" size="30rpx" color="#ffffff" />
 			<text class="primary-text ml-[12rpx]">添加宠物</text>
-		</view>
-		<view class="tool-card reminder-settings">
-			<view class="reminder-entry" @click="openSettings">
-				<UniIcons type="notification" size="30rpx" color="#278dca" />
-				<text class="flex-1 ml-[16rpx] text-[26rpx] leading-[42rpx] text-[#233d50]">提醒设置</text>
-				<text class="text-[22rpx] leading-[36rpx] text-[#8795a1]">管理记录提醒 ›</text>
-			</view>
 		</view>
 		<text v-if="storageError.length > 0" class="tool-footnote">{{ storageError }}</text>
 		<text v-if="storageError.length > 0" class="archive-retry" @click="persist(true)">重新保存当前档案</text>
@@ -171,22 +160,6 @@
 										</view>
 									</picker>
 								</view>
-								<view class="form-field">
-									<text class="form-label">下次日期（选填，自行填写）</text>
-									<picker
-										mode="date"
-										:value="careNext.length > 0 ? careNext : today"
-										start="1900-01-01"
-										end="2100-12-31"
-										@change="changeCareNext"
-									>
-										<view class="tool-field">
-											<text class="field-value">{{ careNext.length > 0 ? careNext : '未设置下次日期' }}</text>
-											<UniIcons type="bottom" size="26rpx" color="#278dca" />
-										</view>
-									</picker>
-									<text v-if="careNext.length > 0" class="tool-note" @click="careNext = ''">不设下次日期</text>
-								</view>
 								<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
 								<view class="tool-popup-actions">
 									<view v-if="editingCareId > 0" class="tool-popup-button is-delete" @click="deleteCare">
@@ -204,33 +177,12 @@
 									<view v-for="entry in sortedCare" :key="entry.id" class="history-row" @click="editCare(entry)">
 										<view class="history-content">
 											<text class="history-title">{{ careTypes[entry.type] }} · {{ entry.title }}</text>
-											<text class="history-detail">{{ entry.date }}{{ entry.next.length > 0 ? ' · 下次 ' + entry.next : '' }}</text>
+											<text class="history-detail">{{ entry.date }}</text>
 										</view>
 										<UniIcons type="right" size="26rpx" color="#8795a1" />
 									</view>
 								</view>
 								<text v-if="editingCareId > 0" class="tool-note" @click="newCare">继续新增照护记录</text>
-							</view>
-						</view>
-					</scroll-view>
-				</view>
-			</uni-popup>
-			<uni-popup ref="settingsPopup">
-				<view class="tool-popup-card">
-					<view class="tool-popup-heading">
-						<text class="tool-popup-title">提醒设置</text>
-						<view class="popup-close-button" @click="closeSettings">
-							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
-						</view>
-					</view>
-					<scroll-view class="tool-popup-scroll" scroll-y="true">
-						<view class="tool-popup-body">
-							<view class="reminder-settings">
-								<view class="settings-switch">
-									<text class="text-[26rpx] leading-[42rpx] text-[#233d50]">应用内日期提示</text>
-									<switch :checked="reminders" :disabled="!ready" color="#278dca" @change="changeReminders" />
-								</view>
-								<text class="tool-note">只在打开此页时提示日期，不会在后台推送。日期按你填写的记录显示，不自动推算疫苗或驱虫周期。</text>
 							</view>
 						</view>
 					</scroll-view>
@@ -252,7 +204,6 @@
 	latestWeight,
 	nextRecordId,
 	petAge,
-	petReminder,
 	validateCare,
 	validatePet,
 	validateWeight,
@@ -263,7 +214,6 @@
 	// data
 	type PopupRef = { open: () => void, close: () => void };
 	const formPopup = ref<PopupRef | null>(null);
-	const settingsPopup = ref<PopupRef | null>(null);
 	const archive = useSavedArchive(petStore);
 	const {
 		ready,
@@ -271,7 +221,6 @@
 	} = archive;
 	const today = ref(formatCalendarDate(new Date()));
 	const pets = ref<Pet[]>([]);
-	const reminders = ref(true);
 	const managing = ref(false);
 	const deletedPet = ref<Pet | null>(null);
 	const panel = ref('');
@@ -289,7 +238,6 @@
 	const careType = ref(0);
 	const careTitle = ref('');
 	const careDate = ref(today.value);
-	const careNext = ref('');
 	const editingCareId = ref(0);
 	// computed
 	const selectedPet = computed((): Pet | null => pets.value.find((pet: Pet): boolean => pet.id == selectedPetId.value) ?? null);
@@ -302,7 +250,7 @@
 		return name.slice(0, first >= 0xd800 && first <= 0xdbff ? 2 : 1);
 	};
 	const persist = (explicit: boolean = false) => {
-		archive.save(encodePets(pets.value, reminders.value), explicit);
+		archive.save(encodePets(pets.value, false), explicit);
 	};
 	const resetPanel = () => {
 		uni.hideKeyboard();
@@ -317,18 +265,10 @@
 		birthday.value = '';
 		weightValue.value = '';
 		careTitle.value = '';
-		careNext.value = '';
 		formError.value = '';
 	};
 	const closePanel = () => {
 		if (formPopup.value != null) formPopup.value!.close();
-	};
-	const closeSettings = () => {
-		if (settingsPopup.value != null) settingsPopup.value!.close();
-		uni.hideKeyboard();
-	};
-	const openSettings = () => {
-		if (settingsPopup.value != null) settingsPopup.value!.open();
 	};
 	const openProfile = (pet: Pet) => {
 		if (!ready.value) return;
@@ -451,7 +391,6 @@
 		careType.value = 0;
 		careTitle.value = '';
 		careDate.value = today.value;
-		careNext.value = '';
 		formError.value = '';
 		focusRecordForm();
 	};
@@ -460,7 +399,6 @@
 		careType.value = record.type;
 		careTitle.value = record.title;
 		careDate.value = record.date;
-		careNext.value = record.next;
 		formError.value = '';
 		focusRecordForm();
 	};
@@ -468,12 +406,15 @@
 		if (selectedPet.value == null || !ready.value) return;
 		try {
 			const pet = selectedPet.value!;
+			// 兼容旧档案的下次日期，不展示或触发提醒；修改本次日期后不保留无效的旧日期。
+			const previous = pet.care.find((record: PetCare): boolean => record.id == editingCareId.value);
+			const previousNext = previous == null ? '' : previous.next;
 			const entry: PetCare = {
 				id: editingCareId.value > 0 ? editingCareId.value : nextRecordId(pet.care.map((record: PetCare): number => record.id)),
 				type: careType.value,
 				title: careTitle.value.trim(),
 				date: careDate.value,
-				next: careNext.value
+				next: previousNext >= careDate.value ? previousNext : ''
 			};
 			validateCare(entry);
 			if (editingCareId.value == 0) {
@@ -502,15 +443,8 @@
 	const changeCareDate = (event: UniPickerChangeEvent) => {
 		careDate.value = (event.detail.value as string).replace(/\//g, '-');
 	};
-	const changeCareNext = (event: UniPickerChangeEvent) => {
-		careNext.value = (event.detail.value as string).replace(/\//g, '-');
-	};
 	const changeCareType = (event: UniPickerChangeEvent) => {
 		careType.value = Number(event.detail.value);
-	};
-	const changeReminders = (event: UniSwitchChangeEvent) => {
-		reminders.value = event.detail.value;
-		persist();
 	};
 	// lifecycle
 	onLoad(() => {
@@ -518,7 +452,6 @@
 		archive.load((snapshot: string) => {
 			const data = decodePets(snapshot);
 			pets.value = data.pets;
-			reminders.value = data.reminders;
 		});
 	});
 	onShow(() => {
@@ -543,9 +476,6 @@
 						}
 					}
 				}
-			}
-			.reminder-badge {
-				background-color: #e8f5ef;
 			}
 		}
 		.pet-heading {
@@ -614,22 +544,6 @@
 				color: #278dca;
 			}
 		}
-		.reminder-badge {
-			display: flex;
-			flex-direction: row;
-			align-items: center;
-			margin-top: 22rpx;
-			padding: 12rpx 18rpx;
-			border-radius: 16rpx;
-			background-color: #e8f4fc;
-			.reminder-label {
-				flex: 1;
-				margin-left: 12rpx;
-				font-size: 24rpx;
-				line-height: 40rpx;
-				color: #278dca;
-			}
-		}
 		.pet-actions {
 			display: flex;
 			flex-direction: row;
@@ -651,21 +565,6 @@
 		}
 	}
 
-	.reminder-settings {
-		.reminder-entry {
-			display: flex;
-			flex-direction: row;
-			align-items: center;
-			min-height: 64rpx;
-		}
-		.settings-switch {
-			display: flex;
-			flex-direction: row;
-			align-items: center;
-			justify-content: space-between;
-			margin-top: 24rpx;
-		}
-	}
 
 	.wellness-form {
 		.pet-history {

@@ -30,6 +30,7 @@
 			</view>
 		</view>
 		<text class="about-footer">用轻量的工具，让生活更有序</text>
+		<view class="safe-area-bottom" />
 	</scroll-view>
 </template>
 

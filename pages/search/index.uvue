@@ -101,6 +101,7 @@
 				<view class="empty-bottom-space" />
 			</view>
 		</view>
+		<view class="safe-area-bottom" />
 	</view>
 </template>
 

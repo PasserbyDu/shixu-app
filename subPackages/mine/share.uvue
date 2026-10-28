@@ -34,6 +34,7 @@
 			<text class="options-note">好友打开分享卡片，即可进入拾序有方首页</text>
 		</view>
 		<text class="share-thanks">谢谢你，把好用分享给更多人</text>
+		<view class="safe-area-bottom" />
 	</scroll-view>
 </template>
 

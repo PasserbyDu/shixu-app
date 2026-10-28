@@ -76,6 +76,7 @@
 			</view>
 		</view>
 		<text class="document-footnote">支持 JPG、PNG，单张不超过 20 MB。压缩效果随图片内容有所不同；原图保持不变。网页端暂不支持此压缩接口，请使用微信小程序或 App。</text>
+		<view class="safe-area-bottom" />
 	</scroll-view>
 </template>
 

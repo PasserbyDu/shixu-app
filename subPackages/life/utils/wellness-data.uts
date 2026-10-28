@@ -1,4 +1,4 @@
-import { calendarDayNumber, formatCalendarDate, parseCalendarDate } from '@/utils/calculators.uts';
+import { formatCalendarDate, parseCalendarDate } from '@/utils/calculators.uts';
 export type Training = {
 	id: number;
 	date: string;
@@ -32,6 +32,7 @@ export type Pet = {
 	care: PetCare[];
 };
 export type PetArchive = {
+	// 仅用于兼容旧版存档结构，页面不读取此开关，新保存的档案固定关闭提醒。
 	reminders: boolean;
 	pets: Pet[];
 };
@@ -200,20 +201,4 @@ export const petAge = (birthday: string, today: string): string => {
 export const latestWeight = (pet: Pet): PetWeight | null => {
 	const weights = pet.weights.slice().sort((a: PetWeight, b: PetWeight): number => a.date == b.date ? b.id - a.id : a.date > b.date ? -1 : 1);
 	return weights.length == 0 ? null : weights[0];
-};
-export const petReminder = (pet: Pet, today: string): string => {
-	const candidates: PetCare[] = [];
-	const records = pet.care.slice().sort((a: PetCare, b: PetCare): number => a.date == b.date ? b.id - a.id : a.date > b.date ? -1 : 1);
-	const seen: string[] = [];
-	records.forEach((record: PetCare) => {
-		const key = record.type + '|' + record.title.trim();
-		if (seen.includes(key)) return;
-		seen.push(key);
-		if (record.next.length > 0) candidates.push(record);
-	});
-	if (candidates.length == 0) return '未设置下次日期';
-	candidates.sort((a: PetCare, b: PetCare): number => a.next > b.next ? 1 : a.next < b.next ? -1 : 0);
-	const record = candidates[0];
-	const difference = calendarDayNumber(parseCalendarDate(record.next)!) - calendarDayNumber(parseCalendarDate(today)!);
-	return (record.type == 0 ? '下次疫苗 ' : '下次驱虫 ') + record.next + (candidates.length > 1 ? ' · ' + record.title : '') + (difference < 0 ? ' · 已过 ' + -difference + ' 天' : difference == 0 ? ' · 今天' : '');
 };

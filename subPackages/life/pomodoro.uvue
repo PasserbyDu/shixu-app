@@ -53,7 +53,7 @@
 		<text v-if="storageError.length > 0" class="tool-footnote">{{ storageError }}</text>
 		<text v-if="storageError.length > 0" class="archive-retry" @click="persist(true)">重新保存当前计时与统计</text>
 		<text v-if="audioError.length > 0" class="tool-footnote">{{ audioError }}</text>
-		<text class="tool-footnote">离开页面后按截止时间继续计时，返回时校正；当前阶段结束后等待你开启下一阶段，不自动连跑。累计专注包含已实际经过的专注时间。后台不保证声音或系统通知。</text>
+		<text class="tool-footnote">离开页面后按截止时间继续计时，返回时校正；当前阶段结束后等待你开启下一阶段，不自动连跑。累计专注包含已实际经过的专注时间。提示音仅在页面可见时播放。</text>
 		<template #popup>
 			<uni-popup ref="settingsPopup" @close="resetSettings">
 				<view class="tool-popup-card">

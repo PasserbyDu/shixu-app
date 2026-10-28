@@ -58,6 +58,7 @@
 			</view>
 		</view>
 		<text class="document-footnote">去除空行会删除全部空白行；清理空格会去除行首尾空白并合并连续空格。去重保留首次出现的整行及原顺序，统一换行使用 LF。原文不会被覆盖。</text>
+		<view class="safe-area-bottom" />
 	</scroll-view>
 </template>
 

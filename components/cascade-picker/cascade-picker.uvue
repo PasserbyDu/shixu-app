@@ -1,6 +1,6 @@
 <template>
 	<view v-if="visible" class="cascade-picker-mask flex-column" @click="handleCancel">
-		<view class="cascade-picker-panel" @click.stop>
+		<view class="cascade-picker-panel safe-area-bottom" @click.stop>
 			<view class="picker-title-row df align-items-center">
 				<text class="picker-title fs34 fw600 text-color">{{ title }}</text>
 			</view>
@@ -240,8 +240,6 @@
 
 		.cascade-picker-panel {
 			width: 750rpx;
-			padding-bottom: constant(safe-area-inset-bottom);
-			padding-bottom: env(safe-area-inset-bottom);
 			border-radius: 24rpx 24rpx 0 0;
 			background-color: $uni-bg-color;
 			box-sizing: border-box;

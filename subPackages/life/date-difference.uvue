@@ -59,6 +59,7 @@
 			<text class="notes-text">按自然日计算，不包含起始当天。同一天的间隔为 0 天。</text>
 			<text class="notes-text">交换日期后，将显示相同的间隔天数。小时数按每天 24 小时折算。</text>
 		</view>
+		<view class="safe-area-bottom" />
 	</scroll-view>
 </template>
 

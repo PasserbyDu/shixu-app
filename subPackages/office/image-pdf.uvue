@@ -62,6 +62,7 @@
 			@busy-change="setExporting"
 		/>
 		<text class="document-footnote">最多 9 张、总计 30 MB。自动方向按每张图片比例决定，等比居中且不裁切。{{ platformNote }}</text>
+		<view class="safe-area-bottom" />
 	</scroll-view>
 </template>
 

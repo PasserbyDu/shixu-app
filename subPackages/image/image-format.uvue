@@ -96,6 +96,7 @@
 				</view>
 			</view>
 			<text class="document-footnote">{{ platformNote }}单张不超过20 MB，仅处理静态画面、不保留动画。转换后体积可能变大；原图保持不变。</text>
+			<view class="safe-area-bottom" />
 		</scroll-view>
 		<!-- 画布独立于滚动内容，保持挂载并位于可视区域；实际位图尺寸由编码逻辑设置。 -->
 		<canvas id="image-format-canvas" canvas-id="image-format-canvas" type="2d" class="conversion-canvas" />

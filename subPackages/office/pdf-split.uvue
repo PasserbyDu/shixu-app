@@ -66,6 +66,7 @@
 			@busy-change="setExporting"
 		/>
 		<text class="document-footnote">原文件保持不变。支持 30 MB、200 页以内的文件，只提取有效页码。{{ platformNote }}</text>
+		<view class="safe-area-bottom" />
 	</scroll-view>
 </template>
 

@@ -14,7 +14,7 @@
 				<text class="intro-description">{{ subtitle }}</text>
 			</view>
 			<slot />
-			<view class="page-bottom-space" />
+			<view class="safe-area-bottom-pad" />
 		</scroll-view>
 		<slot name="popup" />
 	</view>
@@ -59,9 +59,5 @@
 			line-height: 36rpx;
 			color: #8795a1;
 		}
-	}
-
-	.page-bottom-space {
-		height: 40rpx;
 	}
 </style>

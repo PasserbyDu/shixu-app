@@ -111,6 +111,7 @@
 			</view>
 			<empty-state v-else image="" description="推荐工具已全部收藏" />
 		</view>
+		<view class="safe-area-bottom" />
 	</scroll-view>
 </template>
 

@@ -36,3 +36,21 @@
 .tc {
 	text-align: center;
 }
+
+/* 内容末尾追加安全区，框架变量自动处理原生导航栏/TabBar占位。 */
+.safe-area-bottom {
+	flex-shrink: 0;
+	padding-bottom: 0;
+	padding-bottom: constant(safe-area-inset-bottom);
+	padding-bottom: env(safe-area-inset-bottom);
+	padding-bottom: var(--uni-safe-area-inset-bottom, 0px);
+}
+
+/* 安全区外再保留24rpx留白；空view放在滚动内容内部，不以文字margin替代。 */
+.safe-area-bottom-pad {
+	flex-shrink: 0;
+	padding-bottom: 24rpx;
+	padding-bottom: calc(24rpx + constant(safe-area-inset-bottom));
+	padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+	padding-bottom: calc(24rpx + var(--uni-safe-area-inset-bottom, 0px));
+}

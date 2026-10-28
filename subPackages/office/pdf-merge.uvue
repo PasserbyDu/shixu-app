@@ -46,6 +46,7 @@
 			@busy-change="setExporting"
 		/>
 		<text class="document-footnote">最多 12 份、总计 30 MB、200 页；保留各页原尺寸和方向。{{ platformNote }}</text>
+		<view class="safe-area-bottom" />
 	</scroll-view>
 </template>
 

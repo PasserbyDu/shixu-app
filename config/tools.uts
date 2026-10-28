@@ -91,7 +91,7 @@ const tools : Tool[] = [
 	},
 	{
 		id: 'pet', title: '宠物管理', shortTitle: '宠物管理', summary: '记录宠物信息',
-		description: '管理宠物档案，记录体重、疫苗和驱虫日期', keywords: '宠物 管理 体重 疫苗 驱虫 提醒',
+		description: '管理宠物档案，记录体重、疫苗和驱虫日期', keywords: '宠物 管理 体重 疫苗 驱虫',
 		icon: '', iconText: '🐈‍⬛', color: '#9462e9', background: '#f2eeff'
 	},
 	{

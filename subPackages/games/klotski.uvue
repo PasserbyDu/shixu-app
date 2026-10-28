@@ -74,6 +74,7 @@
 				<text class="notes-text mt-[12rpx]">经典 4×5 棋盘 · 共 10 枚棋子</text>
 			</view>
 			<text v-if="storageFailed" class="storage-message">暂时无法保存本局进度，请检查本地存储空间；仍可继续游戏。</text>
+			<view class="safe-area-bottom" />
 		</scroll-view>
 		<cascade-picker
 			:visible="levelPickerVisible"
