@@ -74,7 +74,8 @@
   }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@import '@/uni.scss';
 .popup-root {
   position: fixed;
   top: 0;
@@ -86,10 +87,10 @@
   /* 各端 view 的默认 display 不同，居中不能依赖平台默认布局。 */
   display: flex;
   flex-direction: column;
-  background-color: rgba(0, 0, 0, 0.3);
+  background-color: $dialog-mask-color;
   justify-content: center;
   align-items: center;
-  z-index: 99;
+  z-index: 1000;
 }
 
 .popup-content {

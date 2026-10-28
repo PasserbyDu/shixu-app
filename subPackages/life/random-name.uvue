@@ -1,36 +1,52 @@
 <template>
-	<tool-page title="随机点名" subtitle="把名单交给随机，让惊喜落在下一位">
+	<tool-page
+		title="随机点名"
+		subtitle="把名单交给随机，让惊喜落在下一位"
+		:scroll-disabled="sphereDragging"
+	>
 		<view class="name-orbit">
+			<view class="space-nebula" />
+			<view v-for="star in spaceStars" :key="star.index" class="space-star" :class="{ 'is-bright': star.bright }" :style="star.style" />
+			<view class="space-moon" />
+			<text class="orbit-title">谁是幸运儿</text>
 			<text class="orbit-status">{{ state.repeat ? state.names.length : remaining }} 人{{ drawing ? '正在等待揭晓' : '可参与点名' }}</text>
-			<view class="orbit-ring outer-ring" />
-			<view class="orbit-ring inner-ring" />
-			<view class="orbit-center">
-				<text class="orbit-symbol" :class="{ 'is-name': drawing }">{{ drawing ? shortName(spinningName) : '?' }}</text>
-				<text class="orbit-caption">{{ drawing ? '幸运即将揭晓' : '下一位，会是谁？' }}</text>
+			<view
+				class="name-sphere"
+				@touchstart="startSphereDrag"
+				@touchmove.stop.prevent="moveSphereDrag"
+				@touchend="endSphereDrag"
+				@touchcancel="endSphereDrag"
+			>
+				<view class="planet-halo" :class="{ 'is-active': drawing }" />
+				<view class="planet-atmosphere" />
+				<view class="planet-ring" />
+				<view class="planet-core" />
+				<view class="planet-ring front-ring" />
+				<view v-if="sphereTags.length == 0" class="sphere-empty">
+					<text class="sphere-symbol">?</text>
+					<text class="sphere-caption">{{ !ready ? '正在读取名单' : state.names.length == 0 ? '导入名单，开启幸运球' : '本轮已点完，开启新一轮吧' }}</text>
+				</view>
+				<view
+					v-for="tag in sphereTags"
+					:key="tag.id"
+					class="sphere-name"
+					:class="{ 'is-selected': tag.selected }"
+					:style="tag.style"
+				>
+					<text class="sphere-name-number">{{ tag.number }}</text>
+					<text class="sphere-name-label" :style="tag.textStyle">{{ tag.name }}</text>
+				</view>
 			</view>
-			<view v-for="(name, index) in orbitNames" :key="index" class="orbit-name" :class="'orbit-name-' + index">
-				<text class="orbit-name-label">{{ shortName(name) }}</text>
-			</view>
-			<text class="orbit-footnote">等概率随机抽取 · 让每一次选择都有惊喜</text>
+			<text class="orbit-footnote">{{ sphereCaption }}</text>
 		</view>
 		<view class="discovery-primary" :class="{ 'is-disabled': drawing || !ready }" @click="startDraw">
-			<text class="primary-label">{{ drawing ? '正在随机点名…' : '开始随机点名' }}</text>
+			<text class="primary-label">{{ drawing ? (revealedIndex >= 0 ? '正在揭晓结果…' : '幸运球转动中…') : '开始随机点名' }}</text>
 		</view>
 		<view class="discovery-card name-settings">
 			<text class="discovery-title">点名设置</text>
 			<view class="settings-row">
-				<text class="setting-label">每次抽取</text>
-				<view class="count-options">
-					<view
-						v-for="count in [1, 3, 5]"
-						:key="count"
-						class="count-option"
-						:class="{ 'is-active': state.batch == count }"
-						@click="setBatch(count)"
-					>
-						<text class="count-label">{{ count }} 人</text>
-					</view>
-				</view>
+				<text class="setting-label">点名方式</text>
+				<text class="setting-label">每次 1 人 · 停转后揭晓</text>
 			</view>
 			<view class="settings-row">
 				<view class="setting-copy">
@@ -65,102 +81,70 @@
 		<text v-if="storageError.length > 0" class="tool-error" @click="persist(true)">{{ storageError }}，点击重试保存</text>
 		<text class="tool-footnote">课堂互动 · 活动抽签 · 今日幸运同学。名单和本轮进度仅保存在本机，最多500项，同一批次内不重复抽取。</text>
 		<template #popup>
-			<uni-popup ref="importPopup">
-				<view class="tool-popup-card name-popup-card">
-					<view class="tool-popup-heading">
-						<text class="tool-popup-title">粘贴姓名，一键识别</text>
-						<view class="popup-close-button" @click="closeImport">
-							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+			<app-dialog
+				ref="importPopup"
+				title="粘贴姓名，一键识别"
+				:confirm-text="'导入 ' + preview.names.length + ' 个姓名'"
+				@confirm="applyImport"
+				:error="preview.error.length > 0 ? preview.error : importError"
+			>
+				<view class="name-popup-card">
+					<view class="discovery-row">
+						<text class="discovery-note">整份名单直接粘贴，分隔符交给我们</text>
+						<text class="discovery-link" @click="pasteNames">读取剪贴板</text>
+					</view>
+					<textarea v-model="draft" class="name-popup-input" :maxlength="30000" placeholder="输入或粘贴姓名，用空格、换行或标点分隔" />
+					<text class="discovery-note">支持空格、换行、逗号、句号、顿号、分号、/、|；连续分隔符和首尾空白会自动忽略。</text>
+					<view class="discovery-row">
+						<text class="discovery-title">合并重复姓名</text>
+						<switch :checked="mergeDuplicates" color="#3186b2" @change="mergeDuplicates = $event.detail.value" />
+					</view>
+					<text class="name-popup-summary">识别 {{ preview.total }} 项 · 重复 {{ preview.duplicates }} 项 · 可导入 {{ preview.names.length }} 人</text>
+					<view class="discovery-tags">
+						<view v-for="(name, index) in preview.names.slice(0, 30)" :key="index" class="discovery-tag">
+							<text class="tag-label">{{ name }}</text>
 						</view>
 					</view>
-					<scroll-view class="tool-popup-scroll" scroll-y="true">
-						<view class="tool-popup-body">
-							<view class="discovery-row">
-								<text class="discovery-note">整份名单直接粘贴，分隔符交给我们</text>
-								<text class="discovery-link" @click="pasteNames">读取剪贴板</text>
-							</view>
-							<textarea v-model="draft" class="name-popup-input" :maxlength="30000" placeholder="输入或粘贴姓名，用空格、换行或标点分隔" />
-							<text class="discovery-note">支持空格、换行、逗号、句号、顿号、分号、/、|；连续分隔符和首尾空白会自动忽略。</text>
-							<view class="discovery-row">
-								<text class="discovery-title">合并重复姓名</text>
-								<switch :checked="mergeDuplicates" color="#3186b2" @change="mergeDuplicates = $event.detail.value" />
-							</view>
-							<text class="name-popup-summary">识别 {{ preview.total }} 项 · 重复 {{ preview.duplicates }} 项 · 可导入 {{ preview.names.length }} 人</text>
-							<text v-if="preview.error.length > 0 || importError.length > 0" class="tool-error">{{ preview.error.length > 0 ? preview.error : importError }}</text>
-							<view class="discovery-tags">
-								<view v-for="(name, index) in preview.names.slice(0, 30)" :key="index" class="discovery-tag">
-									<text class="tag-label">{{ name }}</text>
-								</view>
-							</view>
-							<text v-if="preview.names.length > 30" class="discovery-note">仅预览前30项，导入时包含全部姓名</text>
-							<text class="discovery-title">导入方式</text>
-							<view class="discovery-row">
-								<text class="discovery-link" @click="appendMode = false">{{ !appendMode ? '●' : '○' }} 替换当前名单</text>
-								<text class="discovery-link" @click="appendMode = true">{{ appendMode ? '●' : '○' }} 追加到现有</text>
-							</view>
-							<text class="discovery-note">替换名单将开始新一轮；追加名单保留本轮进度。</text>
-							<view class="discovery-popup-actions">
-								<view class="popup-action" @click="closeImport">
-									<text class="action-text">取消</text>
-								</view>
-								<view class="popup-action is-primary" @click="applyImport">
-									<text class="action-text">导入 {{ preview.names.length }} 个姓名</text>
-								</view>
-							</view>
-						</view>
-					</scroll-view>
+					<text v-if="preview.names.length > 30" class="discovery-note">仅预览前30项，导入时包含全部姓名</text>
+					<text class="discovery-title">导入方式</text>
+					<view class="discovery-row">
+						<text class="discovery-link" @click="appendMode = false">{{ !appendMode ? '●' : '○' }} 替换当前名单</text>
+						<text class="discovery-link" @click="appendMode = true">{{ appendMode ? '●' : '○' }} 追加到现有</text>
+					</view>
+					<text class="discovery-note">替换名单将开始新一轮；追加名单保留本轮进度。</text>
 				</view>
-			</uni-popup>
-			<uni-popup ref="resultPopup">
-				<view class="tool-popup-card name-popup-card">
-					<view class="tool-popup-heading">
-						<text class="tool-popup-title">本轮幸运同学</text>
-						<view class="popup-close-button" @click="closeResult">
-							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
-						</view>
+			</app-dialog>
+			<app-dialog
+				ref="resultPopup"
+				title="本轮幸运同学"
+				cancel-text="复制姓名"
+				:close-on-cancel="false"
+				@cancel="copyWinners"
+				confirm-text="继续点名"
+				@confirm="continueDraw"
+			>
+				<view class="name-popup-card">
+					<text class="discovery-note">第 {{ state.round }} 轮 · 随机抽取 {{ winners.length }} 人</text>
+					<view class="name-popup-winners">
+						<UniIcons type="star-filled" size="72rpx" color="#657ddb" />
+						<text v-for="(name, index) in winners" :key="index" class="winner-name">{{ name }}</text>
+						<text class="discovery-note">今天的高光时刻，属于你</text>
 					</view>
-					<scroll-view class="tool-popup-scroll" scroll-y="true">
-						<view class="tool-popup-body">
-							<text class="discovery-note">第 {{ state.round }} 轮 · 随机抽取 {{ winners.length }} 人</text>
-							<view class="name-popup-winners">
-								<UniIcons type="star-filled" size="72rpx" color="#657ddb" />
-								<text v-for="(name, index) in winners" :key="index" class="winner-name">{{ name }}</text>
-								<text class="discovery-note">今天的高光时刻，属于你</text>
-							</view>
-							<text class="discovery-note">本轮已点名 {{ state.called.length }} 人 · {{ state.repeat ? '允许再次参与' : '剩余 ' + remaining + ' 人' }}</text>
-							<view class="discovery-popup-actions">
-								<view class="popup-action" @click="copyWinners">
-									<text class="action-text">复制姓名</text>
-								</view>
-								<view class="popup-action is-primary" @click="continueDraw">
-									<text class="action-text">继续点名</text>
-								</view>
-							</view>
-						</view>
-					</scroll-view>
+					<text class="discovery-note">本轮已点名 {{ state.called.length }} 人 · {{ state.repeat ? '允许再次参与' : '剩余 ' + remaining + ' 人' }}</text>
 				</view>
-			</uni-popup>
-			<uni-popup ref="resetPopup">
-				<view class="tool-popup-card">
-					<view class="tool-popup-heading">
-						<text class="tool-popup-title">开始新一轮？</text>
-						<view class="popup-close-button" @click="resetPopup?.close()">
-							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
-						</view>
-					</view>
-					<view class="tool-popup-body name-popup-confirm">
-						<text class="discovery-note">当前名单会保留，只重置本轮点名进度。已抽中的姓名将重新参与随机点名。</text>
-						<view class="discovery-popup-actions">
-							<view class="popup-action" @click="resetPopup?.close()">
-								<text class="action-text">取消</text>
-							</view>
-							<view class="popup-action is-primary" @click="resetRound">
-								<text class="action-text">开始新一轮</text>
-							</view>
-						</view>
-					</view>
+			</app-dialog>
+			<app-dialog
+				ref="resetPopup"
+				title="开始新一轮？"
+				subtitle="当前名单会保留，只重置本轮点名进度"
+				confirm-text="开始新一轮"
+				@confirm="resetRound"
+			>
+				<view class="name-popup-confirm">
+					<text class="discovery-note">已抽中的姓名将重新参与随机点名。</text>
+					<text class="discovery-note">准备好开启下一轮了吗？</text>
 				</view>
-			</uni-popup>
+			</app-dialog>
 		</template>
 	</tool-page>
 </template>
@@ -178,6 +162,10 @@
 		nameStore
 	} from '@/subPackages/life/utils/random-name.uts';
 	import { useSavedArchive } from '@/subPackages/life/utils/wellness-storage.uts';
+	import {
+		NameSpherePoint, NameSphereTag, NAME_SPHERE_PREVIEW_LIMIT,
+		createNameSphere, createNameSphereStars, projectNameSphere, nameSphereTarget
+	} from '@/subPackages/life/utils/name-sphere.uts';
 	import { recordToolUsage } from '@/utils/tool-usage';
 	import { toast } from '@/utils/toast';
 	// data
@@ -194,9 +182,13 @@
 		ready,
 		storageError
 	} = archive;
-	const drawing = ref(false),
-		spinningName = ref(''),
-		winners = ref<string[]>([]);
+	const drawing = ref(false), winners = ref<string[]>([]);
+	const sphereTags = ref<NameSphereTag[]>([]), revealedIndex = ref(-1);
+	const sphereDragging = ref(false);
+	let sphereTouchId = -1, sphereTouchX = 0, sphereTouchY = 0, dragSensitivity = 0.01;
+	const spaceStars = createNameSphereStars();
+	let spherePoints: NameSpherePoint[] = [];
+	let sphereYaw = 0.4, spherePitch = -0.2, drawVersion = 0;
 	const draft = ref(''),
 		mergeDuplicates = ref(true),
 		appendMode = ref(false),
@@ -207,11 +199,56 @@
 	// computed
 	const remaining = computed((): number => state.value.names.length - state.value.called.length);
 	const preview = computed((): NamePreview => parseNameList(draft.value, mergeDuplicates.value));
-	const orbitNames = computed((): string[] => state.value.names.slice(0, 4));
+	const sphereCaption = computed((): string => {
+		if (drawing.value) return revealedIndex.value >= 0 ? '幸运同学已就位，即将揭晓' : '幸运球旋转中，下一位会是谁？';
+		if (revealedIndex.value >= 0) return '每次选出一位 · 点击开始继续点名';
+		const count = state.value.repeat ? state.value.names.length : remaining.value;
+		return count > NAME_SPHERE_PREVIEW_LIMIT ? '球面预览' + NAME_SPHERE_PREVIEW_LIMIT + '人 · 全部' + count + '人均等参与' : '左右 / 上下拖动 · 转动幸运星球';
+	});
 	// methods
-	const shortName = (name: string): string => name.length > 6 ? name.slice(0, 6) + '…' : name;
+	const renderSphere = () => {
+		sphereTags.value = projectNameSphere(spherePoints, sphereYaw, spherePitch, revealedIndex.value);
+	};
+	const endSphereDrag = () => {
+		sphereDragging.value = false;
+		sphereTouchId = -1;
+	};
+	const startSphereDrag = (event: UniTouchEvent) => {
+		endSphereDrag();
+		if (disposed || drawing.value || !ready.value || spherePoints.length == 0 || event.touches.length != 1) return;
+		const touch = event.touches[0];
+		sphereTouchId = touch.identifier;
+		sphereTouchX = touch.clientX;
+		sphereTouchY = touch.clientY;
+		dragSensitivity = Math.PI / Math.max(1, uni.getWindowInfo().windowWidth * 590 / 750);
+		sphereDragging.value = true;
+	};
+	const moveSphereDrag = (event: UniTouchEvent) => {
+		if (!sphereDragging.value) return;
+		if (drawing.value || disposed || event.touches.length != 1 || event.touches[0].identifier != sphereTouchId) {
+			endSphereDrag();
+			return;
+		}
+		const touch = event.touches[0];
+		sphereYaw = (sphereYaw + (touch.clientX - sphereTouchX) * dragSensitivity) % (Math.PI * 2);
+		spherePitch = (spherePitch - (touch.clientY - sphereTouchY) * dragSensitivity) % (Math.PI * 2);
+		sphereTouchX = touch.clientX;
+		sphereTouchY = touch.clientY;
+		renderSphere();
+	};
+	const prepareSphere = (requiredIndex: number = -1) => {
+		const eligible: number[] = [];
+		state.value.names.forEach((name: string, index: number) => {
+			if (state.value.repeat || !state.value.called.includes(index)) eligible.push(index);
+		});
+		revealedIndex.value = -1;
+		spherePoints = createNameSphere(state.value.names, eligible, requiredIndex);
+		renderSphere();
+	};
 	const persist = (explicit: boolean = false) => archive.save(encodeNameState(state.value), explicit);
 	const stopDrawing = () => {
+		endSphereDrag();
+		drawVersion++;
 		if (spinTimer >= 0) clearInterval(spinTimer);
 		if (finishTimer >= 0) clearTimeout(finishTimer);
 		spinTimer = -1;
@@ -260,17 +297,14 @@
 			state.value.round = hadNames ? Math.min(999999, state.value.round + 1) : 1;
 		}
 		winners.value = [];
+		prepareSphere();
 		persist();
 		closeImport();
-	};
-	const setBatch = (value: number) => {
-		if (drawing.value || !ready.value) return;
-		state.value.batch = value;
-		persist();
 	};
 	const changeRepeat = (event: UniSwitchChangeEvent) => {
 		if (drawing.value || !ready.value) return;
 		state.value.repeat = event.detail.value;
+		prepareSphere();
 		persist();
 	};
 	const requestReset = () => {
@@ -281,29 +315,49 @@
 		state.value.called = [];
 		state.value.round = Math.min(999999, state.value.round + 1);
 		winners.value = [];
+		prepareSphere();
 		persist();
 		resetPopup.value?.close();
 	};
 	const startDraw = () => {
-		if (drawing.value || !ready.value) return;
+		if (disposed || drawing.value || !ready.value) return;
+		endSphereDrag();
 		if (state.value.names.length == 0) return openImport();
+		state.value.batch = 1;
 		const selected = drawNameIndices(state.value);
 		if (selected.length == 0) return requestReset();
+		prepareSphere(selected[0]);
+		const point = spherePoints.find((item: NameSpherePoint): boolean => item.index == selected[0]);
+		if (point == null) return;
+		const target = nameSphereTarget(point, sphereYaw, spherePitch);
+		const startYaw = sphereYaw, startPitch = spherePitch, startedAt = Date.now(), version = ++drawVersion;
 		drawing.value = true;
-		spinningName.value = state.value.names[selected[0]];
 		spinTimer = setInterval(() => {
-			spinningName.value = state.value.names[Math.floor(Math.random() * state.value.names.length)];
-		}, 90);
-		finishTimer = setTimeout(() => {
-			stopDrawing();
-			if (disposed) return;
-			winners.value = selected.map((index: number): string => state.value.names[index]);
-			selected.forEach((index: number) => {
-				if (!state.value.called.includes(index)) state.value.called.push(index);
-			});
+			if (disposed || version != drawVersion || !drawing.value) return;
+			const progress = Math.min(1, (Date.now() - startedAt) / 3200);
+			const eased = progress * progress * (3 - 2 * progress);
+			sphereYaw = startYaw + (target.yaw - startYaw) * eased;
+			spherePitch = startPitch + (target.pitch - startPitch) * eased;
+			if (progress < 1) {
+				renderSphere();
+				return;
+			}
+			clearInterval(spinTimer);
+			spinTimer = -1;
+			sphereYaw = target.yaw % (Math.PI * 2);
+			spherePitch = target.pitch % (Math.PI * 2);
+			revealedIndex.value = selected[0];
+			renderSphere();
+			winners.value = [state.value.names[selected[0]]];
+			if (!state.value.called.includes(selected[0])) state.value.called.push(selected[0]);
 			persist();
-			resultPopup.value?.open();
-		}, 1100);
+			finishTimer = setTimeout(() => {
+				if (disposed || version != drawVersion) return;
+				finishTimer = -1;
+				drawing.value = false;
+				resultPopup.value?.open();
+			}, 600);
+		}, 32);
 	};
 	const continueDraw = () => {
 		closeResult();
@@ -320,6 +374,8 @@
 		recordToolUsage('random-name').catch(() => toast('保存使用记录失败'));
 		archive.load((snapshot: string) => {
 			state.value = decodeNameState(snapshot);
+			state.value.batch = 1;
+			prepareSphere();
 		});
 	});
 	onHide(() => stopDrawing());
@@ -333,108 +389,198 @@
 <style scoped lang="scss">
 	@import '@/uni.scss';
 	@import '@/styles/practical-tools.scss';
-	@import '@/styles/tool-popup.scss';
 	@import '@/styles/random-color-tools.scss';
 	.name-orbit {
 		position: relative;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: center;
-		height: 580rpx;
+		height: 864rpx;
 		margin: 0 38rpx 28rpx;
+		border: 2rpx solid #183969;
 		border-radius: 32rpx;
-		background: linear-gradient(135deg, #1c3a65 0%, #18213d 100%);
+		background: linear-gradient(155deg, #0b1832 0%, #050b1b 58%, #0a1731 100%);
 		overflow: hidden;
+		.space-nebula {
+			position: absolute;
+			left: 130rpx;
+			top: 218rpx;
+			width: 440rpx;
+			height: 460rpx;
+			border-radius: 230rpx;
+			background: linear-gradient(140deg, rgba($primary-color, 0.13), rgba($primary-deep-blue, 0.02));
+			transform: rotate(-28deg);
+			box-shadow: 0 0 90rpx rgba($primary-color, 0.12);
+		}
+		.space-star {
+			position: absolute;
+			border-radius: 4rpx;
+			background-color: #c4e2ff;
+			&.is-bright {
+				background-color: #effaff;
+				box-shadow: 0 0 12rpx rgba($primary-color, 0.9);
+			}
+		}
+		.space-moon {
+			position: absolute;
+			right: 46rpx;
+			top: 152rpx;
+			width: 22rpx;
+			height: 22rpx;
+			border-radius: 12rpx;
+			background: linear-gradient(125deg, #c0e8ff, $primary-color 40%, #102349 90%);
+			box-shadow: 0 0 20rpx rgba($primary-color, 0.5);
+		}
+		.orbit-title {
+			position: absolute;
+			top: 38rpx;
+			z-index: 2;
+			font-size: 38rpx;
+			line-height: 54rpx;
+			font-weight: 500;
+			color: #eff7ff;
+		}
 		.orbit-status {
 			position: absolute;
-			top: 32rpx;
-			padding: 8rpx 22rpx;
+			top: 104rpx;
+			z-index: 2;
+			padding: 6rpx 22rpx;
+			border: 1rpx solid rgba($primary-color, 0.3);
 			border-radius: 24rpx;
-			background-color: #334968;
+			background-color: rgba($primary-color, 0.1);
 			font-size: 22rpx;
-			line-height: 36rpx;
-			color: #d9e8ff;
+			line-height: 34rpx;
+			color: #a6cfff;
 		}
-		.orbit-ring {
+		.name-sphere {
 			position: absolute;
-			border: 2rpx solid #58729f;
-			border-radius: 250rpx;
-			&.outer-ring {
-				width: 480rpx;
-				height: 450rpx;
-				opacity: 0.4;
-			}
-			&.inner-ring {
-				width: 370rpx;
-				height: 370rpx;
-			}
-		}
-		.orbit-center {
-			box-sizing: border-box;
-			display: flex;
-			flex-direction: column;
-			align-items: center;
-			justify-content: center;
-			width: 280rpx;
-			height: 280rpx;
-			padding: 16rpx;
-			border: 2rpx solid #6386bd;
-			border-radius: 160rpx;
-			background-color: #2c4d80;
-			.orbit-symbol {
-				font-size: 100rpx;
-				line-height: 130rpx;
-				font-weight: 500;
-				text-align: center;
-				color: #e3f7ff;
-				&.is-name {
-					font-size: 36rpx;
-					line-height: 52rpx;
+			left: 40rpx;
+			top: 174rpx;
+			z-index: 1;
+			width: 590rpx;
+			height: 590rpx;
+			.planet-halo {
+				position: absolute;
+				box-sizing: border-box;
+				left: 49rpx;
+				top: 49rpx;
+				width: 492rpx;
+				height: 492rpx;
+				border: 16rpx solid rgba($primary-color, 0.05);
+				border-radius: 246rpx;
+				box-shadow: 0 0 46rpx rgba($primary-color, 0.22);
+				&.is-active {
+					box-shadow: 0 0 62rpx rgba($primary-color, 0.4);
 				}
 			}
-			.orbit-caption {
-				font-size: 22rpx;
-				line-height: 38rpx;
-				color: #c4d7ef;
+			.planet-atmosphere {
+				position: absolute;
+				box-sizing: border-box;
+				left: 59rpx;
+				top: 59rpx;
+				width: 472rpx;
+				height: 472rpx;
+				border: 2rpx solid rgba($primary-color, 0.35);
+				border-radius: 236rpx;
+				box-shadow: 0 0 24rpx rgba($primary-color, 0.3);
 			}
-		}
-		.orbit-name {
-			box-sizing: border-box;
-			position: absolute;
-			max-width: 180rpx;
-			padding: 8rpx 20rpx;
-			border: 2rpx solid #627a9f;
-			border-radius: 30rpx;
-			background-color: #304b72;
-			&.orbit-name-0 {
-				left: 24rpx;
-				top: 160rpx;
+			.planet-core {
+				position: absolute;
+				left: 77rpx;
+				top: 77rpx;
+				width: 436rpx;
+				height: 436rpx;
+				border-radius: 218rpx;
+				background: linear-gradient(145deg, rgba($primary-color, 0.08), rgba($primary-deep-blue, 0.015) 70%);
 			}
-			&.orbit-name-1 {
-				right: 24rpx;
-				top: 150rpx;
+			.planet-ring {
+				position: absolute;
+				left: 5rpx;
+				top: 210rpx;
+				box-sizing: border-box;
+				width: 580rpx;
+				height: 170rpx;
+				border: 2rpx solid rgba($primary-color, 0.22);
+				border-radius: 290rpx;
+				transform: rotate(-22deg);
+				&.front-ring {
+					z-index: 55;
+					border-color: transparent;
+					border-bottom-color: rgba($primary-color, 0.55);
+				}
 			}
-			&.orbit-name-2 {
-				left: 20rpx;
-				bottom: 150rpx;
+			.sphere-empty {
+				position: absolute;
+				left: 0;
+				top: 0;
+				z-index: 1;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				width: 590rpx;
+				height: 590rpx;
+				.sphere-symbol {
+					font-size: 100rpx;
+					line-height: 130rpx;
+					font-weight: 500;
+					color: #cbe6ff;
+				}
+				.sphere-caption {
+					margin-top: 12rpx;
+					font-size: 22rpx;
+					line-height: 38rpx;
+					color: #91b7e3;
+				}
 			}
-			&.orbit-name-3 {
-				right: 24rpx;
-				bottom: 130rpx;
-			}
-			.orbit-name-label {
-				font-size: 22rpx;
-				line-height: 34rpx;
-				color: #d6e5fa;
+			.sphere-name {
+				position: absolute;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				box-sizing: border-box;
+				padding: 4rpx 6rpx;
+				border: 1rpx solid rgba($primary-color, 0.85);
+				border-radius: 3rpx;
+				background: linear-gradient(140deg, rgba($primary-color, 0.72), rgba($primary-deep-blue, 0.38));
+				box-shadow: 0 0 6rpx rgba($primary-color, 0.18);
+				.sphere-name-number {
+					font-size: 20rpx;
+					line-height: 24rpx;
+					color: #b8dcff;
+				}
+				.sphere-name-label {
+					font-size: 22rpx;
+					line-height: 30rpx;
+					font-weight: 500;
+					white-space: nowrap;
+					text-align: center;
+					color: #f1f8ff;
+				}
+				&.is-selected {
+					border: 2rpx solid #bde6ff;
+					border-radius: 4rpx;
+					background: linear-gradient(135deg, $primary-color, $primary-deep-blue);
+					box-shadow: 0 0 16rpx rgba($primary-color, 0.65);
+					.sphere-name-number {
+						margin-bottom: 2rpx;
+						color: #d5eeff;
+					}
+					.sphere-name-label {
+						line-height: 32rpx;
+						color: #ffffff;
+					}
+				}
 			}
 		}
 		.orbit-footnote {
 			position: absolute;
 			bottom: 30rpx;
+			z-index: 2;
 			font-size: 20rpx;
 			line-height: 34rpx;
-			color: #b7c5df;
+			color: #8caed6;
 		}
 	}
 
@@ -456,26 +602,7 @@
 				line-height: 42rpx;
 				color: $text-color;
 			}
-			.count-options {
-				display: flex;
-				flex-direction: row;
-				.count-option {
-					margin-left: 12rpx;
-					padding: 12rpx 28rpx;
-					border: 2rpx solid #e4e9f2;
-					border-radius: 14rpx;
-					background-color: #f6f8fc;
-					&.is-active {
-						border-color: #3186b2;
-						background-color: #eaf6ff;
-					}
-					.count-label {
-						font-size: 24rpx;
-						line-height: 40rpx;
-						color: #3186b2;
-					}
-				}
-			}
+
 		}
 	}
 
@@ -524,6 +651,6 @@
 	}
 
 	.name-popup-confirm {
-		padding: 0 30rpx 30rpx;
+		min-height: 150rpx;
 	}
 </style>

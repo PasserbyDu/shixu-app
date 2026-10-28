@@ -80,33 +80,3 @@
 		}
 	}
 }
-.discovery-popup-actions {
-	display: flex;
-	flex-direction: row;
-	margin-top: 28rpx;
-	.popup-action {
-		box-sizing: border-box;
-		display: flex;
-		flex-direction: row;
-		align-items: center;
-		justify-content: center;
-		flex: 1;
-		min-height: 92rpx;
-		padding: 14rpx;
-		border-radius: 22rpx;
-		background-color: #eef6fc;
-		.action-text {
-			font-size: 26rpx;
-			line-height: 42rpx;
-			font-weight: 500;
-			color: #3186b2;
-		}
-		&.is-primary {
-			margin-left: 20rpx;
-			background: linear-gradient(110deg, #2e96c4 0%, #5568d9 100%);
-			.action-text {
-				color: #ffffff;
-			}
-		}
-	}
-}

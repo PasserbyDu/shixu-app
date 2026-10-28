@@ -62,41 +62,29 @@
 			<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">重新保存当前清单</text>
 		</view>
 		<template #popup>
-			<uni-popup ref="addPopup" @close="resetAdd">
-				<view class="tool-popup-card">
-					<view class="tool-popup-heading">
-						<text class="tool-popup-title">添加物品</text>
-						<view class="popup-close-button" @click="closeAdd">
-							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+			<app-dialog
+				ref="addPopup"
+				@close="resetAdd"
+				title="添加物品"
+				confirm-text="添加到清单"
+				@confirm="addItem"
+				:error="formError"
+			>
+				<view>
+					<view class="add-item-card">
+						<input v-model="itemName" class="item-name-input" :maxlength="-1" placeholder="物品名称（最多40字）" />
+						<view class="tool-row">
+							<text class="row-label">所属分类</text>
+							<picker class="row-control" :range="groupLabels" :value="itemGroup" @change="changeGroup">
+								<view class="tool-field">
+									<text class="field-value">{{ groupLabels[itemGroup] }}</text>
+									<UniIcons type="bottom" size="26rpx" color="#278dca" />
+								</view>
+							</picker>
 						</view>
 					</view>
-					<scroll-view class="tool-popup-scroll" scroll-y="true">
-						<view class="tool-popup-body">
-							<view class="add-item-card">
-								<input v-model="itemName" class="item-name-input" :maxlength="-1" placeholder="物品名称（最多40字）" />
-								<view class="tool-row">
-									<text class="row-label">所属分类</text>
-									<picker class="row-control" :range="groupLabels" :value="itemGroup" @change="changeGroup">
-										<view class="tool-field">
-											<text class="field-value">{{ groupLabels[itemGroup] }}</text>
-											<UniIcons type="bottom" size="26rpx" color="#278dca" />
-										</view>
-									</picker>
-								</view>
-								<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
-								<view class="tool-popup-actions">
-									<view class="tool-popup-button is-cancel" @click="closeAdd">
-										<text class="tool-popup-button-text">取消</text>
-									</view>
-									<view class="tool-popup-button" @click="addItem">
-										<text class="tool-popup-button-text">添加到清单</text>
-									</view>
-								</view>
-							</view>
-						</view>
-					</scroll-view>
 				</view>
-			</uni-popup>
+			</app-dialog>
 		</template>
 	</tool-page>
 </template>
@@ -278,7 +266,6 @@
 </script>
 
 <style scoped lang="scss">
-	@import '@/styles/tool-popup.scss';
 	@import '@/styles/practical-tools.scss';
 	.packing-summary {
 		.summary-title {
@@ -389,12 +376,6 @@
 			background-color: #f5f8fc;
 			font-size: 28rpx;
 			color: #233d50;
-		}
-		.form-error {
-			margin-top: 18rpx;
-			font-size: 24rpx;
-			line-height: 38rpx;
-			color: #be5555;
 		}
 	}
 

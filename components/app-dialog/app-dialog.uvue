@@ -1,0 +1,375 @@
+<template>
+	<uni-popup ref="popup" :mask-click="maskClosable" @close="handleClose">
+		<view class="app-dialog-card" :style="cardStyle">
+			<view class="app-dialog-heading">
+				<text class="app-dialog-title">{{ title }}</text>
+				<view v-if="showClose" class="app-dialog-close" @click="close">
+					<view class="app-dialog-close-icon">
+						<UniIcons type="closeempty" size="34rpx" color="#8795a1" />
+					</view>
+				</view>
+				<text v-if="subtitle.length > 0" class="app-dialog-subtitle">{{ subtitle }}</text>
+			</view>
+			<scroll-view class="app-dialog-scroll" scroll-y="true" :scroll-into-view="scrollTarget" :style="bodyStyle">
+				<view class="app-dialog-body">
+					<slot />
+					<view v-if="error.length > 0" :id="errorId" class="app-dialog-error">
+						<text class="app-dialog-error-text">{{ error }}</text>
+					</view>
+				</view>
+			</scroll-view>
+			<view v-if="showFooter" class="app-dialog-footer">
+				<slot name="footer">
+					<view class="app-dialog-actions">
+						<view v-if="dangerText.length > 0" class="app-dialog-button is-danger" @click="danger">
+							<text class="app-dialog-button-label">{{ dangerText }}</text>
+						</view>
+						<view v-if="cancelText.length > 0" class="app-dialog-button is-cancel" @click="cancel">
+							<text class="app-dialog-button-label">{{ cancelText }}</text>
+						</view>
+						<view
+							v-if="confirmText.length > 0"
+							class="app-dialog-button"
+							:class="{ 'is-disabled': confirmDisabled }"
+							@click="confirm"
+						>
+							<text class="app-dialog-button-label">{{ confirmText }}</text>
+						</view>
+					</view>
+				</slot>
+			</view>
+		</view>
+	</uni-popup>
+</template>
+
+<script setup lang="uts">
+	import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+	import { onResize } from '@dcloudio/uni-app';
+	// data
+	type PopupRef = {
+		open: () => void;
+		close: () => void;
+	};
+	const props = defineProps({
+		title: {
+			type: String,
+			default: ''
+		},
+		subtitle: {
+			type: String,
+			default: ''
+		},
+		visible: {
+			type: Boolean,
+			default: false
+		},
+		error: {
+			type: String,
+			default: ''
+		},
+		showClose: {
+			type: Boolean,
+			default: true
+		},
+		maskClosable: {
+			type: Boolean,
+			default: true
+		},
+		showFooter: {
+			type: Boolean,
+			default: true
+		},
+		confirmText: {
+			type: String,
+			default: '确定'
+		},
+		cancelText: {
+			type: String,
+			default: '取消'
+		},
+		confirmDisabled: {
+			type: Boolean,
+			default: false
+		},
+		dangerText: {
+			type: String,
+			default: ''
+		},
+		closeOnCancel: {
+			type: Boolean,
+			default: true
+		},
+		scrollIntoView: {
+			type: String,
+			default: ''
+		}
+	});
+	const emit = defineEmits<{
+		(event: 'close'): void;
+		(event: 'cancel'): void;
+		(event: 'confirm'): void;
+		(event: 'danger'): void;
+	}>();
+	const popup = ref<PopupRef | null>(null);
+	const opened = ref(false),
+		availableHeight = ref(600),
+		unit = ref(0.5),
+		scrollTarget = ref(''),
+		offsetY = ref(0);
+	const errorId = 'app-dialog-error-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
+	let disposed = false,
+		revision = 0,
+		listening = false,
+		baseHeight = 0,
+		baseWidth = 0,
+		keyboardHeight = 0;
+	let keyboardListenerId = -1;
+	// computed
+	const cardStyle = computed((): string => 'max-height:' + availableHeight.value + 'px;transform:translateY(-' + offsetY.value + 'px);');
+	const bodyStyle = computed((): string => {
+		const titleLines = Math.max(1, Math.ceil(props.title.length / 15));
+		const subtitleLines = props.subtitle.length == 0 ? 0 : Math.ceil(props.subtitle.length / 22);
+		const reserved = 90 + titleLines * 50 + subtitleLines * 40 + (subtitleLines > 0 ? 12 : 0) + (props.showFooter ? 126 : 0);
+		return 'max-height:' + Math.max(40, availableHeight.value - reserved * unit.value) + 'px;';
+	});
+	// methods
+	const measure = () => {
+		// 窗口与键盘 API 返回 px，高度限制和偏移沿用 px，避免二次换算。
+		const info = uni.getWindowInfo();
+		unit.value = info.windowWidth > 0 ? info.windowWidth / 750 : 0.5;
+		// 保留键盘弹出前的高度，避免 adjustResize 与键盘高度被重复扣除。
+		if (baseHeight <= 0 || baseWidth != info.windowWidth) {
+			baseHeight = info.windowHeight;
+			baseWidth = info.windowWidth;
+		}
+		const usable = Math.min(info.windowHeight, baseHeight - keyboardHeight);
+		offsetY.value = Math.max(0, info.windowHeight - usable) / 2;
+		availableHeight.value = Math.max(120, usable - info.safeAreaInsets.top - info.safeAreaInsets.bottom - 40 * unit.value);
+	};
+	const keyboardListener = (event: OnKeyboardHeightChangeCallbackResult) => {
+		if (!opened.value) return;
+		keyboardHeight = Math.max(0, event.height);
+		measure();
+	};
+	const startListening = () => {
+		if (listening) return;
+		listening = true;
+		// #ifdef APP
+		keyboardListenerId = uni.onKeyboardHeightChange(keyboardListener);
+		// #endif
+		// #ifdef MP
+		uni.onKeyboardHeightChange(keyboardListener);
+		// #endif
+	};
+	const stopListening = () => {
+		if (!listening) return;
+		listening = false;
+		// #ifdef APP
+		if (keyboardListenerId >= 0) uni.offKeyboardHeightChange(keyboardListenerId);
+		keyboardListenerId = -1;
+		// #endif
+		// #ifdef MP
+		uni.offKeyboardHeightChange(keyboardListener);
+		// #endif
+	};
+	const open = () => {
+		const current = ++revision;
+		nextTick(() => {
+			if (disposed || current != revision || popup.value == null || opened.value) return;
+			keyboardHeight = 0;
+			baseHeight = 0;
+			measure();
+			scrollTarget.value = props.scrollIntoView;
+			opened.value = true;
+			startListening();
+			popup.value!.open();
+		});
+	};
+	const close = () => {
+		revision++;
+		if (!opened.value) return;
+		popup.value?.close();
+	};
+	const handleClose = () => {
+		if (!opened.value) return;
+		opened.value = false;
+		revision++;
+		stopListening();
+		keyboardHeight = 0;
+		uni.hideKeyboard();
+		emit('close');
+	};
+	const cancel = () => {
+		emit('cancel');
+		if (props.closeOnCancel) close();
+	};
+	const scrollToError = () => {
+		if (disposed || !opened.value) return;
+		const current = revision;
+		scrollTarget.value = '';
+		nextTick(() => {
+			if (!disposed && opened.value && current == revision && props.error.length > 0) scrollTarget.value = errorId;
+		});
+	};
+	const confirm = () => {
+		if (props.confirmDisabled) return;
+		emit('confirm');
+		nextTick(() => { if (props.error.length > 0) scrollToError(); });
+	};
+	const danger = () => {
+		emit('danger');
+		nextTick(() => { if (props.error.length > 0) scrollToError(); });
+	};
+	// watch
+	watch(() => props.visible, (value: boolean) => {
+		if (value) open();else close();
+	}, {
+		immediate: true
+	});
+	watch(() => props.scrollIntoView, (value: string) => {
+		scrollTarget.value = value;
+	});
+	watch(() => props.error, (value: string) => {
+		if (value.length == 0) return;
+		scrollToError();
+	});
+	// lifecycle
+	// uni-app x 组件通过 onResize 监听页面尺寸，不使用 uni-app 的全局窗口 API。
+	onResize(() => {
+		if (opened.value) measure();
+	});
+	onMounted(() => {
+		if (props.visible) open();
+	});
+	onUnmounted(() => {
+		disposed = true;
+		revision++;
+		stopListening();
+	});
+	defineExpose({
+		open,
+		close
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/uni.scss';
+	.app-dialog-card {
+		display: flex;
+		flex-direction: column;
+		box-sizing: border-box;
+		width: 674rpx;
+		border-radius: 38rpx;
+		background-color: #ffffff;
+		overflow: hidden;
+		.app-dialog-heading {
+			position: relative;
+			display: flex;
+			flex-direction: column;
+			flex-shrink: 0;
+			padding: 38rpx 116rpx 24rpx 38rpx;
+			.app-dialog-title {
+				font-size: 34rpx;
+				line-height: 50rpx;
+				font-weight: 500;
+				text-align: left;
+				color: #263747;
+			}
+			.app-dialog-subtitle {
+				margin-top: 12rpx;
+				font-size: 22rpx;
+				line-height: 40rpx;
+				text-align: left;
+				color: #8795a1;
+			}
+			.app-dialog-close {
+				position: absolute;
+				right: 14rpx;
+				top: 14rpx;
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				width: 88rpx;
+				height: 88rpx;
+				.app-dialog-close-icon {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					justify-content: center;
+					width: 56rpx;
+					height: 56rpx;
+					border-radius: 28rpx;
+					background-color: #f1f5fa;
+				}
+			}
+		}
+		.app-dialog-scroll {
+			width: 100%;
+			min-height: 0;
+			.app-dialog-body {
+				display: flex;
+				flex-direction: column;
+				padding: 0 38rpx 28rpx;
+				.app-dialog-error {
+					margin-top: 24rpx;
+					padding: 20rpx 24rpx;
+					border: 2rpx solid #f1d9d5;
+					border-radius: 20rpx;
+					background-color: $dialog-error-bg;
+					.app-dialog-error-text {
+						font-size: 24rpx;
+						line-height: 40rpx;
+						color: $dialog-error-color;
+					}
+				}
+			}
+		}
+		.app-dialog-footer {
+			display: flex;
+			flex-direction: column;
+			flex-shrink: 0;
+			padding: 0 38rpx 38rpx;
+			.app-dialog-actions {
+				display: flex;
+				flex-direction: row;
+				margin: 0 -10rpx;
+				.app-dialog-button {
+					box-sizing: border-box;
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					justify-content: center;
+					flex: 1;
+					min-height: 88rpx;
+					margin: 0 10rpx;
+					padding: 14rpx;
+					border-radius: 22rpx;
+					background: $dialog-primary-gradient-bg;
+					.app-dialog-button-label {
+						font-size: 26rpx;
+						line-height: 40rpx;
+						font-weight: 500;
+						text-align: center;
+						color: #ffffff;
+					}
+					&.is-cancel {
+						background: $dialog-neutral-bg;
+						.app-dialog-button-label {
+							color: #3186b2;
+						}
+					}
+					&.is-disabled {
+						opacity: 0.5;
+					}
+					&.is-danger {
+						background: $dialog-error-bg;
+						.app-dialog-button-label {
+							color: $dialog-error-color;
+						}
+					}
+				}
+			}
+		}
+	}
+</style>

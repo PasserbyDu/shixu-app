@@ -29,12 +29,7 @@
 			</view>
 			<view class="klotski-board-section">
 				<view class="board-frame">
-					<view
-						class="klotski-board"
-						@touchmove.stop.prevent="moveDrag"
-						@touchend="endDrag"
-						@touchcancel="cancelDrag"
-					>
+					<view class="klotski-board" @touchmove.stop.prevent="moveDrag" @touchend="endDrag" @touchcancel="cancelDrag">
 						<view
 							v-for="(piece, index) in pieces"
 							:key="piece.id"
@@ -46,23 +41,15 @@
 							<text class="piece-label">{{ piece.label }}</text>
 						</view>
 					</view>
-					<view v-if="!ready || restartPending || won" class="board-state">
-						<text class="state-title">{{ stateTitle }}</text>
-						<text class="state-description">{{ stateDescription }}</text>
-						<template v-if="ready">
-							<view class="state-action secondary-action" @click="restartPending ? cancelRestart() : undoMove()">
-								<text class="state-action-label secondary-label">{{ restartPending ? '继续本局' : '撤销一步' }}</text>
-							</view>
-							<view class="state-action" @click="restartGame">
-								<text class="state-action-label">{{ restartPending ? '确认重新开始' : '再来一局' }}</text>
-							</view>
-						</template>
-					</view>
 				</view>
 				<text class="exit-label">↓ 出口 ↓</text>
 			</view>
 			<view class="klotski-actions">
-				<view class="game-button undo-button" :class="{ 'is-disabled': !ready || moves.length == 0 || restartPending }" @click="undoMove">
+				<view
+					class="game-button undo-button"
+					:class="{ 'is-disabled': !ready || moves.length == 0 || restartPending }"
+					@click="undoMove"
+				>
 					<text class="button-label undo-label">撤销一步</text>
 				</view>
 				<view class="game-button ml-[28rpx]" :class="{ 'is-disabled': !ready }" @click="requestRestart">
@@ -76,6 +63,19 @@
 			<text v-if="storageFailed" class="storage-message">暂时无法保存本局进度，请检查本地存储空间；仍可继续游戏。</text>
 			<view class="safe-area-bottom" />
 		</scroll-view>
+		<app-dialog
+			:visible="(!ready || restartPending || won) && !gameDialogDismissed"
+			:title="!ready ? '正在恢复棋局…' : stateTitle"
+			:show-footer="ready"
+			:cancel-text="restartPending ? '继续本局' : '撤销一步'"
+			:confirm-text="restartPending ? '确认重新开始' : '再来一局'"
+			:close-on-cancel="false"
+			@cancel="restartPending ? cancelRestart() : undoMove()"
+			@confirm="restartGame"
+			@close="dismissGameDialog"
+		>
+			<text class="game-dialog-description">{{ ready ? stateDescription : '稍等片刻，马上继续挑战' }}</text>
+		</app-dialog>
 		<cascade-picker
 			:visible="levelPickerVisible"
 			title="选择关卡"
@@ -89,7 +89,7 @@
 </template>
 
 <script setup lang="uts">
-	import { computed, ref } from 'vue'
+	import { computed, ref, watch } from 'vue'
 	import CascadePicker from '@/components/cascade-picker/cascade-picker.uvue'
 	import {
 		KlotskiLevel, KlotskiMove, KLOTSKI_LEVELS, KLOTSKI_MAX_MOVES, initialKlotski, getKlotskiPieces,
@@ -116,6 +116,7 @@
 	const positions = ref<number[]>(initialKlotski())
 	const moves = ref<KlotskiMove[]>([])
 	const ready = ref(false)
+	const gameDialogDismissed = ref(false)
 	const started = ref(false)
 	const restartPending = ref(false)
 	const storageFailed = ref(false)
@@ -147,11 +148,9 @@
 	const won = computed(() : boolean => klotskiWon(positions.value))
 	const timeText = computed(() : string => formatKlotskiTime(displayElapsedMs.value))
 	const stateTitle = computed(() : string => {
-		if (!ready.value) return '正在恢复棋局…'
 		return restartPending.value ? '重新开始？' : '成功脱困！'
 	})
 	const stateDescription = computed(() : string => {
-		if (!ready.value) return '稍等片刻，马上继续挑战'
 		if (restartPending.value) return '本局进度、步数和用时将清空。'
 		return '曹操已到达出口，完成本局挑战。\n' + moves.value.length + ' 步 · ' + timeText.value
 	})
@@ -336,6 +335,12 @@
 		if (result.indexes.length > 0) selectLevel(result.indexes[0])
 		startClock()
 	}
+
+	const dismissGameDialog = () => {
+		gameDialogDismissed.value = true
+		if (restartPending.value) cancelRestart()
+	}
+	watch((): boolean => restartPending.value || won.value, () => { gameDialogDismissed.value = false })
 
 	// lifecycle
 	onLoad(async () => {
@@ -535,66 +540,6 @@
 					}
 				}
 			}
-
-			.board-state {
-				position: absolute;
-				left: 0;
-				right: 0;
-				top: 0;
-				bottom: 0;
-				z-index: 3;
-				display: flex;
-				flex-direction: column;
-				align-items: center;
-				justify-content: center;
-				padding: 36rpx;
-				border-radius: 28rpx;
-				background-color: rgba(246, 250, 253, 0.96);
-
-				.state-title {
-					font-size: 40rpx;
-					font-weight: 500;
-					line-height: 60rpx;
-					text-align: center;
-					color: #243b4d;
-				}
-
-				.state-description {
-					margin: 20rpx 0 28rpx;
-					font-size: 24rpx;
-					line-height: 40rpx;
-					white-space: pre-wrap;
-					text-align: center;
-					color: #708b9e;
-				}
-
-				.state-action {
-					display: flex;
-					flex-direction: row;
-					align-items: center;
-					justify-content: center;
-					width: 360rpx;
-					min-height: 84rpx;
-					margin-top: 18rpx;
-					border-radius: 20rpx;
-					background-color: #2d8fc7;
-
-					&.secondary-action {
-						background-color: #e4f3fc;
-					}
-
-					.state-action-label {
-						font-size: 28rpx;
-						line-height: 42rpx;
-						text-align: center;
-						color: #ffffff;
-
-						&.secondary-label {
-							color: #318fc2;
-						}
-					}
-				}
-			}
 		}
 
 		.exit-label {
@@ -663,5 +608,12 @@
 		font-size: 22rpx;
 		line-height: 36rpx;
 		color: #a87947;
+	}
+
+	.game-dialog-description {
+		font-size: 24rpx;
+		line-height: 42rpx;
+		white-space: pre-wrap;
+		color: #718391;
 	}
 </style>

@@ -1,37 +1,32 @@
 <template>
-	<view v-if="visible" class="cascade-picker-mask flex-column" @click="handleCancel">
-		<view class="cascade-picker-panel safe-area-bottom" @click.stop>
-			<view class="picker-title-row df align-items-center">
-				<text class="picker-title fs34 fw600 text-color">{{ title }}</text>
-			</view>
-			<picker-view
-				class="picker-view"
-				:value="selectedIndexes"
-				indicator-style="height: 80rpx; border-top: 1rpx solid #D9DEE5; border-bottom: 1rpx solid #D9DEE5;"
-				mask-style="background-image: none; background-color: transparent;"
-				@change="handlePickerChange"
-				:immediate-change="true"
+	<app-dialog
+		:visible="visible"
+		:title="title"
+		confirm-text="确认"
+		@confirm="handleConfirm"
+		@close="handleDialogClose"
+	>
+		<picker-view
+			class="picker-view"
+			:value="selectedIndexes"
+			indicator-style="height: 80rpx; border-top: 1rpx solid #D9DEE5; border-bottom: 1rpx solid #D9DEE5;"
+			mask-style="background-image: none; background-color: transparent;"
+			@change="handlePickerChange"
+			:immediate-change="true"
+		>
+			<picker-view-column
+				v-for="(column, columnIndex) in columns"
+				:key="columnIndex"
+				:class="columnIndex == 0 ? 'picker-column picker-column-first' : 'picker-column'"
 			>
-				<picker-view-column
-					v-for="(column, columnIndex) in columns"
-					:key="columnIndex"
-					:class="columnIndex == 0 ? 'picker-column picker-column-first' : 'picker-column'"
-				>
-					<view v-for="(item, itemIndex) in column.values" :key="itemIndex" class="picker-item flex-center">
-						<text :class="selectedIndexes[columnIndex] == itemIndex ? 'picker-item-text picker-item-active' : 'picker-item-text'">{{ item }}</text>
-					</view>
-				</picker-view-column>
-			</picker-view>
-			<view class="picker-actions df">
-				<view class="picker-button picker-cancel flex-center" @click="handleCancel">
-					<text class="fs32 fw600 picker-cancel-text">取消</text>
+				<view v-for="(item, itemIndex) in column.values" :key="itemIndex" class="picker-item flex-center">
+					<text
+						:class="selectedIndexes[columnIndex] == itemIndex ? 'picker-item-text picker-item-active' : 'picker-item-text'"
+					>{{ item }}</text>
 				</view>
-				<view class="picker-button picker-confirm flex-center" @click="handleConfirm">
-					<text class="fs32 fw600 picker-confirm-text">确认</text>
-				</view>
-			</view>
-		</view>
-	</view>
+			</picker-view-column>
+		</picker-view>
+	</app-dialog>
 </template>
 
 <script setup lang="uts">
@@ -219,6 +214,10 @@
 		})
 	}
 
+	const handleDialogClose = () => {
+		if (props.visible) handleCancel()
+	}
+
 	// watch
 	watch(() : boolean => props.visible, (visible : boolean) => {
 		if (visible) initColumns()
@@ -227,87 +226,29 @@
 
 <style scoped lang="scss">
 	@import "@/uni.scss";
-
-	.cascade-picker-mask {
-		position: fixed;
-		left: 0;
-		top: 0;
-		width: 750rpx;
-		height: 100%;
-		justify-content: flex-end;
-		background-color: rgba(0, 0, 0, 0.45);
-		z-index: 1000;
-
-		.cascade-picker-panel {
-			width: 750rpx;
-			border-radius: 24rpx 24rpx 0 0;
-			background-color: $uni-bg-color;
+	.picker-view {
+		width: 100%;
+		height: 360rpx;
+		.picker-column {
+			border-left: 1rpx solid #e6e9ed;
 			box-sizing: border-box;
-
-			.picker-title-row {
-				height: 100rpx;
-				padding: 0 38rpx;
-				border-bottom: 1rpx solid #E6E9ED;
-				box-sizing: border-box;
+			&.picker-column-first {
+				border-left-width: 0;
 			}
-
-			.picker-view {
-				width: 750rpx;
-				height: 430rpx;
-
-				.picker-column {
-					border-left: 1rpx solid #E6E9ED;
-					box-sizing: border-box;
-
-					&.picker-column-first {
-						border-left-width: 0;
-					}
-				}
-
-				.picker-item {
-					height: 80rpx;
-
-					.picker-item-text {
-						font-size: 32rpx;
-						font-weight: 400;
-						color: #4F5968;
-						opacity: 1;
-
-						&.picker-item-active {
-							font-size: 34rpx;
-							font-weight: 600;
-							color: #101828;
-						}
-					}
-				}
-			}
-
-			.picker-actions {
-				height: 134rpx;
-				padding: 28rpx 120rpx 20rpx;
-				border-top: 1rpx solid #E6E9ED;
-				box-sizing: border-box;
-
-				.picker-button {
-					width: 240rpx;
-					height: 78rpx;
-					border-radius: 16rpx;
-
-					&.picker-cancel {
-						margin-right: 32rpx;
-						background-color: #F1F1F1;
-
-						.picker-cancel-text {
-							color: #222222;
-						}
-					}
-
-					&.picker-confirm {
-						background-color: $primary-deep-blue;
-
-						.picker-confirm-text {
-							color: $uni-text-color-inverse;
-						}
+			.picker-item {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				height: 80rpx;
+				.picker-item-text {
+					font-size: 28rpx;
+					line-height: 42rpx;
+					color: $text-color-grey;
+					&.picker-item-active {
+						font-size: 30rpx;
+						font-weight: 500;
+						color: $text-color;
 					}
 				}
 			}

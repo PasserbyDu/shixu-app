@@ -144,34 +144,28 @@
 			<text class="tool-footnote">{{ currentColor == null ? '让每一份灵感，都有准确的颜色' : 'HEX / RGB / RGBA / HSL / HSV 均可复制；色板为图片像素抽样近似色，历史仅在当前页面保留。' }}</text>
 			<view class="safe-area-bottom-pad" />
 		</scroll-view>
-		<uni-popup ref="detailPopup" @close="detailColor = null">
-			<view class="tool-popup-card color-popup-card">
-				<view class="tool-popup-heading">
-					<text class="tool-popup-title">颜色详情</text>
-					<view class="popup-close-button" @click="detailPopup?.close()">
-						<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
-					</view>
+		<app-dialog
+			ref="detailPopup"
+			@close="detailColor = null"
+			title="颜色详情"
+			subtitle="点击任一色值行，即可复制对应格式"
+			cancel-text=""
+			confirm-text="复制全部格式"
+			@confirm="copyAll"
+		>
+			<view v-if="detailColor != null" class="color-popup-card">
+				<view class="color-popup-preview" :style="'background-color: ' + colorCss(detailColor!)">
+					<text class="preview-color-label" :style="'color: ' + contrastColor(detailColor!)">{{ colorTitle(detailColor!) }}</text>
+					<text class="preview-hex" :style="'color: ' + contrastColor(detailColor!)">{{ colorHex(detailColor!) }}</text>
 				</view>
-				<scroll-view class="tool-popup-scroll" scroll-y="true">
-					<view v-if="detailColor != null" class="tool-popup-body">
-						<text class="discovery-note">点击任一色值行，即可复制对应格式</text>
-						<view class="color-popup-preview" :style="'background-color: ' + colorCss(detailColor!)">
-							<text class="preview-color-label" :style="'color: ' + contrastColor(detailColor!)">{{ colorTitle(detailColor!) }}</text>
-							<text class="preview-hex" :style="'color: ' + contrastColor(detailColor!)">{{ colorHex(detailColor!) }}</text>
-						</view>
-						<view v-for="field in detailFields" :key="field.label" class="format-row" @click="copyValue(field.value)">
-							<text class="format-label">{{ field.label }}</text>
-							<text class="format-value">{{ field.value }}</text>
-							<UniIcons type="paperclip" size="30rpx" color="#8795a1" />
-						</view>
-						<text class="discovery-note">不透明度 {{ Math.round(detailColor!.a / 255 * 100) }}% · 数值以当前设备解码后的画布像素为准</text>
-						<view class="discovery-primary details-copy" @click="copyAll">
-							<text class="primary-label">复制全部格式</text>
-						</view>
-					</view>
-				</scroll-view>
+				<view v-for="field in detailFields" :key="field.label" class="format-row" @click="copyValue(field.value)">
+					<text class="format-label">{{ field.label }}</text>
+					<text class="format-value">{{ field.value }}</text>
+					<UniIcons type="paperclip" size="30rpx" color="#8795a1" />
+				</view>
+				<text class="discovery-note">不透明度 {{ Math.round(detailColor!.a / 255 * 100) }}% · 数值以当前设备解码后的画布像素为准</text>
 			</view>
-		</uni-popup>
+		</app-dialog>
 		<!-- 只用于本机像素读取，保留可见挂载，展示尺寸不改变采样位图大小。 -->
 		<canvas id="color-sampling-canvas" canvas-id="color-sampling-canvas" type="2d" class="sampling-canvas" />
 	</view>
@@ -443,7 +437,6 @@
 <style scoped lang="scss">
 	@import '@/uni.scss';
 	@import '@/styles/practical-tools.scss';
-	@import '@/styles/tool-popup.scss';
 	@import '@/styles/random-color-tools.scss';
 	.color-page {
 		display: flex;
@@ -703,9 +696,6 @@
 				line-height: 64rpx;
 				font-weight: 500;
 			}
-		}
-		.details-copy {
-			margin: 28rpx 0 0;
 		}
 	}
 

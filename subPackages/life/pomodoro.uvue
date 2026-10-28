@@ -55,35 +55,23 @@
 		<text v-if="audioError.length > 0" class="tool-footnote">{{ audioError }}</text>
 		<text class="tool-footnote">离开页面后按截止时间继续计时，返回时校正；当前阶段结束后等待你开启下一阶段，不自动连跑。累计专注包含已实际经过的专注时间。提示音仅在页面可见时播放。</text>
 		<template #popup>
-			<uni-popup ref="settingsPopup" @close="resetSettings">
-				<view class="tool-popup-card">
-					<view class="tool-popup-heading">
-						<text class="tool-popup-title">时长设置</text>
-						<view class="popup-close-button" @click="closeSettings">
-							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+			<app-dialog
+				ref="settingsPopup"
+				@close="resetSettings"
+				title="时长设置"
+				confirm-text="保存并重置本轮"
+				@confirm="saveSettings"
+				:error="settingsError"
+			>
+				<view>
+					<view class="wellness-form">
+						<view v-for="(label, index) in modes" :key="label" class="form-field">
+							<text class="form-label">{{ label }}时长（分钟）</text>
+							<input v-model="settingsDraft[index]" class="form-input" type="number" :maxlength="-1" />
 						</view>
 					</view>
-					<scroll-view class="tool-popup-scroll" scroll-y="true">
-						<view class="tool-popup-body">
-							<view class="wellness-form">
-								<view v-for="(label, index) in modes" :key="label" class="form-field">
-									<text class="form-label">{{ label }}时长（分钟）</text>
-									<input v-model="settingsDraft[index]" class="form-input" type="number" :maxlength="-1" />
-								</view>
-								<text v-if="settingsError.length > 0" class="form-error">{{ settingsError }}</text>
-								<view class="tool-popup-actions">
-									<view class="tool-popup-button is-cancel" @click="closeSettings">
-										<text class="tool-popup-button-text">取消</text>
-									</view>
-									<view class="tool-popup-button" @click="saveSettings">
-										<text class="tool-popup-button-text">保存并重置本轮</text>
-									</view>
-								</view>
-							</view>
-						</view>
-					</scroll-view>
 				</view>
-			</uni-popup>
+			</app-dialog>
 		</template>
 	</tool-page>
 </template>
@@ -269,7 +257,6 @@
 </script>
 
 <style scoped lang="scss">
-	@import '@/styles/tool-popup.scss';
 	@import '@/styles/wellness-tools.scss';
 	.focus-card {
 		align-items: center;

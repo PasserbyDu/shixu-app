@@ -1,78 +1,82 @@
 <template>
-	<scroll-view class="number-game-page" :scroll-y="!touching">
-		<page-header
-			:fixed="isHeaderFixed"
-			title="数字 2048"
-			titleColor="#333333"
-			titleFontSize="30rpx"
-			titleFontWeight="700"
-			headerClass="page-header-calculator-bg"
-		/>
-		<view class="game-intro">
-			<text class="intro-title">数字 2048</text>
-			<text class="intro-description">滑动合并相同数字，向 2048 再近一步</text>
-		</view>
-		<view class="game-scores">
-			<view class="score-card">
-				<text class="score-label">当前得分</text>
-				<text class="score-value current-score" :class="{ 'is-long': scoreText.length > 10 }">{{ scoreText }}</text>
+	<view class="number-game-root">
+		<scroll-view class="number-game-page" :scroll-y="!touching">
+			<page-header
+				:fixed="isHeaderFixed"
+				title="数字 2048"
+				titleColor="#333333"
+				titleFontSize="30rpx"
+				titleFontWeight="700"
+				headerClass="page-header-calculator-bg"
+			/>
+			<view class="game-intro">
+				<text class="intro-title">数字 2048</text>
+				<text class="intro-description">滑动合并相同数字，向 2048 再近一步</text>
 			</view>
-			<view class="score-card ml-[30rpx]">
-				<text class="score-label">历史最佳</text>
-				<text class="score-value" :class="{ 'is-long': bestText.length > 10 }">{{ bestText }}</text>
+			<view class="game-scores">
+				<view class="score-card">
+					<text class="score-label">当前得分</text>
+					<text class="score-value current-score" :class="{ 'is-long': scoreText.length > 10 }">{{ scoreText }}</text>
+				</view>
+				<view class="score-card ml-[30rpx]">
+					<text class="score-label">历史最佳</text>
+					<text class="score-value" :class="{ 'is-long': bestText.length > 10 }">{{ bestText }}</text>
+				</view>
 			</view>
-		</view>
-		<view class="game-board-wrap">
-			<view
-				class="game-board"
-				@touchstart="startTouch"
-				@touchmove.stop.prevent="moveTouch"
-				@touchend="endTouch"
-				@touchcancel="cancelTouch"
-			>
-				<view v-for="(row, rowIndex) in boardRows" :key="rowIndex" class="board-row" :class="{ 'is-last': rowIndex == 3 }">
+			<view class="game-board-wrap">
+				<view
+					class="game-board"
+					@touchstart="startTouch"
+					@touchmove.stop.prevent="moveTouch"
+					@touchend="endTouch"
+					@touchcancel="cancelTouch"
+				>
 					<view
-						v-for="cell in row"
-						:key="cell.index"
-						class="board-cell"
-						:class="{ 'is-merged': mergedIndices.includes(cell.index) }"
-						:style="'background-color: ' + tileColor(cell.value) + ';'"
+						v-for="(row, rowIndex) in boardRows"
+						:key="rowIndex"
+						class="board-row"
+						:class="{ 'is-last': rowIndex == 3 }"
 					>
-						<text
-							v-if="cell.value > 0"
-							class="tile-number"
-							:style="tileTextStyle(cell.value)"
-						>{{ cell.value }}</text>
+						<view
+							v-for="cell in row"
+							:key="cell.index"
+							class="board-cell"
+							:class="{ 'is-merged': mergedIndices.includes(cell.index) }"
+							:style="'background-color: ' + tileColor(cell.value) + ';'"
+						>
+							<text v-if="cell.value > 0" class="tile-number" :style="tileTextStyle(cell.value)">{{ cell.value }}</text>
+						</view>
 					</view>
 				</view>
 			</view>
-			<view v-if="overlayVisible" class="board-state">
-				<text class="state-title">{{ stateTitle }}</text>
-				<text class="state-description">{{ stateDescription }}</text>
-				<view v-if="restartPending" class="state-action secondary-action" @click="cancelRestart">
-					<text class="state-action-label secondary-label">继续本局</text>
-				</view>
-				<view v-else-if="showWin && !gameOver" class="state-action" @click="continueGame">
-					<text class="state-action-label">继续挑战</text>
-				</view>
-				<view class="state-action" :class="{ 'secondary-action': showWin && !gameOver && !restartPending }" @click="restartGame">
-					<text class="state-action-label" :class="{ 'secondary-label': showWin && !gameOver && !restartPending }">{{ restartPending ? '确认重新开始' : '再来一局' }}</text>
-				</view>
+			<view class="restart-button" @click="requestRestart">
+				<text class="restart-label">重新开始</text>
 			</view>
-		</view>
-		<view class="restart-button" @click="requestRestart"><text class="restart-label">重新开始</text></view>
-		<view class="game-help">
-			<text class="help-title">玩法提示</text>
-			<text class="help-description">上下左右滑动，相同数字碰撞后合并。</text>
-			<text class="help-description">棋盘填满且无法合并时，游戏结束。</text>
-		</view>
-		<text v-if="storageFailed" class="storage-message">暂时无法保存本局进度，请检查本地存储空间；仍可继续游戏。</text>
-		<view class="safe-area-bottom" />
-	</scroll-view>
+			<view class="game-help">
+				<text class="help-title">玩法提示</text>
+				<text class="help-description">上下左右滑动，相同数字碰撞后合并。</text>
+				<text class="help-description">棋盘填满且无法合并时，游戏结束。</text>
+			</view>
+			<text v-if="storageFailed" class="storage-message">暂时无法保存本局进度，请检查本地存储空间；仍可继续游戏。</text>
+			<view class="safe-area-bottom" />
+		</scroll-view>
+		<app-dialog
+			:visible="ready && overlayVisible && !gameDialogDismissed"
+			:title="stateTitle"
+			:cancel-text="restartPending ? '继续本局' : showWin && !gameOver ? '再来一局' : ''"
+			:confirm-text="restartPending ? '确认重新开始' : showWin && !gameOver ? '继续挑战' : '再来一局'"
+			:close-on-cancel="false"
+			@cancel="restartPending ? cancelRestart() : restartGame()"
+			@confirm="!restartPending && showWin && !gameOver ? continueGame() : restartGame()"
+			@close="dismissGameDialog"
+		>
+			<text class="game-dialog-description">{{ stateDescription }}</text>
+		</app-dialog>
+	</view>
 </template>
 
 <script setup lang="uts">
-	import { computed, ref } from 'vue'
+	import { computed, ref, watch } from 'vue'
 	import {
 		canMove, createBoard, decodeGame, encodeGame, formatGameScore,
 		hasWon, slideBoard, spawnTile, tileColor, validScore
@@ -90,6 +94,7 @@
 	const bestScore = ref(0)
 	const continued = ref(false)
 	const ready = ref(false)
+	const gameDialogDismissed = ref(false)
 	const touching = ref(false)
 	const restartPending = ref(false)
 	const storageFailed = ref(false)
@@ -212,6 +217,13 @@
 		const size = length > 8 ? 20 : length > 6 ? 26 : length > 4 ? 34 : 44
 		return 'color: ' + (value >= 256 ? '#ffffff' : '#318fc2') + ';font-size: ' + size + 'rpx;'
 	}
+
+	const dismissGameDialog = () => {
+		gameDialogDismissed.value = true
+		if (restartPending.value) cancelRestart()
+		else if (showWin.value && !gameOver.value) continueGame()
+	}
+	watch((): boolean => overlayVisible.value, () => { gameDialogDismissed.value = false })
 
 	// lifecycle
 	onLoad(() => {
@@ -368,64 +380,6 @@
 				}
 			}
 		}
-
-		.board-state {
-			position: absolute;
-			left: 0;
-			right: 0;
-			top: 0;
-			bottom: 0;
-			display: flex;
-			flex-direction: column;
-			align-items: center;
-			justify-content: center;
-			padding: 40rpx;
-			border-radius: 28rpx;
-			background-color: rgba(246, 250, 253, 0.95);
-
-			.state-title {
-				font-size: 42rpx;
-				font-weight: 500;
-				line-height: 62rpx;
-				text-align: center;
-				color: #243b4d;
-			}
-
-			.state-description {
-				margin: 20rpx 0 28rpx;
-				font-size: 24rpx;
-				line-height: 40rpx;
-				text-align: center;
-				color: #708b9e;
-			}
-
-			.state-action {
-				display: flex;
-				flex-direction: row;
-				align-items: center;
-				justify-content: center;
-				width: 360rpx;
-				min-height: 84rpx;
-				margin-top: 18rpx;
-				border-radius: 20rpx;
-				background-color: #2d8fc7;
-
-				&.secondary-action {
-					background-color: #e4f3fc;
-				}
-
-				.state-action-label {
-					font-size: 28rpx;
-					line-height: 42rpx;
-					text-align: center;
-					color: #ffffff;
-
-					&.secondary-label {
-						color: #318fc2;
-					}
-				}
-			}
-		}
 	}
 
 	.restart-button {
@@ -478,5 +432,19 @@
 		font-size: 22rpx;
 		line-height: 36rpx;
 		color: #a87947;
+	}
+
+	.game-dialog-description {
+		font-size: 24rpx;
+		line-height: 42rpx;
+		white-space: pre-wrap;
+		color: #718391;
+	}
+	.number-game-root {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		width: 100%;
+		height: 100%;
 	}
 </style>

@@ -14,6 +14,13 @@ $primary-deep-blue: #295BE9;
 $page-header-gradient-bg: linear-gradient(270deg, #4FDFAF 0%, #2C6DEE 100%);
 $text-label: #0067D0;//二级页面标签文字颜色
 
+// 统一弹框：Figma S01（134:758），各业务通过 app-dialog 复用。
+$dialog-mask-color: rgba(20, 39, 63, 0.4);
+$dialog-primary-gradient-bg: linear-gradient(110deg, #2e96c4, #5568d9);
+$dialog-neutral-bg: #f0f7fc;
+$dialog-error-bg: #fff4f1;
+$dialog-error-color: #b46955;
+
 
 /* 行为相关颜色 */
 $uni-color-primary: #007aff;

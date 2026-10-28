@@ -1,6 +1,6 @@
 <template>
 	<view class="practical-container">
-		<scroll-view class="practical-page" scroll-y="true">
+		<scroll-view class="practical-page" :scroll-y="!scrollDisabled">
 			<page-header
 				:fixed="isHeaderFixed"
 				:title="title"
@@ -22,10 +22,11 @@
 
 <script setup lang="uts">
 	import { ref } from 'vue';
-	defineProps<{
+	withDefaults(defineProps<{
 		title: string;
 		subtitle: string;
-	}>();
+		scrollDisabled?: boolean;
+	}>(), { scrollDisabled: false });
 	const isHeaderFixed = ref(false);
 </script>
 

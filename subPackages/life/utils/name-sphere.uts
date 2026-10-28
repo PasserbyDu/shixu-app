@@ -1,0 +1,104 @@
+export type NameSpherePoint = { id: number, index: number, name: string, x: number, y: number, z: number }
+export type NameSphereTag = { id: number, index: number, name: string, number: string, style: string, textStyle: string, selected: boolean }
+export type NameSphereStar = { index: number, style: string, bright: boolean }
+export type NameSphereRotation = { yaw: number, pitch: number }
+export const NAME_SPHERE_PREVIEW_LIMIT = 48
+
+// 固定星场不参与动画帧更新，也不占用点名随机序列。
+export const createNameSphereStars = (): NameSphereStar[] => {
+	const stars: NameSphereStar[] = []
+	for (let index = 0; index < 42; index++) {
+		const size = index % 7 == 0 ? 5 : 3
+		stars.push({
+			index,
+			bright: index % 7 == 0,
+			style: 'left:' + (18 + (index * 97 + 19) % 638) + 'rpx;top:' + (22 + (index * index * 43 + 79) % 804) + 'rpx;width:' + size + 'rpx;height:' + size + 'rpx;opacity:' + (0.3 + index % 6 * 0.12).toFixed(2) + ';'
+		})
+	}
+	return stars
+}
+
+// 球面只负责展示，实际随机抽取仍使用完整候选池。
+export const createNameSphere = (names: string[], eligible: number[], requiredIndex: number = -1): NameSpherePoint[] => {
+	const count = Math.min(NAME_SPHERE_PREVIEW_LIMIT, eligible.length)
+	const indexes: number[] = []
+	for (let index = 0; index < count; index++) indexes.push(eligible[Math.floor(index * eligible.length / count)])
+	if (requiredIndex >= 0 && count > 0 && !indexes.includes(requiredIndex)) indexes[count - 1] = requiredIndex
+	// 同一姓名可占多个展示位置；独立 id 避免重复 key，抽取仍按原名单索引。
+	const tileCount = count <= 1 ? count : Math.max(80, count)
+	const points: NameSpherePoint[] = []
+	for (let index = 0; index < tileCount; index++) {
+		const nameIndex = indexes[index % count]
+		const y = 1 - 2 * (index + 0.5) / tileCount
+		const radius = Math.sqrt(Math.max(0, 1 - y * y))
+		const longitude = index * Math.PI * (3 - Math.sqrt(5))
+		points.push({ id: index, index: nameIndex, name: names[nameIndex], x: Math.cos(longitude) * radius, y, z: Math.sin(longitude) * radius })
+	}
+	return points
+}
+
+export const projectNameSphere = (points: NameSpherePoint[], yaw: number, pitch: number, selectedIndex: number): NameSphereTag[] => {
+	const cosYaw = Math.cos(yaw), sinYaw = Math.sin(yaw), cosPitch = Math.cos(pitch), sinPitch = Math.sin(pitch)
+	const winner = points.find((point: NameSpherePoint): boolean => point.index == selectedIndex)
+	return points.map((point: NameSpherePoint): NameSphereTag => {
+		const x = point.x * cosYaw + point.z * sinYaw
+		const rotatedZ = point.z * cosYaw - point.x * sinYaw
+		const y = point.y * cosPitch - rotatedZ * sinPitch
+		const z = point.y * sinPitch + rotatedZ * cosPitch
+		const depth = (z + 1) / 2
+		const perspective = 1400 / (1400 - z * 236)
+		const selected = winner != null && point.id == winner.id
+		const fontSize = selected ? 24 : 22
+		const maxCharacters = 3
+		const name = point.name.length > maxCharacters ? point.name.slice(0, maxCharacters - 1) + '…' : point.name
+		const width = selected ? 96 : 88
+		const height = selected ? 76 : 70
+		const left = 295 + x * 236 * perspective - width / 2
+		const top = 295 + y * 236 * perspective - height / 2
+		const opacity = selected ? 1 : 0.14 + depth * 0.78
+		const layer = selected ? 201 : Math.round(depth * 100) + 1
+		// 投影球面上两条正交切线。卡片跟随球面朝向，而不是始终正对屏幕。
+		const horizontal = Math.max(0.000001, Math.sqrt(point.x * point.x + point.z * point.z))
+		const projectAxis = (axisX: number, axisY: number, axisZ: number): number[] => {
+			const rotatedX = axisX * cosYaw + axisZ * sinYaw
+			const axisDepth = axisZ * cosYaw - axisX * sinYaw
+			const rotatedY = axisY * cosPitch - axisDepth * sinPitch
+			const rotatedDepth = axisY * sinPitch + axisDepth * cosPitch
+			const correction = 236 * rotatedDepth / (1400 - z * 236)
+			return [perspective * (rotatedX + x * correction), perspective * (rotatedY + y * correction)]
+		}
+		const u = projectAxis(point.z / horizontal, 0, -point.x / horizontal)
+		const v = projectAxis(-point.x * point.y / horizontal, horizontal, -point.z * point.y / horizontal)
+		// 将二维投影矩阵分解为 rotate / scale / rotate，兼容原生端，无需 CSS matrix 或 WebGL。
+		const a = u[0], b = u[1], c = v[0], d = v[1]
+		const sum = Math.sqrt((a + d) * (a + d) + (b - c) * (b - c))
+		const difference = Math.sqrt((a - d) * (a - d) + (b + c) * (b + c))
+		const firstAngle = Math.atan2(b - c, a + d), secondAngle = Math.atan2(b + c, a - d)
+		const before = (firstAngle + secondAngle) * 90 / Math.PI
+		const after = (firstAngle - secondAngle) * 90 / Math.PI
+		const scaleX = (sum + difference) / 2, scaleY = (sum - difference) / 2
+		const transform = 'rotate(' + before.toFixed(3) + 'deg) scale(' + scaleX.toFixed(4) + ',' + scaleY.toFixed(4) + ') rotate(' + after.toFixed(3) + 'deg)'
+		return {
+			id: point.id,
+			index: point.index,
+			name,
+			number: 'NO. ' + (point.index + 1),
+			selected,
+			style: 'left:' + left.toFixed(2) + 'rpx;top:' + top.toFixed(2) + 'rpx;width:' + width.toFixed(2) + 'rpx;height:' + height.toFixed(2) + 'rpx;opacity:' + opacity.toFixed(2) + ';z-index:' + layer + ';transform:' + transform + ';',
+			textStyle: 'font-size:' + fontSize.toFixed(2) + 'rpx;'
+		}
+	})
+}
+
+// 横向至少两圈、纵向至少一圈；两个轴最终都对齐选中姓名的正前方角度。
+export const nameSphereTarget = (point: NameSpherePoint, currentYaw: number, currentPitch: number): NameSphereRotation => {
+	const turn = Math.PI * 2
+	const frontYaw = Math.atan2(-point.x, point.z)
+	const delta = ((frontYaw - currentYaw) % turn + turn) % turn
+	const frontPitch = Math.atan2(point.y, Math.sqrt(point.x * point.x + point.z * point.z))
+	const pitchDelta = ((frontPitch - currentPitch) % turn + turn) % turn
+	return {
+		yaw: currentYaw + turn * 2 + delta,
+		pitch: currentPitch + turn + pitchDelta
+	}
+}

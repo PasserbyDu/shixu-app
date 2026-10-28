@@ -68,93 +68,70 @@
 		<text v-if="storageError.length > 0" class="archive-retry" @click="persist(true)">重新保存当前记录</text>
 		<text class="tool-footnote">记录仅保存在本机，最多200条；每条记录计1次训练，概览按本周实际记录统计。</text>
 		<template #popup>
-			<uni-popup ref="formPopup" @close="resetForm">
-				<view class="tool-popup-card">
-					<view class="tool-popup-heading">
-						<text class="tool-popup-title">{{ editingId > 0 ? '编辑训练' : '记录训练' }}</text>
-						<view class="popup-close-button" @click="closeForm">
-							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+			<app-dialog
+				ref="formPopup"
+				@close="resetForm"
+				:title="editingId > 0 ? '编辑训练' : '记录训练'"
+				confirm-text="保存训练"
+				@confirm="saveRecord"
+				:error="formError"
+				:danger-text="editingId > 0 ? '删除记录' : ''"
+				@danger="deleteRecord"
+			>
+				<view>
+					<view class="wellness-form">
+						<view class="form-field">
+							<text class="form-label">训练日期</text>
+							<picker mode="date" :value="formDate" start="1900-01-01" :end="today" @change="changeDate">
+								<view class="tool-field">
+									<text class="field-value">{{ formDate }}</text>
+									<UniIcons type="bottom" size="26rpx" color="#278dca" />
+								</view>
+							</picker>
+						</view>
+						<view class="form-field">
+							<text class="form-label">训练分类</text>
+							<picker :range="categoryLabels" :value="formCategory" @change="changeCategory">
+								<view class="tool-field">
+									<text class="field-value">{{ categoryLabels[formCategory] }}</text>
+									<UniIcons type="bottom" size="26rpx" color="#278dca" />
+								</view>
+							</picker>
+						</view>
+						<view class="form-field">
+							<text class="form-label">动作名称</text>
+							<input v-model="formAction" class="form-input" :maxlength="-1" placeholder="填写动作，或从动作库选择" />
+						</view>
+						<view class="form-field">
+							<text class="form-label">组数（有氧可填 0）</text>
+							<input v-model="formSets" class="form-input" type="number" :maxlength="-1" />
+						</view>
+						<view class="form-field">
+							<text class="form-label">训练时长（分钟）</text>
+							<input v-model="formMinutes" class="form-input" type="number" :maxlength="-1" />
 						</view>
 					</view>
-					<scroll-view class="tool-popup-scroll" scroll-y="true">
-						<view class="tool-popup-body">
-							<view class="wellness-form">
-								<view class="form-field">
-									<text class="form-label">训练日期</text>
-									<picker mode="date" :value="formDate" start="1900-01-01" :end="today" @change="changeDate">
-										<view class="tool-field">
-											<text class="field-value">{{ formDate }}</text>
-											<UniIcons type="bottom" size="26rpx" color="#278dca" />
-										</view>
-									</picker>
-								</view>
-								<view class="form-field">
-									<text class="form-label">训练分类</text>
-									<picker :range="categoryLabels" :value="formCategory" @change="changeCategory">
-										<view class="tool-field">
-											<text class="field-value">{{ categoryLabels[formCategory] }}</text>
-											<UniIcons type="bottom" size="26rpx" color="#278dca" />
-										</view>
-									</picker>
-								</view>
-								<view class="form-field">
-									<text class="form-label">动作名称</text>
-									<input v-model="formAction" class="form-input" :maxlength="-1" placeholder="填写动作，或从动作库选择" />
-								</view>
-								<view class="form-field">
-									<text class="form-label">组数（有氧可填 0）</text>
-									<input v-model="formSets" class="form-input" type="number" :maxlength="-1" />
-								</view>
-								<view class="form-field">
-									<text class="form-label">训练时长（分钟）</text>
-									<input v-model="formMinutes" class="form-input" type="number" :maxlength="-1" />
-								</view>
-								<text v-if="formError.length > 0" class="form-error">{{ formError }}</text>
-								<view class="tool-popup-actions">
-									<view v-if="editingId > 0" class="tool-popup-button is-delete" @click="deleteRecord">
-										<text class="tool-popup-button-text">删除记录</text>
-									</view>
-									<view class="tool-popup-button is-cancel" @click="closeForm">
-										<text class="tool-popup-button-text">取消</text>
-									</view>
-									<view class="tool-popup-button" @click="saveRecord">
-										<text class="tool-popup-button-text">保存训练</text>
-									</view>
+				</view>
+			</app-dialog>
+			<app-dialog ref="libraryPopup" title="动作库" :show-footer="false">
+				<view>
+					<view class="action-library">
+						<view v-for="(category, categoryIndex) in categories" :key="category.title" class="action-group">
+							<text class="text-[26rpx] leading-[42rpx] text-[#233d50]">{{ category.title }}</text>
+							<view class="action-options">
+								<view
+									v-for="name in category.actions"
+									:key="name"
+									class="action-option"
+									@click="newRecord(categoryIndex, name)"
+								>
+									<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">{{ name }}</text>
 								</view>
 							</view>
 						</view>
-					</scroll-view>
-				</view>
-			</uni-popup>
-			<uni-popup ref="libraryPopup">
-				<view class="tool-popup-card">
-					<view class="tool-popup-heading">
-						<text class="tool-popup-title">动作库</text>
-						<view class="popup-close-button" @click="closeLibrary">
-							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
-						</view>
 					</view>
-					<scroll-view class="tool-popup-scroll" scroll-y="true">
-						<view class="tool-popup-body">
-							<view class="action-library">
-								<view v-for="(category, categoryIndex) in categories" :key="category.title" class="action-group">
-									<text class="text-[26rpx] leading-[42rpx] text-[#233d50]">{{ category.title }}</text>
-									<view class="action-options">
-										<view
-											v-for="name in category.actions"
-											:key="name"
-											class="action-option"
-											@click="newRecord(categoryIndex, name)"
-										>
-											<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">{{ name }}</text>
-										</view>
-									</view>
-								</view>
-							</view>
-						</view>
-					</scroll-view>
 				</view>
-			</uni-popup>
+			</app-dialog>
 		</template>
 	</tool-page>
 </template>
@@ -237,9 +214,6 @@
 	};
 	const closeForm = () => {
 		if (formPopup.value != null) formPopup.value!.close();
-	};
-	const closeLibrary = () => {
-		if (libraryPopup.value != null) libraryPopup.value!.close();
 	};
 	const openLibrary = () => {
 		if (!ready.value) return;
@@ -339,7 +313,6 @@
 </script>
 
 <style scoped lang="scss">
-	@import '@/styles/tool-popup.scss';
 	@import '@/styles/wellness-tools.scss';
 	.overview-card {
 		.overview-heading {
