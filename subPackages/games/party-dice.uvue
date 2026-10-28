@@ -19,9 +19,17 @@
 				<text class="text-[24rpx] leading-[40rpx] text-[#278dca]">{{ stageLabel }}</text>
 			</view>
 			<view class="dice-grid">
-				<dice-face v-for="(value, index) in displayedDice" :key="index" :value="value" :rolling="stage == 'rolling'" />
+				<dice-face
+					v-for="(value, index) in displayedDice"
+					:key="index"
+					:value="value"
+					:rolling="stage == 'rolling'"
+					:frame="rollFrame"
+					:seed="index"
+				/>
 			</view>
 			<text class="board-caption">{{ stage == 'revealed' ? '本轮点数 ' + values.join(' · ') : stage == 'rolling' ? '正在摇动，稍等一下…' : stage == 'covered' ? '已盖盅，点击开盅查看' : '选择数量，点击下方按钮摇骰' }}</text>
+			<text v-if="stage == 'revealed'" class="dice-reading-note">以朝前主面的点数计分，顶部和侧面展示相邻点数</text>
 		</view>
 		<view class="tool-card total-card">
 			<view class="total-values">
@@ -65,6 +73,7 @@
 	const animationValues = ref<number[]>([]);
 	const stage = ref('idle');
 	const round = ref(0);
+	const rollFrame = ref(0);
 	const soundEnabled = ref(true);
 	const audioMessage = ref('');
 	let pendingValues: number[] = [];
@@ -140,6 +149,7 @@
 	const roll = () => {
 		if (stage.value == 'rolling' || disposed) return;
 		pendingValues = rollPartyDice(count.value);
+		rollFrame.value = 0;
 		animationValues.value = rollPartyDice(count.value);
 		values.value = [];
 		round.value++;
@@ -155,8 +165,9 @@
 			}
 		}
 		animationTimer = setInterval(() => {
+			rollFrame.value++;
 			if (Date.now() >= deadline) finishRoll(true);else animationValues.value = rollPartyDice(count.value);
-		}, 90);
+		}, 45);
 		settleTimer = setTimeout(() => {
 			finishRoll(true);
 		}, 850);
@@ -269,6 +280,14 @@
 			line-height: 40rpx;
 			text-align: center;
 			color: #278dca;
+		}
+		.dice-reading-note {
+			display: block;
+			margin-top: 12rpx;
+			font-size: 22rpx;
+			line-height: 38rpx;
+			text-align: center;
+			color: #8795a1;
 		}
 	}
 

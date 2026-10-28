@@ -1,72 +1,95 @@
 <template>
-	<view :class="['dice-face', rolling ? (value % 2 == 0 ? 'is-rolling-left' : 'is-rolling-right') : '']">
-		<text v-if="value == 0" class="covered-label">?</text>
-		<view v-else class="pip-grid">
-			<view v-for="position in positions" :key="position" class="pip-cell">
-				<view v-if="pips.includes(position)" :class="['pip', value == 1 ? 'red-pip' : '']" />
+	<view class="dice-body">
+		<view class="dice-shadow" :class="{ isRolling: rolling }" />
+		<view v-for="face in surfaces" :key="face.id" class="dice-surface" :style="face.style">
+			<text v-if="face.value == 0" class="covered-label">?</text>
+			<view v-else class="pip-grid">
+				<view v-for="position in positions" :key="position" class="pip-cell">
+					<view
+						v-if="face.pips.includes(position)"
+						class="pip"
+						:class="{ 'red-pip': face.value == 1 || face.value == 4 }"
+					/>
+				</view>
 			</view>
 		</view>
 	</view>
 </template>
-
 <script setup lang="uts">
-	import { computed } from 'vue';
-	import { dicePips } from '@/subPackages/games/utils/party-dice.uts';
-	const props = defineProps<{
+	import { computed } from "vue";
+	import { DiceSurface, projectDice } from "@/subPackages/games/utils/dice-model.uts";
+	// data
+	const props = withDefaults(defineProps<{
 		value: number;
 		rolling: boolean;
-	}>();
+		frame?: number;
+		seed?: number;
+	}>(), { frame: 0, seed: 0 });
 	const positions = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-	const pips = computed((): number[] => dicePips(props.value));
+	// computed
+	const surfaces = computed((): DiceSurface[] => projectDice(props.value, props.rolling, props.frame, props.seed));
 </script>
 
 <style scoped lang="scss">
-	.dice-face {
-		display: flex;
-		flex-direction: row;
-		align-items: center;
-		justify-content: center;
-		box-sizing: border-box;
-		width: 140rpx;
-		height: 140rpx;
-		margin: 20rpx;
-		padding: 20rpx;
-		border-radius: 28rpx;
-		background-color: #ffffff;
-		box-shadow: 0 8rpx 0 #bed9e8;
-		transition: transform 90ms;
-		&.is-rolling-left {
-			transform: rotate(-8deg);
+	.dice-body {
+		position: relative;
+		width: 180rpx;
+		height: 180rpx;
+		margin: 8rpx;
+		.dice-shadow {
+			position: absolute;
+			left: 28rpx;
+			top: 140rpx;
+			width: 132rpx;
+			height: 20rpx;
+			border-radius: 66rpx;
+			background-color: rgba(24, 57, 85, 0.16);
+			box-shadow: 0 8rpx 14rpx rgba(24, 57, 85, 0.16);
+			&.isRolling {
+				opacity: 0.5;
+			}
 		}
-		&.is-rolling-right {
-			transform: rotate(8deg);
-		}
-		.covered-label {
-			font-size: 54rpx;
-			line-height: 76rpx;
-			font-weight: 500;
-			color: #a8c9dd;
-		}
-		.pip-grid {
+		.dice-surface {
+			position: absolute;
 			display: flex;
 			flex-direction: row;
-			flex-wrap: wrap;
-			width: 100%;
-			height: 100%;
-			.pip-cell {
+			align-items: center;
+			justify-content: center;
+			box-sizing: border-box;
+			width: 100rpx;
+			height: 100rpx;
+			padding: 12rpx;
+			border: 1rpx solid #c4d1db;
+			border-radius: 4rpx;
+			transform-origin: 50% 50%;
+			background: linear-gradient(145deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0));
+			.covered-label {
+				font-size: 42rpx;
+				line-height: 58rpx;
+				font-weight: 500;
+				color: #a8c9dd;
+			}
+			.pip-grid {
 				display: flex;
 				flex-direction: row;
-				align-items: center;
-				justify-content: center;
-				width: 33.3333%;
-				height: 33.3333%;
-				.pip {
-					width: 20rpx;
-					height: 20rpx;
-					border-radius: 10rpx;
-					background-color: #2e91c6;
-					&.red-pip {
-						background-color: #e67c6a;
+				flex-wrap: wrap;
+				width: 100%;
+				height: 100%;
+				.pip-cell {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					justify-content: center;
+					width: 33.3333%;
+					height: 33.3333%;
+					.pip {
+						width: 16rpx;
+						height: 16rpx;
+						border-radius: 8rpx;
+						background: linear-gradient(145deg, #0f263a, #40596e);
+						&.red-pip {
+							background: linear-gradient(145deg, #9d2633, #df535b);
+						}
 					}
 				}
 			}

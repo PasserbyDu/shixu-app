@@ -1,0 +1,47 @@
+import { dicePips } from '@/subPackages/games/utils/party-dice.uts'
+type Vector = { x: number, y: number, z: number }
+export type DiceSurface = { id: number, value: number, pips: number[], style: string }
+type Face = { center: Vector, u: Vector, v: Vector, normal: Vector }
+const faces: Face[] = [
+	{ center: { x: 0, y: 0, z: 50 }, u: { x: 1, y: 0, z: 0 }, v: { x: 0, y: 1, z: 0 }, normal: { x: 0, y: 0, z: 1 } },
+	{ center: { x: 0, y: 0, z: -50 }, u: { x: -1, y: 0, z: 0 }, v: { x: 0, y: 1, z: 0 }, normal: { x: 0, y: 0, z: -1 } },
+	{ center: { x: 0, y: -50, z: 0 }, u: { x: 1, y: 0, z: 0 }, v: { x: 0, y: 0, z: 1 }, normal: { x: 0, y: -1, z: 0 } },
+	{ center: { x: 0, y: 50, z: 0 }, u: { x: 1, y: 0, z: 0 }, v: { x: 0, y: 0, z: -1 }, normal: { x: 0, y: 1, z: 0 } },
+	{ center: { x: 50, y: 0, z: 0 }, u: { x: 0, y: 0, z: -1 }, v: { x: 0, y: 1, z: 0 }, normal: { x: 1, y: 0, z: 0 } },
+	{ center: { x: -50, y: 0, z: 0 }, u: { x: 0, y: 0, z: 1 }, v: { x: 0, y: 1, z: 0 }, normal: { x: -1, y: 0, z: 0 } }
+]
+// 正面 / 顶面 / 右面；对面之和为 7，六组朝向来自同一颗骰子的空间转动。
+const adjacent: number[][] = [[0, 0, 0], [1, 2, 3], [2, 6, 3], [3, 2, 6], [4, 2, 1], [5, 1, 3], [6, 5, 3]]
+export const projectDice = (value: number, rolling: boolean, frame: number, seed: number): DiceSurface[] => {
+	const yaw = -0.58 + (rolling ? frame * 0.55 + seed * 0.3 : 0)
+	const pitch = -0.48 + (rolling ? frame * 0.43 + seed * 0.2 : 0)
+	const roll = rolling ? Math.sin(frame * 0.4 + seed) * 0.22 : (seed % 3 - 1) * 0.06
+	const cy = Math.cos(yaw), sy = Math.sin(yaw), cx = Math.cos(pitch), sx = Math.sin(pitch), cz = Math.cos(roll), sz = Math.sin(roll)
+	const rotate = (p: Vector): Vector => {
+		const x = p.x * cy + p.z * sy, z = p.z * cy - p.x * sy
+		const y = p.y * cx - z * sx, depth = p.y * sx + z * cx
+		return { x: x * cz - y * sz, y: x * sz + y * cz, z: depth }
+	}
+	const safe = Number.isInteger(value) && value >= 1 && value <= 6 ? value : 0
+	const n = adjacent[safe]
+	const values = safe == 0 ? [0, 0, 0, 0, 0, 0] : [n[0], 7 - n[0], n[1], 7 - n[1], n[2], 7 - n[2]]
+	const surfaces: DiceSurface[] = []
+	faces.forEach((face: Face, index: number) => {
+		const normal = rotate(face.normal)
+		if (normal.z <= 0.015) return
+		const center = rotate(face.center), u = rotate(face.u), v = rotate(face.v)
+		// 仿射投影使三个面的边缘相接，不依赖原生端不完整支持的 preserve-3d。
+		const a = u.x, b = u.y, c = v.x, d = v.y
+		const sum = Math.sqrt((a + d) * (a + d) + (b - c) * (b - c))
+		const diff = Math.sqrt((a - d) * (a - d) + (b + c) * (b + c))
+		const first = Math.atan2(b - c, a + d), second = Math.atan2(b + c, a - d)
+		const before = (first + second) * 90 / Math.PI, after = (first - second) * 90 / Math.PI
+		const light = Math.max(0, Math.min(1, -normal.x * 0.35 - normal.y * 0.6 + normal.z * 0.65))
+		const shade = Math.round(192 + light * 63)
+		surfaces.push({
+			id: index, value: values[index], pips: dicePips(values[index]),
+			style: 'left:' + (40 + center.x).toFixed(2) + 'rpx;top:' + (40 + center.y).toFixed(2) + 'rpx;z-index:' + Math.round(100 + center.z) + ';background-color:rgb(' + shade + ',' + Math.min(255, shade + 4) + ',' + Math.min(255, shade + 8) + ');transform:rotate(' + before.toFixed(3) + 'deg) scale(' + ((sum + diff) / 2).toFixed(4) + ',' + ((sum - diff) / 2).toFixed(4) + ') rotate(' + after.toFixed(3) + 'deg);'
+		})
+	})
+	return surfaces
+}

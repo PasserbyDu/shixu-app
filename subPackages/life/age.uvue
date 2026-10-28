@@ -68,9 +68,19 @@
 			<view class="identity-column">
 				<text class="identity-label">星座</text>
 				<text class="identity-value">{{ result!.star }}</text>
+				<text v-if="starInfo != null" class="identity-hint">{{ starInfo!.tag }}</text>
 			</view>
 		</view>
-		<text class="tool-footnote">生肖按农历春节划分；星座按常见公历日期分界计算。月末生日按目标月末进位，闰日生日在非闰年按2月末计算周年。出生日期仅用于本次计算，不会保存。</text>
+		<text v-if="result != null" class="tool-footnote">以下为星座文化与生肖民俗的趣味解读，搭配不代表关系好坏，运势文字不是个人预测。</text>
+		<view v-for="reading in readings" :key="reading.name" class="tool-card reading-card">
+			<text class="reading-name">{{ reading.name }}</text>
+			<view class="reading-tag"><text class="reading-tag-text">{{ reading.tag }}</text></view>
+			<view v-for="section in reading.sections" :key="section.title" class="reading-section">
+				<text class="reading-heading">{{ section.title }}</text>
+				<text class="reading-text">{{ section.text }}</text>
+			</view>
+		</view>
+		<text class="tool-footnote">生肖按农历春节划分；星座按常见公历日期分界计算，交界日不作精确星盘判定。生肖地支五行不等于八字喜用神，民俗内容不作流年批命。月末生日按目标月末进位，闰日生日在非闰年按2月末计算周年。出生日期仅用于本次计算，不会保存。</text>
 	</tool-page>
 </template>
 
@@ -79,6 +89,7 @@
 	import { onLoad, onShow, onUnload } from '@dcloudio/uni-app';
 	import { formatCalendarDate } from '@/utils/calculators.uts';
 	import { recordToolUsage } from '@/utils/tool-usage.uts';
+	import { CultureReading, starReading, animalReading } from '@/subPackages/life/utils/zodiac-readings.uts';
 	import {
 		AgeResult,
 		MIN_CALENDAR_DATE,
@@ -113,6 +124,16 @@
 	let isSelectingDate = false;
 	// computed
 	const birthLabel = computed((): string => lunarText(solarToLunar(birth.value)));
+	const starInfo = computed((): CultureReading | null => result.value == null ? null : starReading(result.value!.star));
+	const animalInfo = computed((): CultureReading | null => result.value == null ? null : animalReading(result.value!.zodiac));
+	const readings = computed((): CultureReading[] => {
+		if (result.value == null) return [];
+		const items: CultureReading[] = [];
+		const star = starInfo.value, animal = animalInfo.value;
+		if (star != null) items.push(star);
+		if (animal != null) items.push(animal);
+		return items;
+	});
 	// methods
 	const invalidate = () => {
 		result.value = null;
@@ -175,7 +196,47 @@
 </script>
 
 <style scoped lang="scss">
+	@import '@/uni.scss';
 	@import '@/styles/practical-tools.scss';
+	.reading-card {
+		.reading-name {
+			font-size: 32rpx;
+			line-height: 48rpx;
+			font-weight: 500;
+			color: $text-color;
+		}
+		.reading-tag {
+			align-self: flex-start;
+			margin-top: 16rpx;
+			padding: 10rpx 18rpx;
+			border-radius: 16rpx;
+			background-color: rgba($primary-color, 0.08);
+			.reading-tag-text {
+				font-size: 24rpx;
+				line-height: 38rpx;
+				color: $primary-color;
+			}
+		}
+		.reading-section {
+			display: flex;
+			flex-direction: column;
+			margin-top: 26rpx;
+			padding-top: 24rpx;
+			border-top: 1rpx solid #edf1f6;
+			.reading-heading {
+				font-size: 26rpx;
+				line-height: 42rpx;
+				font-weight: 500;
+				color: $text-color;
+			}
+			.reading-text {
+				margin-top: 14rpx;
+				font-size: 25rpx;
+				line-height: 44rpx;
+				color: $text-color-grey;
+			}
+		}
+	}
 	.tool-card {
 		.birth-row {
 			.row-control {
@@ -202,6 +263,12 @@
 					font-size: 30rpx;
 					line-height: 46rpx;
 					color: #233d50;
+				}
+				.identity-hint {
+					margin-top: 12rpx;
+					font-size: 22rpx;
+					line-height: 36rpx;
+					color: $primary-color;
 				}
 			}
 		}
