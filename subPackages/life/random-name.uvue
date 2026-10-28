@@ -1,0 +1,529 @@
+<template>
+	<tool-page title="随机点名" subtitle="把名单交给随机，让惊喜落在下一位">
+		<view class="name-orbit">
+			<text class="orbit-status">{{ state.repeat ? state.names.length : remaining }} 人{{ drawing ? '正在等待揭晓' : '可参与点名' }}</text>
+			<view class="orbit-ring outer-ring" />
+			<view class="orbit-ring inner-ring" />
+			<view class="orbit-center">
+				<text class="orbit-symbol" :class="{ 'is-name': drawing }">{{ drawing ? shortName(spinningName) : '?' }}</text>
+				<text class="orbit-caption">{{ drawing ? '幸运即将揭晓' : '下一位，会是谁？' }}</text>
+			</view>
+			<view v-for="(name, index) in orbitNames" :key="index" class="orbit-name" :class="'orbit-name-' + index">
+				<text class="orbit-name-label">{{ shortName(name) }}</text>
+			</view>
+			<text class="orbit-footnote">等概率随机抽取 · 让每一次选择都有惊喜</text>
+		</view>
+		<view class="discovery-primary" :class="{ 'is-disabled': drawing || !ready }" @click="startDraw">
+			<text class="primary-label">{{ drawing ? '正在随机点名…' : '开始随机点名' }}</text>
+		</view>
+		<view class="discovery-card name-settings">
+			<text class="discovery-title">点名设置</text>
+			<view class="settings-row">
+				<text class="setting-label">每次抽取</text>
+				<view class="count-options">
+					<view
+						v-for="count in [1, 3, 5]"
+						:key="count"
+						class="count-option"
+						:class="{ 'is-active': state.batch == count }"
+						@click="setBatch(count)"
+					>
+						<text class="count-label">{{ count }} 人</text>
+					</view>
+				</view>
+			</view>
+			<view class="settings-row">
+				<view class="setting-copy">
+					<text class="setting-label">允许重复点名</text>
+					<text class="discovery-note">关闭后，本轮已选姓名不再参与</text>
+				</view>
+				<switch :checked="state.repeat" :disabled="drawing || !ready" color="#3186b2" @change="changeRepeat" />
+			</view>
+		</view>
+		<view class="discovery-card">
+			<view class="discovery-row">
+				<text class="discovery-title">我的名单 · {{ state.names.length }} 人</text>
+				<text class="discovery-link" @click="openImport">粘贴 / 编辑</text>
+			</view>
+			<empty-state v-if="state.names.length == 0" image="" description="还没有名单，粘贴姓名开始点名" />
+			<view class="discovery-tags">
+				<view
+					v-for="(name, index) in state.names"
+					:key="index"
+					class="discovery-tag"
+					:class="{ 'is-called': state.called.includes(index) }"
+				>
+					<text class="tag-label">{{ name }}</text>
+				</view>
+			</view>
+			<view class="discovery-row">
+				<text class="discovery-note">本轮已点名 {{ state.called.length }} 人</text>
+				<text class="discovery-note">{{ state.repeat ? '可重复抽取' : '剩余 ' + remaining + ' 人' }}</text>
+			</view>
+			<text class="discovery-link" @click="requestReset">开始新一轮</text>
+		</view>
+		<text v-if="storageError.length > 0" class="tool-error" @click="persist(true)">{{ storageError }}，点击重试保存</text>
+		<text class="tool-footnote">课堂互动 · 活动抽签 · 今日幸运同学。名单和本轮进度仅保存在本机，最多500项，同一批次内不重复抽取。</text>
+		<template #popup>
+			<uni-popup ref="importPopup">
+				<view class="tool-popup-card name-popup-card">
+					<view class="tool-popup-heading">
+						<text class="tool-popup-title">粘贴姓名，一键识别</text>
+						<view class="popup-close-button" @click="closeImport">
+							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+						</view>
+					</view>
+					<scroll-view class="tool-popup-scroll" scroll-y="true">
+						<view class="tool-popup-body">
+							<view class="discovery-row">
+								<text class="discovery-note">整份名单直接粘贴，分隔符交给我们</text>
+								<text class="discovery-link" @click="pasteNames">读取剪贴板</text>
+							</view>
+							<textarea v-model="draft" class="name-popup-input" :maxlength="30000" placeholder="输入或粘贴姓名，用空格、换行或标点分隔" />
+							<text class="discovery-note">支持空格、换行、逗号、句号、顿号、分号、/、|；连续分隔符和首尾空白会自动忽略。</text>
+							<view class="discovery-row">
+								<text class="discovery-title">合并重复姓名</text>
+								<switch :checked="mergeDuplicates" color="#3186b2" @change="mergeDuplicates = $event.detail.value" />
+							</view>
+							<text class="name-popup-summary">识别 {{ preview.total }} 项 · 重复 {{ preview.duplicates }} 项 · 可导入 {{ preview.names.length }} 人</text>
+							<text v-if="preview.error.length > 0 || importError.length > 0" class="tool-error">{{ preview.error.length > 0 ? preview.error : importError }}</text>
+							<view class="discovery-tags">
+								<view v-for="(name, index) in preview.names.slice(0, 30)" :key="index" class="discovery-tag">
+									<text class="tag-label">{{ name }}</text>
+								</view>
+							</view>
+							<text v-if="preview.names.length > 30" class="discovery-note">仅预览前30项，导入时包含全部姓名</text>
+							<text class="discovery-title">导入方式</text>
+							<view class="discovery-row">
+								<text class="discovery-link" @click="appendMode = false">{{ !appendMode ? '●' : '○' }} 替换当前名单</text>
+								<text class="discovery-link" @click="appendMode = true">{{ appendMode ? '●' : '○' }} 追加到现有</text>
+							</view>
+							<text class="discovery-note">替换名单将开始新一轮；追加名单保留本轮进度。</text>
+							<view class="discovery-popup-actions">
+								<view class="popup-action" @click="closeImport">
+									<text class="action-text">取消</text>
+								</view>
+								<view class="popup-action is-primary" @click="applyImport">
+									<text class="action-text">导入 {{ preview.names.length }} 个姓名</text>
+								</view>
+							</view>
+						</view>
+					</scroll-view>
+				</view>
+			</uni-popup>
+			<uni-popup ref="resultPopup">
+				<view class="tool-popup-card name-popup-card">
+					<view class="tool-popup-heading">
+						<text class="tool-popup-title">本轮幸运同学</text>
+						<view class="popup-close-button" @click="closeResult">
+							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+						</view>
+					</view>
+					<scroll-view class="tool-popup-scroll" scroll-y="true">
+						<view class="tool-popup-body">
+							<text class="discovery-note">第 {{ state.round }} 轮 · 随机抽取 {{ winners.length }} 人</text>
+							<view class="name-popup-winners">
+								<UniIcons type="star-filled" size="72rpx" color="#657ddb" />
+								<text v-for="(name, index) in winners" :key="index" class="winner-name">{{ name }}</text>
+								<text class="discovery-note">今天的高光时刻，属于你</text>
+							</view>
+							<text class="discovery-note">本轮已点名 {{ state.called.length }} 人 · {{ state.repeat ? '允许再次参与' : '剩余 ' + remaining + ' 人' }}</text>
+							<view class="discovery-popup-actions">
+								<view class="popup-action" @click="copyWinners">
+									<text class="action-text">复制姓名</text>
+								</view>
+								<view class="popup-action is-primary" @click="continueDraw">
+									<text class="action-text">继续点名</text>
+								</view>
+							</view>
+						</view>
+					</scroll-view>
+				</view>
+			</uni-popup>
+			<uni-popup ref="resetPopup">
+				<view class="tool-popup-card">
+					<view class="tool-popup-heading">
+						<text class="tool-popup-title">开始新一轮？</text>
+						<view class="popup-close-button" @click="resetPopup?.close()">
+							<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+						</view>
+					</view>
+					<view class="tool-popup-body name-popup-confirm">
+						<text class="discovery-note">当前名单会保留，只重置本轮点名进度。已抽中的姓名将重新参与随机点名。</text>
+						<view class="discovery-popup-actions">
+							<view class="popup-action" @click="resetPopup?.close()">
+								<text class="action-text">取消</text>
+							</view>
+							<view class="popup-action is-primary" @click="resetRound">
+								<text class="action-text">开始新一轮</text>
+							</view>
+						</view>
+					</view>
+				</view>
+			</uni-popup>
+		</template>
+	</tool-page>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref } from 'vue';
+	import {
+		NameState,
+		NamePreview,
+		emptyNameState,
+		parseNameList,
+		drawNameIndices,
+		encodeNameState,
+		decodeNameState,
+		nameStore
+	} from '@/subPackages/life/utils/random-name.uts';
+	import { useSavedArchive } from '@/subPackages/life/utils/wellness-storage.uts';
+	import { recordToolUsage } from '@/utils/tool-usage';
+	import { toast } from '@/utils/toast';
+	// data
+	type PopupRef = {
+		open: () => void;
+		close: () => void;
+	};
+	const importPopup = ref<PopupRef | null>(null),
+		resultPopup = ref<PopupRef | null>(null),
+		resetPopup = ref<PopupRef | null>(null);
+	const state = ref<NameState>(emptyNameState());
+	const archive = useSavedArchive(nameStore);
+	const {
+		ready,
+		storageError
+	} = archive;
+	const drawing = ref(false),
+		spinningName = ref(''),
+		winners = ref<string[]>([]);
+	const draft = ref(''),
+		mergeDuplicates = ref(true),
+		appendMode = ref(false),
+		importError = ref('');
+	let spinTimer = -1,
+		finishTimer = -1,
+		disposed = false;
+	// computed
+	const remaining = computed((): number => state.value.names.length - state.value.called.length);
+	const preview = computed((): NamePreview => parseNameList(draft.value, mergeDuplicates.value));
+	const orbitNames = computed((): string[] => state.value.names.slice(0, 4));
+	// methods
+	const shortName = (name: string): string => name.length > 6 ? name.slice(0, 6) + '…' : name;
+	const persist = (explicit: boolean = false) => archive.save(encodeNameState(state.value), explicit);
+	const stopDrawing = () => {
+		if (spinTimer >= 0) clearInterval(spinTimer);
+		if (finishTimer >= 0) clearTimeout(finishTimer);
+		spinTimer = -1;
+		finishTimer = -1;
+		drawing.value = false;
+	};
+	const openImport = () => {
+		if (drawing.value || !ready.value) return;
+		draft.value = state.value.names.join('\n');
+		appendMode.value = false;
+		importError.value = '';
+		importPopup.value?.open();
+	};
+	const closeImport = () => {
+		uni.hideKeyboard();
+		importPopup.value?.close();
+	};
+	const closeResult = () => resultPopup.value?.close();
+	const pasteNames = () => uni.getClipboardData({
+		success: result => {
+			if (!disposed) draft.value = result.data;
+		},
+		fail: () => toast('读取剪贴板失败，可手动粘贴')
+	});
+	const applyImport = () => {
+		if (drawing.value || !ready.value) return;
+		const value = preview.value;
+		if (value.error.length > 0 || value.names.length == 0) {
+			importError.value = value.error.length > 0 ? value.error : '未识别到姓名，请检查分隔符';
+			return;
+		}
+		let incoming = value.names;
+		if (appendMode.value && mergeDuplicates.value) incoming = incoming.filter((name: string): boolean => !state.value.names.includes(name));
+		if (appendMode.value && incoming.length == 0) {
+			importError.value = '这些姓名已在当前名单中';
+			return;
+		}
+		if ((appendMode.value ? state.value.names.length : 0) + incoming.length > 500) {
+			importError.value = '合并后超过500项，请减少姓名';
+			return;
+		}
+		const hadNames = state.value.names.length > 0;
+		state.value.names = appendMode.value ? state.value.names.concat(incoming) : incoming.slice();
+		if (!appendMode.value) {
+			state.value.called = [];
+			state.value.round = hadNames ? Math.min(999999, state.value.round + 1) : 1;
+		}
+		winners.value = [];
+		persist();
+		closeImport();
+	};
+	const setBatch = (value: number) => {
+		if (drawing.value || !ready.value) return;
+		state.value.batch = value;
+		persist();
+	};
+	const changeRepeat = (event: UniSwitchChangeEvent) => {
+		if (drawing.value || !ready.value) return;
+		state.value.repeat = event.detail.value;
+		persist();
+	};
+	const requestReset = () => {
+		if (drawing.value || !ready.value) return;
+		resetPopup.value?.open();
+	};
+	const resetRound = () => {
+		state.value.called = [];
+		state.value.round = Math.min(999999, state.value.round + 1);
+		winners.value = [];
+		persist();
+		resetPopup.value?.close();
+	};
+	const startDraw = () => {
+		if (drawing.value || !ready.value) return;
+		if (state.value.names.length == 0) return openImport();
+		const selected = drawNameIndices(state.value);
+		if (selected.length == 0) return requestReset();
+		drawing.value = true;
+		spinningName.value = state.value.names[selected[0]];
+		spinTimer = setInterval(() => {
+			spinningName.value = state.value.names[Math.floor(Math.random() * state.value.names.length)];
+		}, 90);
+		finishTimer = setTimeout(() => {
+			stopDrawing();
+			if (disposed) return;
+			winners.value = selected.map((index: number): string => state.value.names[index]);
+			selected.forEach((index: number) => {
+				if (!state.value.called.includes(index)) state.value.called.push(index);
+			});
+			persist();
+			resultPopup.value?.open();
+		}, 1100);
+	};
+	const continueDraw = () => {
+		closeResult();
+		startDraw();
+	};
+	const copyWinners = () => uni.setClipboardData({
+		data: winners.value.join('\n'),
+		showToast: false,
+		success: () => toast('姓名已复制'),
+		fail: () => toast('复制失败，请重试')
+	});
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('random-name').catch(() => toast('保存使用记录失败'));
+		archive.load((snapshot: string) => {
+			state.value = decodeNameState(snapshot);
+		});
+	});
+	onHide(() => stopDrawing());
+	onUnload(() => {
+		disposed = true;
+		stopDrawing();
+		archive.dispose();
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/uni.scss';
+	@import '@/styles/practical-tools.scss';
+	@import '@/styles/tool-popup.scss';
+	@import '@/styles/random-color-tools.scss';
+	.name-orbit {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		height: 580rpx;
+		margin: 0 38rpx 28rpx;
+		border-radius: 32rpx;
+		background: linear-gradient(135deg, #1c3a65 0%, #18213d 100%);
+		overflow: hidden;
+		.orbit-status {
+			position: absolute;
+			top: 32rpx;
+			padding: 8rpx 22rpx;
+			border-radius: 24rpx;
+			background-color: #334968;
+			font-size: 22rpx;
+			line-height: 36rpx;
+			color: #d9e8ff;
+		}
+		.orbit-ring {
+			position: absolute;
+			border: 2rpx solid #58729f;
+			border-radius: 250rpx;
+			&.outer-ring {
+				width: 480rpx;
+				height: 450rpx;
+				opacity: 0.4;
+			}
+			&.inner-ring {
+				width: 370rpx;
+				height: 370rpx;
+			}
+		}
+		.orbit-center {
+			box-sizing: border-box;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			width: 280rpx;
+			height: 280rpx;
+			padding: 16rpx;
+			border: 2rpx solid #6386bd;
+			border-radius: 160rpx;
+			background-color: #2c4d80;
+			.orbit-symbol {
+				font-size: 100rpx;
+				line-height: 130rpx;
+				font-weight: 500;
+				text-align: center;
+				color: #e3f7ff;
+				&.is-name {
+					font-size: 36rpx;
+					line-height: 52rpx;
+				}
+			}
+			.orbit-caption {
+				font-size: 22rpx;
+				line-height: 38rpx;
+				color: #c4d7ef;
+			}
+		}
+		.orbit-name {
+			box-sizing: border-box;
+			position: absolute;
+			max-width: 180rpx;
+			padding: 8rpx 20rpx;
+			border: 2rpx solid #627a9f;
+			border-radius: 30rpx;
+			background-color: #304b72;
+			&.orbit-name-0 {
+				left: 24rpx;
+				top: 160rpx;
+			}
+			&.orbit-name-1 {
+				right: 24rpx;
+				top: 150rpx;
+			}
+			&.orbit-name-2 {
+				left: 20rpx;
+				bottom: 150rpx;
+			}
+			&.orbit-name-3 {
+				right: 24rpx;
+				bottom: 130rpx;
+			}
+			.orbit-name-label {
+				font-size: 22rpx;
+				line-height: 34rpx;
+				color: #d6e5fa;
+			}
+		}
+		.orbit-footnote {
+			position: absolute;
+			bottom: 30rpx;
+			font-size: 20rpx;
+			line-height: 34rpx;
+			color: #b7c5df;
+		}
+	}
+
+	.name-settings {
+		.settings-row {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			margin-top: 22rpx;
+			padding-top: 20rpx;
+			border-top: 2rpx solid #edf1f6;
+			.setting-copy {
+				flex: 1;
+				margin-right: 14rpx;
+			}
+			.setting-label {
+				font-size: 25rpx;
+				line-height: 42rpx;
+				color: $text-color;
+			}
+			.count-options {
+				display: flex;
+				flex-direction: row;
+				.count-option {
+					margin-left: 12rpx;
+					padding: 12rpx 28rpx;
+					border: 2rpx solid #e4e9f2;
+					border-radius: 14rpx;
+					background-color: #f6f8fc;
+					&.is-active {
+						border-color: #3186b2;
+						background-color: #eaf6ff;
+					}
+					.count-label {
+						font-size: 24rpx;
+						line-height: 40rpx;
+						color: #3186b2;
+					}
+				}
+			}
+		}
+	}
+
+	.name-popup-card {
+		.name-popup-input {
+			box-sizing: border-box;
+			width: 100%;
+			height: 240rpx;
+			margin-top: 20rpx;
+			padding: 20rpx;
+			border: 2rpx solid #dce5ef;
+			border-radius: 20rpx;
+			background-color: #f7f9fc;
+			font-size: 24rpx;
+			line-height: 42rpx;
+			color: #53697b;
+		}
+		.name-popup-summary {
+			display: block;
+			margin-top: 20rpx;
+			padding: 12rpx;
+			border-radius: 14rpx;
+			background-color: #eaf6ff;
+			font-size: 22rpx;
+			line-height: 38rpx;
+			text-align: center;
+			color: #3186b2;
+		}
+		.name-popup-winners {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			margin-top: 28rpx;
+			padding: 38rpx 20rpx;
+			border-radius: 28rpx;
+			background: linear-gradient(180deg, #dce5ff 0%, #f1f5ff 100%);
+			.winner-name {
+				margin-top: 22rpx;
+				font-size: 54rpx;
+				line-height: 76rpx;
+				font-weight: 500;
+				text-align: center;
+				color: #365783;
+			}
+		}
+	}
+
+	.name-popup-confirm {
+		padding: 0 30rpx 30rpx;
+	}
+</style>

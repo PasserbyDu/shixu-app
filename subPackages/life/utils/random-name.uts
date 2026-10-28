@@ -1,0 +1,40 @@
+import { STORAGE_RANDOM_NAME_KEY } from '@/config/constants'
+import { createSnapshotStore } from '@/subPackages/life/utils/everyday-storage.uts'
+
+export type NameState = { names: string[], called: number[], batch: number, repeat: boolean, round: number }
+export type NamePreview = { names: string[], total: number, duplicates: number, error: string }
+export const nameStore = createSnapshotStore(STORAGE_RANDOM_NAME_KEY)
+export const emptyNameState = (): NameState => ({ names: [], called: [], batch: 1, repeat: false, round: 1 })
+export const parseNameList = (input: string, merge: boolean): NamePreview => {
+	const items = input.trim().split(/[\s,，。.;；、/|\\]+/).filter((name: string): boolean => name.length > 0)
+	if (input.length > 30000 || items.length > 500) return { names: [], total: items.length, duplicates: 0, error: '最多导入500项，输入不超过30000字' }
+	if (items.some((name: string): boolean => name.length > 40)) return { names: [], total: items.length, duplicates: 0, error: '单个姓名不能超过40字，请检查分隔符' }
+	const unique: string[] = []
+	items.forEach((name: string) => { if (!unique.includes(name)) unique.push(name) })
+	return { names: merge ? unique : items, total: items.length, duplicates: items.length - unique.length, error: '' }
+}
+export const drawNameIndices = (state: NameState): number[] => {
+	const pool: number[] = []
+	state.names.forEach((name: string, index: number) => { if (state.repeat || !state.called.includes(index)) pool.push(index) })
+	const size = Math.min(state.batch, pool.length)
+	for (let index = 0; index < size; index++) {
+		const picked = index + Math.floor(Math.random() * (pool.length - index))
+		const value = pool[index]
+		pool[index] = pool[picked]
+		pool[picked] = value
+	}
+	return pool.slice(0, size)
+}
+export const encodeNameState = (state: NameState): string => ['1', state.round.toString(), state.batch.toString(), state.repeat ? '1' : '0', state.names.map((name: string): string => encodeURIComponent(name)).join(','), state.called.join(',')].join('|')
+export const decodeNameState = (snapshot: string): NameState => {
+	if (snapshot.length == 0) return emptyNameState()
+	const fields = snapshot.split('|')
+	if (fields.length != 6 || fields[0] != '1' || snapshot.length > 200000) throw new Error('名单存档格式不正确')
+	const names = fields[4].length == 0 ? [] as string[] : fields[4].split(',').map((name: string): string => decodeURIComponent(name))
+	const called = fields[5].length == 0 ? [] as number[] : fields[5].split(',').map((value: string): number => Number(value))
+	const round = Number(fields[1]), batch = Number(fields[2])
+	if (!Number.isInteger(round) || round < 1 || round > 999999 || ![1, 3, 5].includes(batch) || !['0', '1'].includes(fields[3])) throw new Error('名单设置无效')
+	if (names.length > 500 || names.some((name: string): boolean => name.trim().length == 0 || name.length > 40)) throw new Error('名单内容无效')
+	if (called.some((index: number): boolean => !Number.isInteger(index) || index < 0 || index >= names.length) || called.some((index: number, offset: number): boolean => called.indexOf(index) != offset)) throw new Error('点名进度无效')
+	return { names, called, round, batch, repeat: fields[3] == '1' }
+}

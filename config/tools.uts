@@ -35,6 +35,16 @@ export type ToolGroup = {
 // 工具只定义一次；分类通过 toolIds 引用，同一工具可属于多个分类。
 const tools : Tool[] = [
 	{
+		id: 'random-name', title: '随机点名', shortTitle: '随机点名', summary: '把名单交给随机',
+		description: '导入姓名名单，随机抽取幸运同学，支持多人和不重复点名', keywords: '随机 点名 姓名 名单 抽签 课堂 抽人 random',
+		icon: 'staff', iconText: '🙋', color: '#5568d9', background: '#eef0ff'
+	},
+	{
+		id: 'color-picker', title: '图片取色', shortTitle: '图片取色', summary: '从图片中提取颜色',
+		description: '本地图片取色，提取色板并复制HEX、RGB、RGBA、HSL和HSV色值', keywords: '图片 颜色 取色 色板 HEX RGB HSL HSV color',
+		icon: 'color', iconText: '🎨', color: '#3186b2', background: '#eaf6ff'
+	},
+	{
 		id: 'date', title: '日期差计算', shortTitle: '日期计算', summary: '计算天数间隔',
 		description: '计算两个日期之间的天数', keywords: '日期计算 时间 天数 日历 date',
 		icon: 'calendar', iconText: '📅', color: '#25b2a3', background: '#e5f8f2'
@@ -195,7 +205,7 @@ const categories : ToolCategory[] = [
 	{
 		id: 'life', title: '生活工具', shortTitle: '生活', subtitle: '日常实用工具',
 		icon: 'home', color: '#0096f7', background: '#edf8ff',
-		toolIds: ['date', 'time', 'unit', 'retirement', 'age', 'lunar-date', 'kinship', 'random-decision', 'packing-list', 'account', 'fitness', 'pet', 'pomodoro', 'breathing']
+		toolIds: ['date', 'time', 'unit', 'retirement', 'age', 'lunar-date', 'kinship', 'random-decision', 'random-name', 'packing-list', 'account', 'fitness', 'pet', 'pomodoro', 'breathing']
 	},
 	{
 		id: 'office', title: '办公工具', shortTitle: '办公', subtitle: '提升工作效率',
@@ -205,7 +215,7 @@ const categories : ToolCategory[] = [
 	{
 		id: 'image', title: '图片工具', shortTitle: '图片', subtitle: '图片处理转换',
 		icon: 'image', color: '#8c6cff', background: '#f4f0ff',
-		toolIds: ['image', 'image-format', 'image-pdf', 'batch', 'ocr']
+		toolIds: ['image', 'image-format', 'color-picker', 'image-pdf', 'batch', 'ocr']
 	},
 	{
 		id: 'development', title: '开发工具', shortTitle: '开发', subtitle: '程序开发辅助',
@@ -268,6 +278,8 @@ export const getToolPath = (id : string) : string => {
 			return '/subPackages/life/kinship'
 		case 'random-decision':
 			return '/subPackages/life/random-decision'
+		case 'random-name':
+			return '/subPackages/life/random-name'
 		case 'packing-list':
 			return '/subPackages/life/packing-list'
 		case 'fitness':
@@ -294,6 +306,8 @@ export const getToolPath = (id : string) : string => {
 			return '/subPackages/image/image-compress'
 		case 'image-format':
 			return '/subPackages/image/image-format'
+		case 'color-picker':
+			return '/subPackages/image/color-picker'
 		case '2048':
 			return '/subPackages/games/number-2048'
 		case 'klotski':

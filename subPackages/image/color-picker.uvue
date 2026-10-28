@@ -1,0 +1,720 @@
+<template>
+	<view class="color-page">
+		<scroll-view class="color-scroll" :scroll-y="!dragging">
+			<page-header
+				:fixed="isHeaderFixed"
+				title="图片取色"
+				titleColor="#333333"
+				titleFontSize="30rpx"
+				titleFontWeight="500"
+				iconColor="#233d50"
+				headerClass="page-header-calculator-bg"
+			/>
+			<view class="color-intro">
+				<text class="intro-title">图片取色</text>
+				<text class="intro-description">把喜欢的颜色，从图片里带走</text>
+			</view>
+			<view class="color-privacy">
+				<UniIcons type="checkmarkempty" size="30rpx" color="#3186b2" />
+				<text class="privacy-label">本地取色，不上传图片</text>
+			</view>
+			<view v-if="source == null" class="discovery-card">
+				<view class="color-upload" @click="chooseImage">
+					<empty-state image="" description="">
+						<UniIcons type="image" size="100rpx" color="#75a2c5" />
+						<text class="discovery-title">上传一张图片</text>
+						<text class="discovery-note">从相册选择，发现藏在图片里的好颜色</text>
+					</empty-state>
+				</view>
+				<view class="discovery-primary upload-button" :class="{ 'is-disabled': busy }" @click="chooseImage">
+					<text class="primary-label">{{ busy ? '正在读取图片…' : '从相册选择图片' }}</text>
+				</view>
+				<text class="discovery-note">支持 JPG、PNG、WebP · 单张不超过20 MB</text>
+			</view>
+			<view v-else class="discovery-card image-card">
+				<view class="discovery-row">
+					<text class="image-name">{{ source!.name }}</text>
+					<text class="discovery-link" @click="chooseImage">{{ busy ? '正在读取…' : '更换图片' }}</text>
+				</view>
+				<view
+					id="color-stage"
+					class="color-stage"
+					@touchstart="touchStart"
+					@touchmove.prevent="touchMove"
+					@touchend="touchEnd"
+					@touchcancel="touchCancel"
+					@click="clickStage"
+				>
+					<image
+						class="source-image"
+						:src="source!.path"
+						mode="aspectFit"
+						@load="measureStage()"
+						@error="previewError"
+					/>
+					<view v-if="pointSelected && stageRect != null" class="pick-marker" :style="markerStyle" />
+					<view v-if="pointSelected && stageRect != null" class="magnifier">
+						<image class="magnifier-image" :src="source!.path" mode="scaleToFill" :style="magnifierStyle" />
+						<view class="magnifier-center" />
+					</view>
+				</view>
+				<text class="discovery-note">点击任意位置取色，按住拖动可连续微调</text>
+				<view class="discovery-row">
+					<picker :range="zoomLabels" :value="zoomIndex" @change="changeZoom">
+						<text class="discovery-link">放大镜 {{ zoomLabels[zoomIndex] }} ›</text>
+					</picker>
+					<text class="discovery-note">{{ pointSelected ? 'X ' + pickedX + ' · Y ' + pickedY : '色板 / 历史颜色' }}</text>
+				</view>
+				<view class="color-nudge">
+					<view
+						v-for="direction in directions"
+						:key="direction.label"
+						class="nudge-button"
+						@click="nudge(direction.x, direction.y)"
+					>
+						<text class="nudge-label">{{ direction.label }}</text>
+					</view>
+				</view>
+				<text v-if="pixels != null" class="discovery-note">采样尺寸 {{ pixels!.width }} × {{ pixels!.height }}；大图等比缩小到长边2048像素，坐标按采样像素显示。</text>
+			</view>
+			<text v-if="errorText.length > 0" class="tool-error">{{ errorText }}</text>
+			<template v-if="currentColor != null">
+				<view class="discovery-card color-result">
+					<view class="discovery-row">
+						<text class="discovery-title">当前颜色</text>
+						<text class="discovery-link" @click="openDetails(currentColor!)">全部格式 ›</text>
+					</view>
+					<view class="color-summary">
+						<view class="color-swatch" :style="'background-color: ' + colorCss(currentColor!)" />
+						<view class="summary-copy">
+							<text class="discovery-title">{{ colorTitle(currentColor!) }}</text>
+							<text class="discovery-note">不透明度 {{ Math.round(currentColor!.a / 255 * 100) }}%</text>
+						</view>
+					</view>
+					<view v-for="field in mainFields" :key="field.label" class="format-row" @click="copyValue(field.value)">
+						<text class="format-label">{{ field.label }}</text>
+						<text class="format-value">{{ field.value }}</text>
+						<UniIcons type="paperclip" size="30rpx" color="#8795a1" />
+					</view>
+				</view>
+				<view class="discovery-card color-palette">
+					<view class="discovery-row">
+						<text class="discovery-title">图片色板</text>
+						<text class="discovery-note">点击色块取色</text>
+					</view>
+					<view class="palette-row">
+						<view
+							v-for="(color, index) in palette"
+							:key="index"
+							class="palette-chip"
+							:style="'background-color: ' + colorCss(color)"
+							@click="choosePalette(color)"
+						>
+							<view v-if="colorHex(color) == colorHex(currentColor!)" class="selected-chip">
+								<UniIcons type="checkmarkempty" size="36rpx" color="#ffffff" />
+							</view>
+						</view>
+					</view>
+					<text v-if="palette.length == 0" class="discovery-note">透明区域较多，可直接点击图片取色</text>
+					<text class="discovery-note">最近取色 · 点击查看详情</text>
+					<view class="palette-row">
+						<view
+							v-for="(color, index) in history"
+							:key="index"
+							class="history-chip"
+							:style="'background-color: ' + colorCss(color)"
+							@click="openDetails(color)"
+						/>
+					</view>
+				</view>
+				<view class="discovery-primary" @click="copyValue(colorHex(currentColor!))">
+					<text class="primary-label">复制当前颜色 {{ colorHex(currentColor!) }}</text>
+				</view>
+			</template>
+			<view v-else class="discovery-card color-steps">
+				<text class="discovery-title">三步，找到心仪的颜色</text>
+				<view v-for="(step, index) in steps" :key="step.title" class="step-row">
+					<text class="step-number">{{ index + 1 }}</text>
+					<view class="step-copy">
+						<text class="step-title">{{ step.title }}</text>
+						<text class="discovery-note">{{ step.text }}</text>
+					</view>
+				</view>
+			</view>
+			<text class="tool-footnote">{{ currentColor == null ? '让每一份灵感，都有准确的颜色' : 'HEX / RGB / RGBA / HSL / HSV 均可复制；色板为图片像素抽样近似色，历史仅在当前页面保留。' }}</text>
+			<view class="safe-area-bottom-pad" />
+		</scroll-view>
+		<uni-popup ref="detailPopup" @close="detailColor = null">
+			<view class="tool-popup-card color-popup-card">
+				<view class="tool-popup-heading">
+					<text class="tool-popup-title">颜色详情</text>
+					<view class="popup-close-button" @click="detailPopup?.close()">
+						<UniIcons type="closeempty" size="36rpx" color="#8795a1" />
+					</view>
+				</view>
+				<scroll-view class="tool-popup-scroll" scroll-y="true">
+					<view v-if="detailColor != null" class="tool-popup-body">
+						<text class="discovery-note">点击任一色值行，即可复制对应格式</text>
+						<view class="color-popup-preview" :style="'background-color: ' + colorCss(detailColor!)">
+							<text class="preview-color-label" :style="'color: ' + contrastColor(detailColor!)">{{ colorTitle(detailColor!) }}</text>
+							<text class="preview-hex" :style="'color: ' + contrastColor(detailColor!)">{{ colorHex(detailColor!) }}</text>
+						</view>
+						<view v-for="field in detailFields" :key="field.label" class="format-row" @click="copyValue(field.value)">
+							<text class="format-label">{{ field.label }}</text>
+							<text class="format-value">{{ field.value }}</text>
+							<UniIcons type="paperclip" size="30rpx" color="#8795a1" />
+						</view>
+						<text class="discovery-note">不透明度 {{ Math.round(detailColor!.a / 255 * 100) }}% · 数值以当前设备解码后的画布像素为准</text>
+						<view class="discovery-primary details-copy" @click="copyAll">
+							<text class="primary-label">复制全部格式</text>
+						</view>
+					</view>
+				</scroll-view>
+			</view>
+		</uni-popup>
+		<!-- 只用于本机像素读取，保留可见挂载，展示尺寸不改变采样位图大小。 -->
+		<canvas id="color-sampling-canvas" canvas-id="color-sampling-canvas" type="2d" class="sampling-canvas" />
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { computed, ref, shallowRef } from 'vue';
+	import { LocalMediaFile, localOperationError } from '@/utils/local-media';
+	import { chooseFormatImage, readFormatImageInfo } from '@/subPackages/image/utils/image-format.uts';
+	import {
+		PickedColor,
+		ColorField,
+		ImagePixels,
+		colorHex,
+		colorCss,
+		colorFields,
+		colorTitle,
+		pixelColor,
+		useColorPixels
+	} from '@/subPackages/image/utils/color-picker.uts';
+	import { recordToolUsage } from '@/utils/tool-usage';
+	import { toast } from '@/utils/toast';
+	// data
+	type PopupRef = {
+		open: () => void;
+		close: () => void;
+	};
+	type StageRect = {
+		left: number;
+		top: number;
+		width: number;
+		height: number;
+	};
+	const isHeaderFixed = ref(false);
+	const source = ref<LocalMediaFile | null>(null),
+		currentColor = ref<PickedColor | null>(null),
+		detailColor = ref<PickedColor | null>(null);
+	const detailPopup = ref<PopupRef | null>(null),
+		busy = ref(false),
+		errorText = ref('');
+	const palette = ref<PickedColor[]>([]),
+		history = ref<PickedColor[]>([]);
+	const pickedX = ref(0),
+		pickedY = ref(0),
+		pointSelected = ref(false),
+		dragging = ref(false),
+		zoomIndex = ref(0);
+	const stageRect = ref<StageRect | null>(null);
+	const zoomLabels = ['200%', '400%', '800%'];
+	const directions = [{
+		label: '←',
+		x: -1,
+		y: 0
+	}, {
+		label: '↑',
+		x: 0,
+		y: -1
+	}, {
+		label: '↓',
+		x: 0,
+		y: 1
+	}, {
+		label: '→',
+		x: 1,
+		y: 0
+	}];
+	const steps = [{
+		title: '选择图片',
+		text: '照片、截图、灵感图都可以'
+	}, {
+		title: '点击取色',
+		text: '放大镜辅助查看，方向键逐像素微调'
+	}, {
+		title: '复制色值',
+		text: 'HEX / RGB / HSL / HSV 一键带走'
+	}];
+	const engine = useColorPixels('color-sampling-canvas');
+	const pixels = shallowRef<ImagePixels | null>(null);
+	let disposed = false,
+		queryVersion = 0,
+		lastX = 0,
+		lastY = 0;
+	// computed
+	const mainFields = computed((): ColorField[] => currentColor.value == null ? [] : colorFields(currentColor.value!).filter((field: ColorField): boolean => field.label != 'RGBA'));
+	const detailFields = computed((): ColorField[] => detailColor.value == null ? [] : colorFields(detailColor.value!));
+	const geometry = computed(() => {
+		const rect = stageRect.value;
+		if (rect == null || pixels.value == null) return {
+			width: 0,
+			height: 0,
+			left: 0,
+			top: 0,
+			x: 0,
+			y: 0
+		};
+		const ratio = Math.min(rect.width / pixels.value!.width, rect.height / pixels.value!.height);
+		const width = pixels.value!.width * ratio,
+			height = pixels.value!.height * ratio;
+		return {
+			width,
+			height,
+			left: (rect.width - width) / 2,
+			top: (rect.height - height) / 2,
+			x: (pickedX.value + 0.5) * ratio,
+			y: (pickedY.value + 0.5) * ratio
+		};
+	});
+	const markerStyle = computed((): string => 'left:' + (geometry.value.left + geometry.value.x) + 'px;top:' + (geometry.value.top + geometry.value.y) + 'px;');
+	const magnifierStyle = computed((): string => {
+		const factor = [2, 4, 8][zoomIndex.value],
+			center = uni.getWindowInfo().windowWidth * 64 / 750;
+		return 'width:' + geometry.value.width * factor + 'px;height:' + geometry.value.height * factor + 'px;left:' + (center - geometry.value.x * factor) + 'px;top:' + (center - geometry.value.y * factor) + 'px;';
+	});
+	// methods
+	const contrastColor = (color: PickedColor): string => color.r * 0.299 + color.g * 0.587 + color.b * 0.114 < 135 && color.a > 128 ? '#ffffff' : '#263c4f';
+	const remember = () => {
+		if (currentColor.value == null) return;
+		const color = currentColor.value!;
+		history.value = [color].concat(history.value.filter((item: PickedColor): boolean => colorHex(item) != colorHex(color) || item.a != color.a)).slice(0, 10);
+	};
+	const selectPixel = (x: number, y: number) => {
+		if (pixels.value == null || busy.value) return;
+		pickedX.value = Math.max(0, Math.min(pixels.value!.width - 1, Math.round(x)));
+		pickedY.value = Math.max(0, Math.min(pixels.value!.height - 1, Math.round(y)));
+		currentColor.value = pixelColor(pixels.value!, pickedX.value, pickedY.value);
+		pointSelected.value = true;
+	};
+	const chooseImage = async () => {
+		if (busy.value) return;
+		busy.value = true;
+		errorText.value = '';
+		dragging.value = false;
+		queryVersion++;
+		try {
+			const files = await chooseFormatImage();
+			if (disposed || files.length == 0) return;
+			const file = files[0];
+			if (file.size > 20 * 1024 * 1024) throw new Error('请选择20 MB以内的图片');
+			const info = await readFormatImageInfo(file.path);
+			if (disposed) return;
+			if (info.type.length > 0 && !['jpg', 'png', 'webp'].includes(info.type)) throw new Error('请选择 JPG、PNG 或 WebP 图片');
+			const image = await engine.read(file.path);
+			if (disposed) return;
+			pixels.value = image;
+			source.value = file;
+			palette.value = image.palette;
+			stageRect.value = null;
+			busy.value = false;
+			selectPixel(Math.floor(image.width / 2), Math.floor(image.height / 2));
+			remember();
+		} catch (exception) {
+			if (!disposed) errorText.value = localOperationError(exception);
+		} finally {
+			if (!disposed) busy.value = false;
+		}
+	};
+	const sampleTouch = () => {
+		const rect = stageRect.value;
+		if (rect == null || pixels.value == null) return;
+		const ratio = Math.min(rect.width / pixels.value!.width, rect.height / pixels.value!.height);
+		if (ratio <= 0) return;
+		const x = lastX - rect.left - (rect.width - pixels.value!.width * ratio) / 2;
+		const y = lastY - rect.top - (rect.height - pixels.value!.height * ratio) / 2;
+		if (x < 0 || y < 0 || x >= pixels.value!.width * ratio || y >= pixels.value!.height * ratio) return;
+		selectPixel(Math.floor(x / ratio), Math.floor(y / ratio));
+	};
+	const measureStage = (after: (() => void) | null = null) => {
+		const version = queryVersion;
+		uni.createSelectorQuery().select('#color-stage').boundingClientRect().exec(results => {
+			if (disposed || version != queryVersion || results.length == 0 || results[0] == null) return;
+			const rect = results[0] as NodeInfo;
+			if (rect.width == null || rect.height == null || rect.width! <= 0 || rect.height! <= 0) return;
+			stageRect.value = {
+				left: rect.left ?? 0,
+				top: rect.top ?? 0,
+				width: rect.width!,
+				height: rect.height!
+			};
+			after?.();
+		});
+	};
+	const touchStart = (event: UniTouchEvent) => {
+		if (busy.value || pixels.value == null || event.touches.length == 0) return;
+		lastX = event.touches[0].clientX;
+		lastY = event.touches[0].clientY;
+		dragging.value = true;
+		stageRect.value = null;
+		queryVersion++;
+		measureStage(() => {
+			sampleTouch();
+			if (!dragging.value) remember();
+		});
+	};
+	const clickStage = (event: UniPointerEvent) => {
+		if (busy.value || pixels.value == null) return;
+		lastX = event.clientX;
+		lastY = event.clientY;
+		queryVersion++;
+		measureStage(() => {
+			sampleTouch();
+			remember();
+		});
+	};
+	const touchMove = (event: UniTouchEvent) => {
+		if (!dragging.value || event.touches.length == 0) return;
+		lastX = event.touches[0].clientX;
+		lastY = event.touches[0].clientY;
+		sampleTouch();
+	};
+	const touchEnd = (event: UniTouchEvent) => {
+		if (event.changedTouches.length > 0) {
+			lastX = event.changedTouches[0].clientX;
+			lastY = event.changedTouches[0].clientY;
+		}
+		;
+		sampleTouch();
+		dragging.value = false;
+		if (stageRect.value != null) remember();
+	};
+	const touchCancel = () => {
+		queryVersion++;
+		dragging.value = false;
+	};
+	const changeZoom = (event: UniPickerChangeEvent) => {
+		const value = Number(event.detail.value);
+		if (value >= 0 && value < zoomLabels.length) zoomIndex.value = value;
+	};
+	const nudge = (x: number, y: number) => {
+		if (pixels.value == null) return;
+		selectPixel(pickedX.value + x, pickedY.value + y);
+		remember();
+	};
+	const choosePalette = (color: PickedColor) => {
+		if (busy.value) return;
+		currentColor.value = color;
+		pointSelected.value = false;
+		remember();
+	};
+	const openDetails = (color: PickedColor) => {
+		detailColor.value = color;
+		detailPopup.value?.open();
+	};
+	const copyValue = (value: string) => uni.setClipboardData({
+		data: value,
+		showToast: false,
+		success: () => toast('色值已复制'),
+		fail: () => toast('复制失败，请重试')
+	});
+	const copyAll = () => copyValue(detailFields.value.map((field: ColorField): string => field.label + ': ' + field.value).join('\n'));
+	const previewError = () => {
+		errorText.value = '图片预览失败，请重新选择图片';
+	};
+	// lifecycle
+	onLoad(() => recordToolUsage('color-picker').catch(() => toast('保存使用记录失败')));
+	onHide(() => touchCancel());
+	onUnload(() => {
+		disposed = true;
+		queryVersion++;
+		engine.dispose();
+		pixels.value = null;
+		source.value = null;
+		history.value = [];
+		palette.value = [];
+		currentColor.value = null;
+		detailColor.value = null;
+	});
+</script>
+
+<style scoped lang="scss">
+	@import '@/uni.scss';
+	@import '@/styles/practical-tools.scss';
+	@import '@/styles/tool-popup.scss';
+	@import '@/styles/random-color-tools.scss';
+	.color-page {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		width: 100%;
+	}
+	.color-scroll {
+		flex: 1;
+		width: 100%;
+		background-color: #f5f8fc;
+	}
+	.color-intro {
+		display: flex;
+		flex-direction: column;
+		padding: 26rpx 38rpx 38rpx;
+		background: linear-gradient(180deg, #eaf5fc 0%, #f5f8fc 100%);
+		.intro-title {
+			font-size: 46rpx;
+			line-height: 66rpx;
+			font-weight: 500;
+			color: #233d50;
+		}
+		.intro-description {
+			margin-top: 10rpx;
+			font-size: 22rpx;
+			line-height: 36rpx;
+			color: #8795a1;
+		}
+	}
+
+	.color-privacy {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		margin: 0 38rpx 28rpx;
+		padding: 14rpx 22rpx;
+		border-radius: 16rpx;
+		background-color: #eaf6ff;
+		.privacy-label {
+			margin-left: 16rpx;
+			font-size: 24rpx;
+			line-height: 40rpx;
+			color: #3186b2;
+		}
+	}
+
+	.color-upload {
+		box-sizing: border-box;
+		display: flex;
+		flex-direction: column;
+		min-height: 360rpx;
+		padding: 30rpx 20rpx;
+		border: 2rpx solid #d9e7f4;
+		border-radius: 26rpx;
+		background-color: #f1f7fc;
+	}
+
+	.upload-button {
+		margin: 28rpx 0 0;
+	}
+
+	.image-card {
+		.image-name {
+			flex: 1;
+			margin-right: 20rpx;
+			font-size: 26rpx;
+			line-height: 42rpx;
+			color: #233d50;
+		}
+		.color-stage {
+			position: relative;
+			height: 430rpx;
+			margin-top: 20rpx;
+			border-radius: 22rpx;
+			background-color: #eef2f7;
+			overflow: hidden;
+			.source-image {
+				width: 100%;
+				height: 100%;
+			}
+			.pick-marker {
+				box-sizing: border-box;
+				position: absolute;
+				width: 48rpx;
+				height: 48rpx;
+				margin-left: -24rpx;
+				margin-top: -24rpx;
+				border: 4rpx solid #ffffff;
+				border-radius: 28rpx;
+				box-shadow: 0 0 0 2rpx #314a65;
+			}
+			.magnifier {
+				position: absolute;
+				left: 16rpx;
+				top: 16rpx;
+				width: 128rpx;
+				height: 128rpx;
+				border: 6rpx solid #ffffff;
+				border-radius: 16rpx;
+				background-color: #ffffff;
+				overflow: hidden;
+				.magnifier-image {
+					position: absolute;
+				}
+				.magnifier-center {
+					position: absolute;
+					left: 52rpx;
+					top: 52rpx;
+					width: 20rpx;
+					height: 20rpx;
+					border: 2rpx solid #ffffff;
+				}
+			}
+		}
+		.color-nudge {
+			display: flex;
+			flex-direction: row;
+			margin-top: 14rpx;
+			.nudge-button {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: center;
+				flex: 1;
+				min-height: 68rpx;
+				margin: 0 6rpx;
+				border-radius: 14rpx;
+				background-color: #eef6fc;
+				.nudge-label {
+					font-size: 30rpx;
+					line-height: 46rpx;
+					color: #3186b2;
+				}
+			}
+		}
+	}
+
+	.color-result {
+		.color-summary {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			margin: 20rpx 0;
+			.color-swatch {
+				width: 94rpx;
+				height: 94rpx;
+				border-radius: 22rpx;
+				border: 2rpx solid #e4e9f0;
+			}
+			.summary-copy {
+				flex: 1;
+				margin-left: 28rpx;
+			}
+		}
+	}
+
+	.format-row {
+		box-sizing: border-box;
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		min-height: 80rpx;
+		padding: 16rpx 0;
+		border-bottom: 2rpx solid #edf1f6;
+		.format-label {
+			flex-shrink: 0;
+			width: 90rpx;
+			font-size: 22rpx;
+			line-height: 38rpx;
+			color: #8795a1;
+		}
+		.format-value {
+			flex: 1;
+			margin: 0 14rpx;
+			font-size: 24rpx;
+			line-height: 40rpx;
+			color: #42596b;
+		}
+	}
+
+	.color-palette {
+		.palette-row {
+			display: flex;
+			flex-direction: row;
+			flex-wrap: wrap;
+			margin: 16rpx -6rpx 0;
+			.palette-chip {
+				width: 86rpx;
+				height: 86rpx;
+				margin: 6rpx;
+				border-radius: 18rpx;
+				border: 2rpx solid #d9e2ec;
+				.selected-chip {
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					justify-content: center;
+					width: 100%;
+					height: 100%;
+					background-color: rgba(0, 0, 0, 0.15);
+				}
+			}
+			.history-chip {
+				width: 52rpx;
+				height: 52rpx;
+				margin: 6rpx;
+				border: 2rpx solid #d9e2ec;
+				border-radius: 12rpx;
+			}
+		}
+	}
+
+	.color-steps {
+		.step-row {
+			display: flex;
+			flex-direction: row;
+			align-items: flex-start;
+			margin-top: 28rpx;
+			.step-number {
+				box-sizing: border-box;
+				width: 52rpx;
+				padding: 6rpx;
+				border-radius: 14rpx;
+				background-color: #eaf6ff;
+				font-size: 24rpx;
+				line-height: 40rpx;
+				text-align: center;
+				color: #3186b2;
+			}
+			.step-copy {
+				flex: 1;
+				margin-left: 24rpx;
+				.step-title {
+					font-size: 26rpx;
+					line-height: 42rpx;
+					font-weight: 500;
+					color: #42596b;
+				}
+			}
+		}
+	}
+
+	.color-popup-card {
+		.color-popup-preview {
+			margin-top: 24rpx;
+			padding: 32rpx;
+			border: 2rpx solid #e2e8ef;
+			border-radius: 24rpx;
+			.preview-color-label {
+				font-size: 24rpx;
+				line-height: 40rpx;
+			}
+			.preview-hex {
+				margin-top: 12rpx;
+				font-size: 46rpx;
+				line-height: 64rpx;
+				font-weight: 500;
+			}
+		}
+		.details-copy {
+			margin: 28rpx 0 0;
+		}
+	}
+
+	.sampling-canvas {
+		position: fixed;
+		z-index: 100;
+		left: 0;
+		top: 0;
+		width: 2rpx;
+		height: 2rpx;
+	}
+</style>

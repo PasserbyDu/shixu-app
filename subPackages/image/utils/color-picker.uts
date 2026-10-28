@@ -1,0 +1,136 @@
+export type PickedColor = { r: number, g: number, b: number, a: number }
+export type ColorField = { label: string, value: string }
+export type ImagePixels = { width: number, height: number, originalWidth: number, originalHeight: number, pixels: Uint8ClampedArray, palette: PickedColor[] }
+type ColorBucket = { color: PickedColor, count: number }
+
+// methods
+export const colorHex = (color: PickedColor): string => '#' + [color.r, color.g, color.b].map((value: number): string => { const hex = Math.round(value).toString(16); return hex.length == 1 ? '0' + hex : hex }).join('').toUpperCase()
+export const colorCss = (color: PickedColor): string => 'rgba(' + color.r + ',' + color.g + ',' + color.b + ',' + (color.a / 255).toFixed(3) + ')'
+export const colorFields = (color: PickedColor): ColorField[] => {
+	const r = color.r / 255, g = color.g / 255, b = color.b / 255
+	const max = Math.max(r, g, b), min = Math.min(r, g, b), difference = max - min
+	const light = (max + min) / 2
+	let hue = 0
+	if (difference > 0) {
+		if (max == r) hue = ((g - b) / difference) % 6
+		else if (max == g) hue = (b - r) / difference + 2
+		else hue = (r - g) / difference + 4
+		hue *= 60
+		if (hue < 0) hue += 360
+	}
+	const h = Math.round(hue) % 360
+	const saturation = difference == 0 ? 0 : difference / (1 - Math.abs(2 * light - 1))
+	const rgb = color.r + ', ' + color.g + ', ' + color.b
+	return [
+		{ label: 'HEX', value: colorHex(color) },
+		{ label: 'RGB', value: 'rgb(' + rgb + ')' },
+		{ label: 'RGBA', value: 'rgba(' + rgb + ', ' + Number((color.a / 255).toFixed(3)) + ')' },
+		{ label: 'HSL', value: 'hsl(' + h + ', ' + Math.round(saturation * 100) + '%, ' + Math.round(light * 100) + '%)' },
+		{ label: 'HSV', value: 'hsv(' + h + ', ' + Math.round((max == 0 ? 0 : difference / max) * 100) + '%, ' + Math.round(max * 100) + '%)' }
+	]
+}
+export const colorTitle = (color: PickedColor): string => {
+	if (color.a == 0) return '透明色'
+	const max = Math.max(color.r, color.g, color.b), min = Math.min(color.r, color.g, color.b)
+	if (max - min < 18) return max < 45 ? '深黑色' : min > 225 ? '浅白色' : '中性灰'
+	if (color.r == max) return color.g > color.b + 35 ? '暖橙色' : color.b > color.g + 35 ? '玫红色' : '暖红色'
+	if (color.g == max) return color.b > color.r + 25 ? '青绿色' : '自然绿'
+	return color.r > color.g + 25 ? '蓝紫色' : '清透蓝'
+}
+export const pixelColor = (image: ImagePixels, x: number, y: number): PickedColor => {
+	const offset = (Math.max(0, Math.min(image.height - 1, Math.round(y))) * image.width + Math.max(0, Math.min(image.width - 1, Math.round(x)))) * 4
+	return { r: image.pixels[offset], g: image.pixels[offset + 1], b: image.pixels[offset + 2], a: image.pixels[offset + 3] }
+}
+const extractPalette = (data: Uint8ClampedArray): PickedColor[] => {
+	const buckets = new Map<number, ColorBucket>()
+	const stride = Math.max(1, Math.floor(data.length / 4 / 12000)) * 4
+	for (let index = 0; index + 3 < data.length; index += stride) {
+		if (data[index + 3] < 64) continue
+		const key = Math.floor(data[index] / 32) * 64 + Math.floor(data[index + 1] / 32) * 8 + Math.floor(data[index + 2] / 32)
+		const bucket = buckets.get(key)
+		if (bucket == null) buckets.set(key, { color: { r: data[index], g: data[index + 1], b: data[index + 2], a: data[index + 3] }, count: 1 })
+		else {
+			bucket.color.r += data[index]; bucket.color.g += data[index + 1]; bucket.color.b += data[index + 2]; bucket.color.a += data[index + 3]; bucket.count++
+		}
+	}
+	const sorted: ColorBucket[] = []
+	buckets.forEach((bucket: ColorBucket) => sorted.push(bucket))
+	sorted.sort((a: ColorBucket, b: ColorBucket): number => b.count - a.count)
+	const colors: PickedColor[] = []
+	sorted.forEach((bucket: ColorBucket) => {
+		if (colors.length >= 6) return
+		const color: PickedColor = { r: Math.round(bucket.color.r / bucket.count), g: Math.round(bucket.color.g / bucket.count), b: Math.round(bucket.color.b / bucket.count), a: Math.round(bucket.color.a / bucket.count) }
+		if (colors.every((other: PickedColor): boolean => (other.r - color.r) ** 2 + (other.g - color.g) ** 2 + (other.b - color.b) ** 2 > 1600)) colors.push(color)
+	})
+	return colors
+}
+export const useColorPixels = (id: string) => {
+	let canvas: CanvasContext | null = null
+	let disposed = false
+	let cancelPending: (() => void) | null = null
+	const context = (): Promise<CanvasContext> => new Promise<CanvasContext>((resolve, reject) => {
+		if (disposed) return reject(new Error('页面已关闭'))
+		if (canvas != null) return resolve(canvas!)
+		uni.createCanvasContextAsync({ id, success: value => { if (disposed) return reject(new Error('页面已关闭')); canvas = value; resolve(value) }, fail: error => reject(new Error('初始化取色画布失败：' + error.errMsg)) })
+	})
+	const loadImage = (value: CanvasContext, path: string): Promise<Image> => new Promise<Image>((resolve, reject) => {
+		const image = value.createImage()
+		let settled = false
+		let timer = -1
+		const finish = (success: boolean) => {
+			if (settled) return
+			settled = true; clearTimeout(timer); cancelPending = null
+			if (success && !disposed) resolve(image)
+			else reject(new Error(disposed ? '页面已关闭' : '图片解码失败或超时，请选择其他图片'))
+		}
+		cancelPending = () => finish(false)
+		image.onload = () => finish(true); image.onerror = () => finish(false)
+		timer = setTimeout(() => finish(false), 30000)
+		try { image.src = path } catch (exception) { finish(false) }
+	})
+	const waitFrames = (value: CanvasContext): Promise<void> => new Promise<void>((resolve, reject) => {
+		let settled = false, frame = -1, timer = -1
+		const finish = (success: boolean) => {
+			if (settled) return
+			settled = true; clearTimeout(timer); cancelPending = null
+			try { if (frame >= 0) value.cancelAnimationFrame(frame) } catch (exception) { /* 已退出页面 */ }
+			if (success && !disposed) resolve()
+			else reject(new Error(disposed ? '页面已关闭' : '画布绘制未完成，请保持页面在前台后重试'))
+		}
+		cancelPending = () => finish(false)
+		timer = setTimeout(() => finish(false), 3000)
+		try {
+			frame = value.requestAnimationFrame(() => {
+				if (settled) return
+				try { frame = value.requestAnimationFrame(() => finish(true)) } catch (exception) { finish(false) }
+			})
+		} catch (exception) { finish(false) }
+	})
+	const read = async (path: string): Promise<ImagePixels> => {
+		const value = await context()
+		const image = await loadImage(value, path)
+		if (image.width <= 0 || image.height <= 0 || image.width * image.height > 50000000) throw new Error('图片尺寸无效或超过5000万像素')
+		const ratio = Math.min(1, 2048 / Math.max(image.width, image.height))
+		const width = Math.max(1, Math.round(image.width * ratio)), height = Math.max(1, Math.round(image.height * ratio))
+		const drawing = value.getContext('2d')
+		if (drawing == null) throw new Error('当前设备不支持2D取色画布')
+		try {
+			drawing.canvas.width = width; drawing.canvas.height = height
+			drawing.clearRect(0, 0, width, height); drawing.drawImage(image, 0, 0, width, height)
+			await waitFrames(value)
+			if (disposed) throw new Error('页面已关闭')
+			const pixels = drawing.getImageData(0, 0, width, height).data
+			if (pixels.length != width * height * 4) throw new Error('读取到的图片像素不完整，请重新选择')
+			const palette = extractPalette(pixels)
+			return { width, height, originalWidth: image.width, originalHeight: image.height, pixels, palette }
+		} finally {
+			try { drawing.canvas.width = 1; drawing.canvas.height = 1 } catch (exception) { /* 页面可能已退出 */ }
+		}
+	}
+	const dispose = () => {
+		disposed = true; cancelPending?.()
+		try { if (canvas != null) { const drawing = canvas!.getContext('2d'); if (drawing != null) { drawing.canvas.width = 1; drawing.canvas.height = 1 } } } catch (exception) { /* 原生节点可能已释放 */ }
+		canvas = null
+	}
+	return { read, dispose }
+}

@@ -1,0 +1,112 @@
+.discovery-card {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	margin: 0 38rpx 28rpx;
+	padding: 30rpx;
+	border: 2rpx solid #e5eaf0;
+	border-radius: 28rpx;
+	background-color: #ffffff;
+}
+.discovery-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+}
+.discovery-title {
+	font-size: 30rpx;
+	line-height: 46rpx;
+	font-weight: 500;
+	color: #233d50;
+}
+.discovery-note {
+	margin-top: 16rpx;
+	font-size: 22rpx;
+	line-height: 38rpx;
+	color: #8795a1;
+}
+.discovery-link {
+	padding: 10rpx 0 10rpx 16rpx;
+	font-size: 24rpx;
+	line-height: 40rpx;
+	color: #3186b2;
+}
+.discovery-primary {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+	min-height: 92rpx;
+	margin: 0 38rpx 28rpx;
+	padding: 16rpx 24rpx;
+	border-radius: 22rpx;
+	background: linear-gradient(110deg, #2e96c4 0%, #5568d9 100%);
+	&.is-disabled {
+		opacity: 0.55;
+	}
+	.primary-label {
+		font-size: 28rpx;
+		line-height: 44rpx;
+		font-weight: 500;
+		color: #ffffff;
+	}
+}
+.discovery-tags {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	margin: 20rpx -6rpx 0;
+	.discovery-tag {
+		box-sizing: border-box;
+		width: 33.333%;
+		padding: 6rpx;
+		.tag-label {
+			display: block;
+			padding: 10rpx 8rpx;
+			border-radius: 12rpx;
+			background-color: #f3f6fc;
+			font-size: 22rpx;
+			line-height: 36rpx;
+			text-align: center;
+			color: #53697b;
+		}
+		&.is-called {
+			.tag-label {
+				background-color: #e5edf8;
+				color: #8e9baa;
+			}
+		}
+	}
+}
+.discovery-popup-actions {
+	display: flex;
+	flex-direction: row;
+	margin-top: 28rpx;
+	.popup-action {
+		box-sizing: border-box;
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		flex: 1;
+		min-height: 92rpx;
+		padding: 14rpx;
+		border-radius: 22rpx;
+		background-color: #eef6fc;
+		.action-text {
+			font-size: 26rpx;
+			line-height: 42rpx;
+			font-weight: 500;
+			color: #3186b2;
+		}
+		&.is-primary {
+			margin-left: 20rpx;
+			background: linear-gradient(110deg, #2e96c4 0%, #5568d9 100%);
+			.action-text {
+				color: #ffffff;
+			}
+		}
+	}
+}

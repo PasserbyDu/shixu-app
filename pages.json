@@ -75,6 +75,14 @@
 			"root": "subPackages/life",
 			"pages": [
 				{
+					"path": "random-name",
+					"style": {
+						"navigationBarTitleText": "随机点名",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
+				{
 					"path": "date-difference",
 					"style": {
 						"navigationBarTitleText": "日期差计算",
@@ -220,6 +228,14 @@
 		{
 			"root": "subPackages/image",
 			"pages": [
+				{
+					"path": "color-picker",
+					"style": {
+						"navigationBarTitleText": "图片取色",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F5F8FC"
+					}
+				},
 				{
 					"path": "image-compress",
 					"style": {
