@@ -231,10 +231,11 @@ const categories : ToolCategory[] = [
 		id: 'finance', title: '财务计算', shortTitle: '财务', subtitle: '理财与数值计算',
 		icon: 'wallet', color: '#ff8800', background: '#fff6ec', toolIds: ['mortgage', 'car-loan', 'deposit']
 	},
-	{
-		id: 'ai', title: 'AI 工具', shortTitle: 'AI', subtitle: '智能创作助手',
-		icon: 'chatbubble', color: '#c840a7', background: '#fceff7', toolIds: []
-	},
+	// 暂无工具，暂时隐藏 AI 工具分类。
+	// {
+	// 	id: 'ai', title: 'AI 工具', shortTitle: 'AI', subtitle: '智能创作助手',
+	// 	icon: 'chatbubble', color: '#c840a7', background: '#fceff7', toolIds: []
+	// },
 	// 暂停展示休闲游戏分类。
 	// {
 	// 	id: 'games', title: '休闲游戏', shortTitle: '游戏', subtitle: '益智休闲，轻松一刻',
