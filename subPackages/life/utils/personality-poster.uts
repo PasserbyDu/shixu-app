@@ -1,0 +1,93 @@
+import { PersonalityResult } from '@/subPackages/life/utils/personality-data.uts'
+
+export const createPersonalityPoster = (id: string) => {
+	let context: CanvasContext | null = null, disposed = false
+	let cancelWait: (() => void) | null = null
+	const files: string[] = []
+	const getContext = (): Promise<CanvasContext> => new Promise<CanvasContext>((resolve, reject) => {
+		if (disposed) return reject(new Error('页面已关闭'))
+		if (context != null) return resolve(context!)
+		let settled = false
+		const timeout = setTimeout(() => { if (!settled) { settled = true; reject(new Error('初始化画布超时，请重试')) } }, 5000)
+		uni.createCanvasContextAsync({
+			id,
+			success: value => { if (settled) return; settled = true; clearTimeout(timeout); if (disposed) return reject(new Error('页面已关闭')); context = value; resolve(value) },
+			fail: () => { if (settled) return; settled = true; clearTimeout(timeout); reject(new Error('当前设备无法初始化卡片画布')) }
+		})
+	})
+	const waitForDrawing = (canvas: CanvasContext): Promise<void> => new Promise<void>((resolve, reject) => {
+		let settled = false, frame = -1, timeout = -1
+		const finish = (ok: boolean) => {
+			if (settled) return
+			settled = true; clearTimeout(timeout); cancelWait = null
+			try { if (frame >= 0) canvas.cancelAnimationFrame(frame) } catch (exception) { /* 原生页面可能已释放。 */ }
+			if (ok && !disposed) resolve(); else reject(new Error('绘制未完成，请保持页面在前台后重试'))
+		}
+		cancelWait = () => finish(false)
+		timeout = setTimeout(() => finish(false), 3000)
+		try { frame = canvas.requestAnimationFrame(() => { if (settled) return; try { frame = canvas.requestAnimationFrame(() => finish(true)) } catch (exception) { finish(false) } }) }
+		catch (exception) { finish(false) }
+	})
+	const render = async (result: PersonalityResult): Promise<string> => {
+		const canvas = await getContext()
+		const ctx = canvas.getContext('2d')
+		if (ctx == null) throw new Error('当前设备不支持2D画布')
+		ctx.canvas.width = 750; ctx.canvas.height = 1280
+		ctx.fillStyle = '#f6f8fc'; ctx.fillRect(0, 0, 750, 1280)
+		ctx.fillStyle = '#e4f1eb'; ctx.fillRect(32, 100, 686, 370)
+		ctx.textAlign = 'center'; ctx.fillStyle = '#547f70'; ctx.font = '24px sans-serif'
+		ctx.fillText('拾序有方 · 我的性格画像', 375, 64)
+		ctx.font = '22px sans-serif'; ctx.fillText('本次作答呈现的偏好类型', 375, 150)
+		ctx.font = 'bold 104px sans-serif'; ctx.fillText(result.code, 375, 274)
+		ctx.font = 'bold 34px sans-serif'; ctx.fillText(result.profile.title, 375, 338)
+		ctx.font = '24px sans-serif'; ctx.fillText(result.profile.summary, 375, 390)
+		ctx.font = '22px sans-serif'; ctx.fillText(result.profile.tags.join('  ·  '), 375, 438)
+		ctx.fillStyle = '#ffffff'; ctx.fillRect(32, 494, 686, 404)
+		ctx.textAlign = 'left'; ctx.fillStyle = '#243746'; ctx.font = 'bold 28px sans-serif'
+		ctx.fillText('四个维度，读懂你的偏好', 64, 540)
+		result.scores.forEach((score, index: number) => {
+			const y = 594 + index * 84
+			ctx.font = '22px sans-serif'; ctx.fillStyle = '#607b8d'; ctx.textAlign = 'left'; ctx.fillText(score.left, 64, y)
+			ctx.textAlign = 'right'; ctx.fillText(score.right, 686, y)
+			ctx.fillStyle = '#edf0f6'; ctx.fillRect(64, y + 16, 622, 10)
+			ctx.fillStyle = score.color; ctx.fillRect(64, y + 16, 622 * score.percent / 100, 10)
+			ctx.font = '20px sans-serif'; ctx.fillText(score.balanced ? '50% / 50% · X' : score.percent + '% / ' + score.rightPercent + '%', 686, y + 54)
+		})
+		ctx.fillStyle = '#ffffff'; ctx.fillRect(32, 920, 686, 228)
+		ctx.textAlign = 'left'; ctx.fillStyle = '#243746'; ctx.font = 'bold 28px sans-serif'; ctx.fillText('你可能会共鸣的时刻', 64, 968)
+		ctx.fillStyle = '#607b8d'; ctx.font = '22px sans-serif'
+		result.profile.moments.forEach((moment: string, index: number) => { ctx.fillText('0' + (index + 1) + '  ' + moment, 64, 1018 + index * 46) })
+		ctx.textAlign = 'center'; ctx.fillStyle = '#7a8994'; ctx.font = '20px sans-serif'
+		ctx.fillText('你比四个字母更丰富，也一直可以改变。', 375, 1200)
+		ctx.fillText('IPIP 条目改编 · 趣味探索 · 非专业心理评估', 375, 1240)
+		await waitForDrawing(canvas)
+		if (disposed) throw new Error('页面已关闭')
+		const data = ctx.canvas.toDataURL('image/png')
+		if (!data.startsWith('data:image/png;base64,') || data.length < 100) throw new Error('生成图片失败，请重试')
+		// #ifdef WEB
+		return data
+		// #endif
+		// #ifndef WEB
+		let root = uni.env.USER_DATA_PATH
+		// #ifdef APP
+		root = uni.env.CACHE_PATH
+		// #endif
+		const path = root + '/shixu-personality-' + Date.now() + '.png'
+		files.push(path)
+		await new Promise<void>((resolve, reject) => {
+			uni.getFileSystemManager().writeFile({ filePath: path, data: data.slice(data.indexOf(',') + 1), encoding: 'base64', success: () => resolve(), fail: () => reject(new Error('写入本地图片失败，请检查存储空间')) })
+		})
+		return path
+		// #endif
+	}
+	const dispose = () => {
+		disposed = true; cancelWait?.()
+		try { if (context != null) { const ctx = context!.getContext('2d'); if (ctx != null) { ctx.canvas.width = 1; ctx.canvas.height = 1 } } } catch (exception) { /* 页面原生节点可能已释放。 */ }
+		context = null
+		// #ifndef WEB
+		files.forEach((path: string) => { try { uni.getFileSystemManager().unlink({ filePath: path, fail: () => {} }) } catch (exception) { /* 仅清理本工具生成的临时文件。 */ } })
+		files.splice(0, files.length)
+		// #endif
+	}
+	return { render, dispose }
+}

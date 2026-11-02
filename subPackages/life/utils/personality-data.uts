@@ -1,0 +1,101 @@
+export type PersonalityQuestion = { id: string, axis: number, direction: number, text: string, source: string }
+export type PersonalityAxis = { left: string, right: string, title: string, note: string, color: string }
+export type PersonalityScore = { left: string, right: string, percent: number, rightPercent: number, balanced: boolean, color: string }
+export type PersonalityProfile = { code: string, title: string, summary: string, tags: string[], moments: string[], advice: string[] }
+export type PersonalityResult = { code: string, scores: PersonalityScore[], profile: PersonalityProfile }
+
+export const PERSONALITY_VERSION = 'ipip-adapted-24-v1'
+export const PERSONALITY_AXES: PersonalityAxis[] = [
+	{ left: '内向 I', right: '外向 E', title: '能量从哪里来', note: '独处与交流的不同节奏', color: '#7ea895' },
+	{ left: '直觉 N', right: '实感 S', title: '怎样感知世界', note: '可能性与具体经验的取向', color: '#90abcd' },
+	{ left: '情感 F', right: '思考 T', title: '如何做出选择', note: '价值感受与逻辑判断', color: '#bfa2b5' },
+	{ left: '感知 P', right: '判断 J', title: '喜欢怎样生活', note: '灵活探索与计划安排', color: '#cdb58c' }
+]
+export const PERSONALITY_OPTIONS = [
+	{ value: 5, label: '非常符合' }, { value: 4, label: '比较符合' }, { value: 3, label: '说不清 / 看情况' },
+	{ value: 2, label: '不太符合' }, { value: 1, label: '完全不符合' }
+]
+// IPIP Big-Five Factor Markers 公共领域条目的中文情境改编。
+// 每维度六题，正反向各三题；此四维分组不是经验证的 IPIP 或 MBTI 标准量表。
+export const PERSONALITY_QUESTIONS: PersonalityQuestion[] = [
+	{ id: 'i1', axis: 0, direction: 1, text: '忙碌的一周结束后，我更愿意独处来恢复能量。', source: 'Am a very private person.' },
+	{ id: 'n1', axis: 1, direction: 1, text: '一个普通的场景，也常让我联想到很多故事或可能性。', source: 'Have a vivid imagination.' },
+	{ id: 'f1', axis: 2, direction: 1, text: '朋友难过时，我会自然地体会对方的感受。', source: "Sympathize with others’ feelings." },
+	{ id: 'p1', axis: 3, direction: -1, text: '面对要做的事情，我习惯提前准备好所需物品和安排。', source: 'Am always prepared.' },
+	{ id: 'e1', axis: 0, direction: -1, text: '在聚会里，我常主动带动气氛，让大家聊起来。', source: 'Am the life of the party.' },
+	{ id: 's1', axis: 1, direction: -1, text: '比起讨论抽象概念，我更愿意关注具体、看得见的事情。', source: 'Am not interested in abstract ideas.' },
+	{ id: 't1', axis: 2, direction: -1, text: '做决定时，别人的情绪通常很少影响我的判断。', source: 'Am indifferent to the feelings of others.' },
+	{ id: 'p2', axis: 3, direction: 1, text: '日常物品放在哪里，我常随手决定，不太讲究固定位置。', source: 'Leave my belongings around.' },
+	{ id: 'i2', axis: 0, direction: 1, text: '和不熟悉的人待在一起时，我通常比较安静。', source: 'Am quiet around strangers.' },
+	{ id: 'n2', axis: 1, direction: 1, text: '遇到一个问题，我常能想到不止一种新的处理方式。', source: 'Am full of ideas.' },
+	{ id: 'f2', axis: 2, direction: 1, text: '看到别人遇到困难时，我往往容易心软。', source: 'Have a soft heart.' },
+	{ id: 'j2', axis: 3, direction: -1, text: '我喜欢按照日程安排推进一天的事情。', source: 'Follow a schedule.' },
+	{ id: 'e2', axis: 0, direction: -1, text: '遇到新认识的人，我经常先开口找话题。', source: 'Start conversations.' },
+	{ id: 's2', axis: 1, direction: -1, text: '理解复杂的抽象想法时，我常需要具体例子才能把握。', source: 'Have difficulty understanding abstract ideas.' },
+	{ id: 't2', axis: 2, direction: -1, text: '别人谈起自己的烦恼时，我往往不太想深入了解。', source: "Am not interested in other people’s problems." },
+	{ id: 'p3', axis: 3, direction: 1, text: '做完一件事后，我常忘记把物品放回原来的位置。', source: 'Often forget to put things back in their proper place.' },
+	{ id: 'i3', axis: 0, direction: 1, text: '在一群人中，我更习惯先观察，而不是成为焦点。', source: 'Keep in the background.' },
+	{ id: 'n3', axis: 1, direction: 1, text: '我喜欢花时间琢磨事情背后的意义和联系。', source: 'Spend time reflecting on things.' },
+	{ id: 'f3', axis: 2, direction: 1, text: '身边人的情绪变化，常会让我产生相似的感受。', source: "Feel others’ emotions." },
+	{ id: 'j3', axis: 3, direction: -1, text: '我喜欢先制定计划，再按计划完成它。', source: 'Make plans and stick to them.' },
+	{ id: 'e3', axis: 0, direction: -1, text: '参加活动时，我愿意和许多不同的人交谈。', source: 'Talk to a lot of different people at parties.' },
+	{ id: 's3', axis: 1, direction: -1, text: '比起凭空想象，我更习惯依据已有的经验思考。', source: 'Do not have a good imagination.' },
+	{ id: 't3', axis: 2, direction: -1, text: '别人的处境通常不会让我产生很强的牵挂。', source: 'Feel little concern for others.' },
+	{ id: 'p4', axis: 3, direction: 1, text: '做事时，我能接受桌面或周围环境暂时有些杂乱。', source: 'Make a mess of things.' }
+]
+
+// 根据四偏好框架自行撰写，不复制商业量表的题库或报告。
+const profileRows: string[] = [
+	'INFP|温柔的理想主义者|在丰富的内心世界里，守护自己的热爱|共情丰富,想象自由,忠于自我',
+	'INFJ|有远见的同行者|寻找意义，也愿意为理想安排脚步|洞察内心,重视价值,方向坚定',
+	'INTP|好奇的思考者|把问号留给世界，把空间留给思考|探索原理,思路开放,独立思考',
+	'INTJ|独立的构想者|让长远的构想，慢慢长成可行的路径|看见全局,逻辑清晰,着眼长远',
+	'ISFP|细腻的体验者|在真实的日常体验里，表达自己的在意|感受细致,随性自在,重视当下',
+	'ISFJ|温暖的守护者|把关心藏在细节，把可靠放进行动|照顾周到,踏实耐心,重视承诺',
+	'ISTP|灵活的实践者|用观察与尝试，找到问题的解法|动手探索,冷静观察,灵活应变',
+	'ISTJ|稳健的践行者|一步步把事情做好，让承诺有迹可循|关注事实,条理清楚,认真负责',
+	'ENFP|热情的探索者|在连接与新可能中，点亮生活的灵感|乐于交流,灵感丰富,热情真诚',
+	'ENFJ|温暖的引领者|把大家连接起来，一起走向有意义的方向|理解他人,积极沟通,乐于协作',
+	'ENTP|敏捷的开拓者|让新的观点碰撞，找到不同的可能|喜欢辩思,点子活跃,乐于求新',
+	'ENTJ|果断的组织者|把目标讲清楚，也把行动组织起来|目标清楚,善于统筹,重视效率',
+	'ESFP|明朗的分享者|把当下的快乐，分享给身边的人|热情自然,享受体验,亲切随和',
+	'ESFJ|热心的连接者|留意每个人的需要，让日常更有温度|关心他人,注重合作,乐于照应',
+	'ESTP|敏锐的行动者|在现场发现机会，在尝试中调整方向|反应敏捷,偏好实干,善于应变',
+	'ESTJ|务实的协调者|把安排落到实处，让合作有序推进|执行扎实,讲究秩序,表达直接'
+]
+
+export const emptyPersonalityAnswers = (): number[] => PERSONALITY_QUESTIONS.map((): number => 0)
+
+export const scorePersonality = (answers: number[]): PersonalityResult => {
+	if (answers.length != PERSONALITY_QUESTIONS.length || answers.some((value: number): boolean => !Number.isInteger(value) || value < 1 || value > 5)) throw new Error('请完成全部24道题后查看结果')
+	const totals = [0, 0, 0, 0]
+	PERSONALITY_QUESTIONS.forEach((question: PersonalityQuestion, index: number) => {
+		totals[question.axis] += question.direction > 0 ? answers[index] : 6 - answers[index]
+	})
+	let code = ''
+	const leftLetters = ['I', 'N', 'F', 'P'], rightLetters = ['E', 'S', 'T', 'J']
+	const scores = PERSONALITY_AXES.map((axis: PersonalityAxis, index: number): PersonalityScore => {
+		const total = totals[index]
+		code += total == 18 ? 'X' : total > 18 ? leftLetters[index] : rightLetters[index]
+		const percent = Math.round((total - 6) / 24 * 100)
+		return { left: axis.left, right: axis.right, percent, rightPercent: 100 - percent, balanced: total == 18, color: axis.color }
+	})
+	const row = profileRows.find((value: string): boolean => value.split('|')[0] == code)
+	const fields = row == null ? [code, '偏好仍在交汇处', '有些倾向尚不明显，给自己保留更多可能', '多面自我,不急定义,继续探索'] : row.split('|')
+	const moments = [
+		code[0] == 'I' ? '喜欢在安静的空间里整理自己的想法' : code[0] == 'E' ? '交流常能为你带来能量和新的思路' : '有时享受独处，有时也需要人与人的连接',
+		code[1] == 'N' ? '容易被新的想法、联系与可能性吸引' : code[1] == 'S' ? '更容易从具体经验与可见细节中找到方向' : '你会在想象与具体经验之间切换',
+		code[2] == 'F' ? '做选择时，会留意自己的价值感受与他人的处境' : code[2] == 'T' ? '做选择时，倾向先理清依据与逻辑关系' : '做选择时，你会同时权衡感受与逻辑'
+	]
+	if (code == 'INFP') {
+		moments[0] = '容易察觉气氛的细微变化'
+		moments[1] = '喜欢把灵感写进文字与创作'
+		moments[2] = '愿意为认同的事情投入热情'
+	}
+	const advice = [
+		code[3] == 'P' ? '给探索留白，也给想法一个小小的行动。' : code[3] == 'J' ? '让计划带来秩序，也为变化留一点余地。' : '尝试在灵活探索与适度计划之间，找到舒服的节奏。',
+		code[2] == 'F' ? '关心他人时，记得表达自己的需求。' : code[2] == 'T' ? '讲清道理时，也听听自己与他人的感受。' : '不必急着站在某一边，允许自己同时保留不同视角。',
+		'你比四个字母更丰富，也一直可以改变。'
+	]
+	return { code, scores, profile: { code, title: fields[1], summary: fields[2], tags: fields[3].split(','), moments, advice } }
+}

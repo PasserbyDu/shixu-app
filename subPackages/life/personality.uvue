@@ -1,0 +1,842 @@
+<template>
+	<view class="personality-page" :class="{ 'is-intro': stage == 'intro' }">
+		<scroll-view class="personality-scroll" scroll-y="true" :scroll-top="scrollTop">
+			<page-header
+				:fixed="false"
+				:customCapsuleContent="true"
+				contentPadding="0"
+				headerClass="page-header-calculator-bg"
+			>
+				<template #capsule>
+					<view class="personality-nav">
+						<view class="nav-back" @click="requestBack">
+							<UniIcons type="left" size="38rpx" color="#2b7fb5" />
+						</view>
+						<text class="nav-title">{{ stage == 'result' ? '你的性格画像' : 'INFP 性格测试' }}</text>
+						<view class="nav-balance" />
+					</view>
+				</template>
+				<view class="personality-intro">
+					<text class="intro-title">{{ stage == 'result' ? '你的性格画像' : 'INFP 性格测试' }}</text>
+					<text class="intro-note">{{ stage == 'intro' ? '给自己几分钟，听见内心的声音' : stage == 'questions' ? '慢慢来，跟随你的第一感受' : '24 道题已完成，认识自己又多了一点' }}</text>
+				</view>
+			</page-header>
+			<view v-if="stage == 'intro'" class="personality-content">
+				<image src="https://i.postimg.cc/RFj61b2q/infp.png" class="intro-hero-image" mode="aspectFit" />
+				<view class="personality-card stats-row">
+					<view v-for="stat in stats" :key="stat.value" class="stat-item">
+						<text class="stat-value">{{ stat.value }}</text>
+						<text class="stat-note">{{ stat.note }}</text>
+					</view>
+				</view>
+				<view class="personality-card">
+					<text class="section-title">这次，你将了解</text>
+					<view v-for="axis in axes" :key="axis.title" class="axis-intro-row">
+						<view class="axis-badge">
+							<text class="axis-badge-text">{{ axis.left.slice(-1) }} / {{ axis.right.slice(-1) }}</text>
+						</view>
+						<view class="axis-description">
+							<text class="axis-title">{{ axis.title }}</text>
+							<text class="muted-text">{{ axis.note }}</text>
+						</view>
+					</view>
+				</view>
+				<view class="personality-note">
+					<text class="body-text">没有标准答案，选择更像你的日常</text>
+					<text class="muted-text note-space">按近期真实感受作答，不必追求理想中的自己。</text>
+				</view>
+				<view class="personality-primary" @click="startTest">
+					<text class="primary-text">开始探索我的性格</text>
+				</view>
+				<text class="footer-note">结果仅供自我探索与娱乐，不为你定义边界</text>
+				<text class="source-note" @click="sourceDialog?.open()">题目来源与计分说明 ›</text>
+			</view>
+			<view v-else-if="stage == 'questions'" class="personality-content">
+				<view class="personality-card progress-card">
+					<view class="progress-heading">
+						<text class="body-text">探索进度</text>
+						<text class="progress-number">{{ questionIndex + 1 }} / {{ questions.length }}</text>
+					</view>
+					<view class="progress-track">
+						<view class="progress-fill" :style="'width:' + answeredCount / questions.length * 100 + '%;'" />
+					</view>
+				</view>
+				<view class="personality-card question-card">
+					<view class="question-badge">
+						<text class="question-badge-text">日常情境</text>
+					</view>
+					<text class="question-text">{{ questions[questionIndex].text }}</text>
+					<view
+						v-for="option in options"
+						:key="option.value"
+						class="answer-option"
+						:class="{ 'is-selected': answers[questionIndex] == option.value }"
+						@click="chooseAnswer(option.value)"
+					>
+						<UniIcons
+							:type="answers[questionIndex] == option.value ? 'checkbox-filled' : 'circle'"
+							size="28rpx"
+							:color="answers[questionIndex] == option.value ? '#7ea895' : '#b8c5d2'"
+						/>
+						<text class="answer-label">{{ option.label }}</text>
+					</view>
+					<text v-if="error.length > 0" class="inline-error">{{ error }}</text>
+				</view>
+				<text class="footer-note">选好后点击下一题，也可以返回修改答案</text>
+				<view class="question-actions">
+					<view
+						class="personality-secondary previous-button"
+						:class="{ 'is-disabled': questionIndex == 0 }"
+						@click="previousQuestion"
+					>
+						<text class="secondary-text">上一题</text>
+					</view>
+					<view class="personality-primary next-button" @click="nextQuestion">
+						<text class="primary-text">{{ questionIndex == questions.length - 1 ? '查看我的结果' : '下一题' }}</text>
+					</view>
+				</view>
+				<text class="footer-note">你的感受没有对错，也不需要被评判</text>
+				<text class="source-note" @click="exitDialog?.open()">暂时离开测试</text>
+			</view>
+			<view v-else-if="result != null" class="personality-content">
+				<view class="personality-hero result-hero">
+					<text class="result-caption">本次作答呈现的偏好类型</text>
+					<text class="result-code">{{ result!.code }}</text>
+					<text class="result-title">{{ result!.profile.title }}</text>
+					<text class="result-summary">{{ result!.profile.summary }}</text>
+					<view class="result-tags">
+						<view v-for="tag in result!.profile.tags" :key="tag" class="result-tag">
+							<text class="result-tag-text">{{ tag }}</text>
+						</view>
+					</view>
+					<view class="result-leaf">
+						<view class="leaf-stem" />
+						<view class="leaf-blade leaf-left" />
+						<view class="leaf-blade leaf-middle" />
+						<view class="leaf-blade leaf-right" />
+					</view>
+				</view>
+				<view class="personality-card">
+					<text class="section-title">四个维度，读懂你的偏好</text>
+					<text class="muted-text note-space">刻度表示本次作答倾向，没有高低优劣</text>
+					<view v-for="score in result!.scores" :key="score.left" class="score-row">
+						<view class="score-labels">
+							<text class="body-text">{{ score.left }}</text>
+							<text class="muted-text">{{ score.right }}</text>
+						</view>
+						<view class="score-track">
+							<view class="score-fill" :style="'width:' + score.percent + '%;background-color:' + score.color" />
+							<view class="score-knob" :style="'left:' + score.percent + '%;border-color:' + score.color" />
+						</view>
+						<text class="score-value" :style="'color:' + score.color">{{ score.balanced ? '50% / 50% · 倾向不明显（X）' : score.percent + '% / ' + score.rightPercent + '%' }}</text>
+					</view>
+				</view>
+				<view class="personality-card">
+					<text class="section-title">你可能会共鸣的时刻</text>
+					<view v-for="(moment, index) in result!.profile.moments" :key="index" class="moment-row">
+						<text class="moment-index">0{{ index + 1 }}</text>
+						<text class="moment-text">{{ moment }}</text>
+					</view>
+				</view>
+				<view class="personality-advice">
+					<text class="advice-title">给此刻的你，一点小建议</text>
+					<text v-for="tip in result!.profile.advice" :key="tip" class="advice-text">{{ tip }}</text>
+				</view>
+				<view class="personality-primary" :class="{ 'is-disabled': saving }" @click="saveCard">
+					<text class="primary-text">{{ saving ? '正在生成卡片…' : '保存我的性格卡片' }}</text>
+				</view>
+				<text v-if="saveError.length > 0" class="inline-error">{{ saveError }}</text>
+				<text class="source-note" @click="requestRestart">重新测试</text>
+				<text class="footer-note">仅供自我探索与娱乐，不构成专业心理评估</text>
+				<text class="source-note" @click="sourceDialog?.open()">题目来源与计分说明 ›</text>
+			</view>
+			<view class="safe-area-bottom-pad" />
+		</scroll-view>
+		<app-dialog
+			ref="exitDialog"
+			title="暂时离开测试？"
+			cancel-text="退出测试"
+			:close-on-cancel="false"
+			@cancel="abandonTest"
+			confirm-text="继续答题"
+			@confirm="exitDialog?.close()"
+		>
+			<text class="dialog-text">你已经完成了 {{ answeredCount }} 道题。</text>
+			<text class="dialog-text">退出后，本次未完成的答案将被清空。</text>
+		</app-dialog>
+		<app-dialog ref="restartDialog" title="重新探索一次？" confirm-text="重新测试" @confirm="restartTest">
+			<text class="dialog-text">这次结果已经生成，建议先保存卡片。</text>
+			<text class="dialog-text">重新测试会清空答案，并从第 1 题开始。</text>
+		</app-dialog>
+		<app-dialog
+			ref="sourceDialog"
+			title="题目来源与计分说明"
+			cancel-text=""
+			confirm-text="我知道了"
+			@confirm="sourceDialog?.close()"
+		>
+			<text class="dialog-text">24题参考 IPIP Big-Five Factor Markers 公共领域条目进行中文情境改编，四维分组与结果文案为本工具的趣味探索设计，不是官方 MBTI 或经验证的 IPIP 量表。</text>
+			<text class="dialog-text">每维度6题，正反向各3题，选项按1—5计分，反向题计为6减去选项分。维度总分6—30线性换算为0—100%的作答倾向，不代表概率或人群排名；同分显示 X。</text>
+			<text class="dialog-text">答案和结果仅在当前页面内存中使用，退出即清空；仅点击保存时生成本地图片。</text>
+			<text class="source-link" @click="copySources">复制来源网址：IPIP 题库、计分说明、四偏好框架</text>
+		</app-dialog>
+		<canvas id="personality-poster" canvas-id="personality-poster" type="2d" class="poster-canvas" />
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { computed, nextTick, ref } from 'vue';
+	import { onLoad, onReady, onUnload, onBackPress } from '@dcloudio/uni-app';
+	// #ifdef MP-WEIXIN
+	import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+	import { createPageShare, createTimelineShare, showPageShareMenu } from '@/utils/page-share.uts';
+	// #endif
+	import { recordToolUsage } from '@/utils/tool-usage';
+	import { toast } from '@/utils/toast';
+	import { saveLocalImage } from '@/utils/local-media.uts';
+	import { PersonalityResult, PERSONALITY_AXES, PERSONALITY_OPTIONS, PERSONALITY_QUESTIONS, emptyPersonalityAnswers, scorePersonality } from '@/subPackages/life/utils/personality-data.uts';
+	import { createPersonalityPoster } from '@/subPackages/life/utils/personality-poster.uts';
+	// data
+	type DialogRef = {
+		open: () => void;
+		close: () => void;
+	};
+	const exitDialog = ref<DialogRef | null>(null),
+		restartDialog = ref<DialogRef | null>(null),
+		sourceDialog = ref<DialogRef | null>(null);
+	const stage = ref('intro'),
+		questionIndex = ref(0),
+		answers = ref(emptyPersonalityAnswers());
+	const result = ref<PersonalityResult | null>(null),
+		error = ref(''),
+		saveError = ref(''),
+		saving = ref(false),
+		scrollTop = ref(0);
+	const axes = PERSONALITY_AXES,
+		options = PERSONALITY_OPTIONS,
+		questions = PERSONALITY_QUESTIONS;
+	const stats = [{
+		value: '24',
+		note: '道情境题'
+	}, {
+		value: '约 4 分钟',
+		note: '按直觉作答'
+	}, {
+		value: '4 个维度',
+		note: '看见你的偏好'
+	}];
+	const poster = createPersonalityPoster('personality-poster');
+	let disposed = false,
+		canvasReady = false;
+	// computed
+	const answeredCount = computed((): number => answers.value.filter((value: number): boolean => value > 0).length);
+	// methods
+	const resetScroll = () => {
+		scrollTop.value = 1;
+		nextTick(() => {
+			if (!disposed) scrollTop.value = 0;
+		});
+	};
+	const startTest = () => {
+		answers.value = emptyPersonalityAnswers();
+		questionIndex.value = 0;
+		result.value = null;
+		error.value = '';
+		saveError.value = '';
+		stage.value = 'questions';
+		resetScroll();
+	};
+	const chooseAnswer = (value: number) => {
+		answers.value[questionIndex.value] = value;
+		error.value = '';
+	};
+	const previousQuestion = () => {
+		if (questionIndex.value == 0) return;
+		questionIndex.value--;
+		error.value = '';
+		resetScroll();
+	};
+	const nextQuestion = () => {
+		if (answers.value[questionIndex.value] == 0) {
+			error.value = '请先选择更符合你的选项';
+			return;
+		}
+		if (questionIndex.value < questions.length - 1) {
+			questionIndex.value++;
+			error.value = '';
+			resetScroll();
+			return;
+		}
+		try {
+			result.value = scorePersonality(answers.value);
+			stage.value = 'result';
+			resetScroll();
+		} catch (exception) {
+			error.value = exception instanceof Error ? exception.message : '请检查是否有未完成的题目';
+		}
+	};
+	const abandonTest = () => {
+		exitDialog.value?.close();
+		answers.value = emptyPersonalityAnswers();
+		result.value = null;
+		questionIndex.value = 0;
+		error.value = '';
+		stage.value = 'intro';
+		resetScroll();
+	};
+	const requestBack = () => {
+		if (saving.value) return toast('请等待卡片处理完成');
+		if (stage.value == 'questions') return exitDialog.value?.open();
+		if (stage.value == 'result') {
+			stage.value = 'intro';
+			resetScroll();
+			return;
+		}
+		uni.navigateBack({
+			fail: () => uni.switchTab({
+				url: '/pages/index/index'
+			})
+		});
+	};
+	const requestRestart = () => {
+		if (!saving.value) restartDialog.value?.open();
+	};
+	const restartTest = () => {
+		if (saving.value) return;
+		restartDialog.value?.close();
+		startTest();
+	};
+	const copySources = () => uni.setClipboardData({
+		data: '题库与授权 https://ipip.ori.org/\n条目 https://ipip.ori.org/newBigFive5broadKey.htm\n计分 https://ipip.ori.org/newScoringInstructions.htm\n四偏好框架 https://www.myersbriggs.org/my-mbti-personality-type/the-16-mbti-personality-types/',
+		showToast: false,
+		success: () => toast('来源网址已复制'),
+		fail: () => toast('复制失败，请重试')
+	});
+	const saveCard = async () => {
+		if (saving.value || disposed || result.value == null) return;
+		if (!canvasReady) return toast('画布尚未就绪，请稍后重试');
+		saving.value = true;
+		saveError.value = '';
+		try {
+			const path = await poster.render(result.value!);
+			if (disposed) return;
+			// #ifdef WEB
+			uni.previewImage({
+				urls: [path],
+				current: path
+			});
+			toast('请在预览中长按图片或使用图片菜单保存');
+			// #endif
+			// #ifndef WEB
+			await saveLocalImage(path);
+			if (!disposed) toast('性格卡片已保存到相册');
+			// #endif
+		} catch (exception) {
+			if (!disposed) saveError.value = '保存失败，请检查相册权限后重试；测试结果仍保留。' + (exception instanceof Error ? exception.message : '');
+		} finally {
+			if (disposed) poster.dispose();else saving.value = false;
+		}
+	};
+	// lifecycle
+	onLoad(() => {
+		recordToolUsage('personality').catch(() => toast('保存使用记录失败'));
+		// #ifdef MP-WEIXIN
+		showPageShareMenu();
+		// #endif
+	});
+	onReady(() => {
+		canvasReady = true;
+	});
+	onBackPress((): boolean => {
+		if (saving.value) return true;
+		if (stage.value == 'questions') {
+			exitDialog.value?.open();
+			return true;
+		}
+		return false;
+	});
+	onUnload(() => {
+		disposed = true;
+		answers.value = emptyPersonalityAnswers();
+		result.value = null;
+		if (!saving.value) poster.dispose();
+	});
+	// #ifdef MP-WEIXIN
+	const pageShare = createPageShare('INFP 性格测试', '/subPackages/life/personality');
+	onShareAppMessage(() => pageShare);
+	onShareTimeline(() => createTimelineShare(pageShare));
+	// #endif
+</script>
+
+<style scoped lang="scss">
+	@import '@/uni.scss';
+	.personality-page {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		width: 100%;
+		background-color: #f7f8fc;
+		&.is-intro {
+			background: linear-gradient(135deg, #e3f3eb, #e8effe);
+		}
+	}
+	.personality-scroll {
+		flex: 1;
+		width: 100%;
+	}
+	.personality-nav {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		width: 750rpx;
+		.nav-back {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: center;
+			width: 88rpx;
+			height: 80rpx;
+		}
+		.nav-title {
+			flex: 1;
+			font-size: 27rpx;
+			line-height: 42rpx;
+			text-align: center;
+			color: $text-color;
+		}
+		.nav-balance {
+			width: 88rpx;
+		}
+	}
+	.personality-intro {
+		display: flex;
+		flex-direction: column;
+		padding: 22rpx 38rpx 30rpx;
+		.intro-title {
+			font-size: 46rpx;
+			line-height: 66rpx;
+			font-weight: 500;
+			color: #243746;
+		}
+		.intro-note {
+			margin-top: 12rpx;
+			font-size: 22rpx;
+			line-height: 38rpx;
+			color: #7a8994;
+		}
+	}
+	.personality-content {
+		display: flex;
+		flex-direction: column;
+		padding: 30rpx 38rpx 0;
+	}
+	.personality-card {
+		display: flex;
+		flex-direction: column;
+		margin-bottom: 38rpx;
+		padding: 30rpx;
+		border: 1rpx solid #e1e6ee;
+		border-radius: 30rpx;
+		background-color: #ffffff;
+	}
+	.section-title {
+		font-size: 30rpx;
+		line-height: 46rpx;
+		font-weight: 500;
+		color: #243746;
+	}
+	.body-text {
+		font-size: 24rpx;
+		line-height: 40rpx;
+		color: #607b8d;
+	}
+	.muted-text {
+		font-size: 20rpx;
+		line-height: 34rpx;
+		color: #8a99a6;
+	}
+	.note-space {
+		margin-top: 10rpx;
+	}
+	.intro-hero-image {
+		width: 674rpx;
+		height: 578rpx;
+		margin-bottom: 38rpx;
+	}
+	.personality-hero {
+		display: flex;
+		flex-direction: column;
+		margin-bottom: 38rpx;
+		padding-bottom: 28rpx;
+		border-radius: 38rpx;
+		background: linear-gradient(135deg, #e3f3eb, #e8effe);
+		overflow: hidden;
+		&.result-hero {
+			align-items: center;
+			padding: 40rpx 24rpx 32rpx;
+			.result-caption {
+				font-size: 20rpx;
+				line-height: 36rpx;
+				color: #7e9c8e;
+			}
+			.result-code {
+				margin-top: 10rpx;
+				font-size: 122rpx;
+				line-height: 154rpx;
+				font-weight: 500;
+				color: #547f70;
+			}
+			.result-title {
+				font-size: 38rpx;
+				line-height: 60rpx;
+				font-weight: 500;
+				text-align: center;
+				color: #43665b;
+			}
+			.result-summary {
+				margin-top: 22rpx;
+				font-size: 22rpx;
+				line-height: 38rpx;
+				text-align: center;
+				color: #7e9c8e;
+			}
+			.result-tags {
+				display: flex;
+				flex-direction: row;
+				flex-wrap: wrap;
+				justify-content: center;
+				margin-top: 18rpx;
+				.result-tag {
+					margin: 6rpx;
+					padding: 8rpx 24rpx;
+					border-radius: 28rpx;
+					background-color: #ffffff;
+					.result-tag-text {
+						font-size: 22rpx;
+						line-height: 34rpx;
+						color: #6b927f;
+					}
+				}
+			}
+			.result-leaf {
+				position: relative;
+				width: 148rpx;
+				height: 62rpx;
+				margin-top: 14rpx;
+				.leaf-stem {
+					position: absolute;
+					left: 8rpx;
+					bottom: 0;
+					width: 132rpx;
+					height: 32rpx;
+					border-top: 3rpx solid #87ab96;
+					border-radius: 50%;
+				}
+				.leaf-blade {
+					position: absolute;
+					width: 40rpx;
+					height: 20rpx;
+					border: 2rpx solid #87ab96;
+					border-radius: 0 40rpx 0 40rpx;
+					background-color: #d9eadf;
+					&.leaf-left {
+						left: 8rpx;
+						top: 16rpx;
+						transform: rotate(28deg);
+					}
+					&.leaf-middle {
+						left: 48rpx;
+						top: 32rpx;
+						transform: rotate(-20deg);
+					}
+					&.leaf-right {
+						left: 92rpx;
+						top: 6rpx;
+						transform: rotate(-45deg);
+					}
+				}
+			}
+		}
+	}
+	.stats-row {
+		display: flex;
+		flex-direction: row;
+		.stat-item {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			flex: 1;
+			.stat-value {
+				font-size: 32rpx;
+				line-height: 50rpx;
+				font-weight: 500;
+				color: #3d6c84;
+			}
+			.stat-note {
+				margin-top: 12rpx;
+				font-size: 20rpx;
+				line-height: 34rpx;
+				color: #8496a5;
+			}
+		}
+	}
+	.axis-intro-row {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		margin-top: 20rpx;
+		.axis-badge {
+			width: 94rpx;
+			padding: 8rpx 0;
+			border-radius: 14rpx;
+			background-color: #edf5f1;
+			.axis-badge-text {
+				font-size: 20rpx;
+				line-height: 32rpx;
+				text-align: center;
+				color: #658d7d;
+			}
+		}
+		.axis-description {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			margin-left: 20rpx;
+			.axis-title {
+				font-size: 24rpx;
+				line-height: 38rpx;
+				color: #486578;
+			}
+		}
+	}
+	.personality-note {
+		display: flex;
+		flex-direction: column;
+		padding: 28rpx 30rpx;
+		margin-bottom: 38rpx;
+		border-radius: 24rpx;
+		background-color: #eaf5f9;
+	}
+	.personality-primary, .personality-secondary {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		min-height: 88rpx;
+		padding: 8rpx 18rpx;
+		box-sizing: border-box;
+		border-radius: 22rpx;
+		&.is-disabled {
+			opacity: 0.5;
+		}
+	}
+	.personality-primary {
+		background: $dialog-primary-gradient-bg;
+		.primary-text {
+			font-size: 27rpx;
+			line-height: 42rpx;
+			font-weight: 500;
+			text-align: center;
+			color: #ffffff;
+		}
+	}
+	.personality-secondary {
+		background-color: #eaf5f9;
+		.secondary-text {
+			font-size: 27rpx;
+			line-height: 42rpx;
+			color: #2b7fb5;
+		}
+	}
+	.footer-note {
+		margin: 30rpx 0;
+		font-size: 20rpx;
+		line-height: 36rpx;
+		text-align: center;
+		color: #8a99a6;
+	}
+	.source-note, .source-link {
+		padding: 12rpx 0;
+		font-size: 23rpx;
+		line-height: 40rpx;
+		text-align: center;
+		color: #2b7fb5;
+	}
+	.progress-card {
+		.progress-heading {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+			.progress-number {
+				font-size: 24rpx;
+				line-height: 40rpx;
+				color: #2b7fb5;
+			}
+		}
+		.progress-track {
+			height: 10rpx;
+			margin-top: 20rpx;
+			border-radius: 6rpx;
+			background-color: #edf0f6;
+			.progress-fill {
+				height: 10rpx;
+				border-radius: 6rpx;
+				background-color: #7ea895;
+			}
+		}
+	}
+	.question-card {
+		padding: 38rpx;
+		.question-badge {
+			align-self: flex-start;
+			padding: 6rpx 32rpx;
+			border-radius: 24rpx;
+			background-color: #edf5f1;
+			.question-badge-text {
+				font-size: 20rpx;
+				line-height: 32rpx;
+				color: #678f7d;
+			}
+		}
+		.question-text {
+			min-height: 112rpx;
+			margin: 28rpx 0 30rpx;
+			font-size: 36rpx;
+			line-height: 58rpx;
+			font-weight: 500;
+			color: #2b485a;
+		}
+		.answer-option {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			min-height: 76rpx;
+			margin-top: 16rpx;
+			padding: 10rpx 22rpx;
+			box-sizing: border-box;
+			border: 1rpx solid #e6e9f0;
+			border-radius: 20rpx;
+			background-color: #f7f8fc;
+			.answer-label {
+				flex: 1;
+				margin-left: 20rpx;
+				font-size: 24rpx;
+				line-height: 40rpx;
+				color: #6d8293;
+			}
+			&.is-selected {
+				border-color: #7ea895;
+				background-color: #edf5f1;
+				.answer-label {
+					font-weight: 500;
+					color: #557e6d;
+				}
+			}
+		}
+	}
+	.question-actions {
+		display: flex;
+		flex-direction: row;
+		margin-top: 26rpx;
+		.previous-button {
+			width: 198rpx;
+			margin-right: 20rpx;
+		}
+		.next-button {
+			flex: 1;
+		}
+	}
+	.score-row {
+		display: flex;
+		flex-direction: column;
+		margin-top: 28rpx;
+		.score-labels {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+		}
+		.score-track {
+			position: relative;
+			height: 14rpx;
+			margin: 16rpx 12rpx 14rpx 0;
+			border-radius: 8rpx;
+			background-color: #edf0f6;
+			.score-fill {
+				height: 14rpx;
+				border-radius: 8rpx;
+			}
+			.score-knob {
+				position: absolute;
+				box-sizing: border-box;
+				top: -4rpx;
+				width: 22rpx;
+				height: 22rpx;
+				margin-left: -11rpx;
+				border: 4rpx solid #7ea895;
+				border-radius: 14rpx;
+				background-color: #ffffff;
+			}
+		}
+		.score-value {
+			font-size: 20rpx;
+			line-height: 34rpx;
+			text-align: right;
+		}
+	}
+	.moment-row {
+		display: flex;
+		flex-direction: row;
+		margin-top: 24rpx;
+		.moment-index {
+			width: 48rpx;
+			font-size: 20rpx;
+			line-height: 40rpx;
+			color: #91ab9d;
+		}
+		.moment-text {
+			flex: 1;
+			font-size: 24rpx;
+			line-height: 40rpx;
+			color: #607b8d;
+		}
+	}
+	.personality-advice {
+		display: flex;
+		flex-direction: column;
+		padding: 30rpx;
+		margin-bottom: 38rpx;
+		border-radius: 28rpx;
+		background-color: #edf5f1;
+		.advice-title {
+			font-size: 30rpx;
+			line-height: 46rpx;
+			font-weight: 500;
+			color: #557c6a;
+		}
+		.advice-text {
+			margin-top: 18rpx;
+			font-size: 22rpx;
+			line-height: 40rpx;
+			color: #7e9589;
+		}
+	}
+	.inline-error {
+		margin-top: 20rpx;
+		font-size: 24rpx;
+		line-height: 40rpx;
+		color: $dialog-error-color;
+	}
+	.dialog-text {
+		margin-bottom: 20rpx;
+		font-size: 24rpx;
+		line-height: 42rpx;
+		color: #6d8395;
+	}
+	.poster-canvas {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 2rpx;
+		height: 2rpx;
+	}
+</style>

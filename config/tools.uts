@@ -35,6 +35,11 @@ export type ToolGroup = {
 // 工具只定义一次；分类通过 toolIds 引用，同一工具可属于多个分类。
 const tools : Tool[] = [
 	{
+		id: 'personality', title: 'INFP 性格测试', shortTitle: '性格测试', summary: '24题探索四维偏好',
+		description: '24道情境题，探索四维偏好，生成并保存性格卡片', keywords: 'INFP MBTI 性格 测试 人格 心理 自我 探索 十六型 16型',
+		icon: '', iconText: '🌿', color: '#658d7d', background: '#edf5f1'
+	},
+	{
 		id: 'random-name', title: '随机点名', shortTitle: '随机点名', summary: '把名单交给随机',
 		description: '导入姓名名单，随机抽取幸运同学，支持多人和不重复点名', keywords: '随机 点名 姓名 名单 抽签 课堂 抽人 random',
 		icon: 'staff', iconText: '🙋', color: '#5568d9', background: '#eef0ff'
@@ -205,7 +210,7 @@ const categories : ToolCategory[] = [
 	{
 		id: 'life', title: '生活工具', shortTitle: '生活', subtitle: '日常实用工具',
 		icon: 'home', color: '#0096f7', background: '#edf8ff',
-		toolIds: ['date', 'time', 'unit', 'retirement', 'age', 'lunar-date', 'kinship', 'random-decision', 'random-name', 'packing-list', 'account', 'fitness', 'pet', 'pomodoro', 'breathing']
+		toolIds: ['date', 'time', 'unit', 'retirement', 'age', 'personality', 'lunar-date', 'kinship', 'random-decision', 'random-name', 'packing-list', 'account', 'fitness', 'pet', 'pomodoro', 'breathing']
 	},
 	{
 		id: 'office', title: '办公工具', shortTitle: '办公', subtitle: '提升工作效率',
@@ -272,6 +277,8 @@ export const getToolPath = (id : string) : string => {
 			return '/subPackages/life/retirement'
 		case 'age':
 			return '/subPackages/life/age'
+		case 'personality':
+			return '/subPackages/life/personality'
 		case 'lunar-date':
 			return '/subPackages/life/lunar-date'
 		case 'kinship':

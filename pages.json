@@ -185,6 +185,14 @@
 						"navigationStyle": "custom",
 						"backgroundColor": "#F5F8FC"
 					}
+				},
+				{
+					"path": "personality",
+					"style": {
+						"navigationBarTitleText": "INFP 性格测试",
+						"navigationStyle": "custom",
+						"backgroundColor": "#F7F8FC"
+					}
 				}
 			]
 		},
